@@ -64,6 +64,7 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.match(migration, /create table if not exists public\.logo_projects/i);
   assert.match(migration, /create table if not exists public\.logo_generations/i);
   assert.match(supabase, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(supabase, /Authorization: `Bearer \$\{key\}`/);
   assert.doesNotMatch(route + runtime, /runtime\.DB|D1Database/);
   assert.ok(root);
 });

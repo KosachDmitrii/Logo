@@ -17,11 +17,9 @@ function headers(prefer?: string) {
   const { key } = config();
   const result = new Headers({
     apikey: key,
+    Authorization: `Bearer ${key}`,
     "Content-Type": "application/json",
   });
-  if (!key.startsWith("sb_secret_")) {
-    result.set("Authorization", `Bearer ${key}`);
-  }
   if (prefer) result.set("Prefer", prefer);
   return result;
 }
