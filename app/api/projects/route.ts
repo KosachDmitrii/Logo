@@ -14,6 +14,7 @@ import {
   selectRows,
   updateRows,
 } from "../../../lib/supabase";
+import { assessLogoImage } from "../../../lib/logo-quality";
 
 type ProjectRow = {
   id: string;
@@ -27,12 +28,6 @@ type ProjectRow = {
 type CloudflareImageResponse = {
   success?: boolean;
   result?: { image?: string };
-  errors?: Array<{ code?: number; message?: string }>;
-};
-
-type CloudflareTextResponse = {
-  success?: boolean;
-  result?: { response?: string };
   errors?: Array<{ code?: number; message?: string }>;
 };
 
@@ -82,122 +77,8 @@ function fallbackStrategy(brief: ReturnType<typeof validateBrief>): BrandStrateg
     palette: ["#201F1E", "#F3F0EA", "#FFCF68", "#FFFFFF"],
     trademarkNotice:
       "Automated similarity checks are directional only. A qualified trademark professional must clear the final identity in every intended market.",
-    creativeDirections: [
-      {
-        key: "catalyst",
-        title: "Brand Catalyst",
-        thesis: `Translate “${brief.coreIdea}” into one active geometric relationship without illustrating the category.`,
-      },
-      {
-        key: "counterform",
-        title: "Ownable Counterform",
-        thesis:
-          "Build recognition through one surprising piece of negative space and a compact silhouette.",
-      },
-      {
-        key: "constructive",
-        title: "Constructive Tension",
-        thesis:
-          "Balance disciplined structure with one deliberate interruption that expresses the brand personality.",
-      },
-      {
-        key: "human-system",
-        title: "Human System",
-        thesis:
-          "Create a modular, precise symbol softened by one approachable and memorable gesture.",
-      },
-    ],
+    creativeDirections: directions,
   };
-}
-
-async function researchStrategy(
-  brief: ReturnType<typeof validateBrief>,
-  runtime: ReturnType<typeof getRuntimeEnv>,
-): Promise<BrandStrategy> {
-  const fallback = fallbackStrategy(brief);
-  try {
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3.1-8b-instruct-fast`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a senior brand strategist. Return only valid compact JSON, never markdown.",
-            },
-            {
-              role: "user",
-              content: `Research a logo strategy from this brief:
-${JSON.stringify(brief)}
-Return exactly these keys:
-categoryCodes (3 short strings), competitorRisks (2 short strings),
-differentiation (one sentence), typography (one sentence),
-palette (exactly 4 accessible hex colors), trademarkNotice (one sentence),
-creativeDirections (exactly 4 objects with unique lowercase key, a 2-4 word
-title, and a one-sentence thesis). Each direction must be specific to this brief,
-visually distinct, non-literal and compatible with a text-free abstract symbol.
-Do not claim a legal trademark search was performed.`,
-            },
-          ],
-          max_tokens: 650,
-          temperature: 0.25,
-        }),
-      },
-    );
-    const payload = (await response.json()) as CloudflareTextResponse;
-    const text = payload.result?.response
-      ?.replace(/^```json\s*/i, "")
-      .replace(/```\s*$/i, "");
-    if (!response.ok || !text) return fallback;
-    const parsed = JSON.parse(text) as Partial<BrandStrategy>;
-    return {
-      categoryCodes:
-        Array.isArray(parsed.categoryCodes) && parsed.categoryCodes.length
-          ? parsed.categoryCodes.slice(0, 3)
-          : fallback.categoryCodes,
-      competitorRisks:
-        Array.isArray(parsed.competitorRisks) && parsed.competitorRisks.length
-          ? parsed.competitorRisks.slice(0, 2)
-          : fallback.competitorRisks,
-      differentiation: parsed.differentiation || fallback.differentiation,
-      typography: parsed.typography || fallback.typography,
-      palette:
-        Array.isArray(parsed.palette) &&
-        parsed.palette.length === 4 &&
-        parsed.palette.every((color) => /^#[0-9a-f]{6}$/i.test(color))
-          ? parsed.palette
-          : fallback.palette,
-      trademarkNotice: fallback.trademarkNotice,
-      creativeDirections:
-        Array.isArray(parsed.creativeDirections) &&
-        parsed.creativeDirections.length === 4
-          ? parsed.creativeDirections.map((direction, index) => {
-              const candidate = direction as Partial<(typeof directions)[number]>;
-              return {
-                key:
-                  String(candidate.key ?? `direction-${index + 1}`)
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, "-")
-                    .replace(/^-|-$/g, "") || `direction-${index + 1}`,
-                title:
-                  String(candidate.title ?? "").trim().slice(0, 60) ||
-                  fallback.creativeDirections[index].title,
-                thesis:
-                  String(candidate.thesis ?? "").trim().slice(0, 240) ||
-                  fallback.creativeDirections[index].thesis,
-              };
-            })
-          : fallback.creativeDirections,
-    };
-  } catch {
-    return fallback;
-  }
 }
 
 export async function GET() {
@@ -254,6 +135,13 @@ export async function POST(request: Request) {
 
   const existingProjectId =
     typeof input.projectId === "string" ? input.projectId : "";
+  const requestId =
+    typeof input.requestId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      input.requestId,
+    )
+      ? input.requestId
+      : "";
   const now = Date.now();
   if (!existingProjectId && process.env.NODE_ENV === "production") {
     const recent = await countRows("logo_projects", {
@@ -313,8 +201,27 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    projectId = crypto.randomUUID();
-    strategy = await researchStrategy(brief, runtime);
+    projectId = requestId || crypto.randomUUID();
+    if (requestId) {
+      const duplicate = await selectOne<{ id: string }>("logo_projects", {
+        select: "id",
+        id: `eq.${requestId}`,
+        user_email: `eq.${user.email}`,
+      });
+      if (duplicate) {
+        return Response.json(
+          {
+            error:
+              "This generation request was already accepted. No duplicate inference was started.",
+            projectId: requestId,
+          },
+          { status: 409 },
+        );
+      }
+    }
+    // Deterministic strategy avoids a hidden LLM charge and guarantees four
+    // structurally different construction recipes.
+    strategy = fallbackStrategy(brief);
     enrichedBrief = { ...brief, strategy };
     await insertRow("logo_projects", {
       id: projectId,
@@ -329,6 +236,25 @@ export async function POST(request: Request) {
   }
 
   const userHash = await hashIdentity(user.email);
+  const actionId =
+    typeof input.actionId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      input.actionId,
+    )
+      ? input.actionId
+      : "";
+  if (existingProjectId && actionId) {
+    const actionKey = `users/${userHash}/projects/${projectId}/actions/${actionId}`;
+    if (await runtime.FILES.head(actionKey)) {
+      return Response.json(
+        { error: "This action was already accepted. No duplicate inference was started." },
+        { status: 409 },
+      );
+    }
+    await runtime.FILES.put(actionKey, new Uint8Array(), {
+      customMetadata: { type: "generation-action" },
+    });
+  }
   const strategyDirections =
     enrichedBrief.strategy.creativeDirections?.length === 4
       ? enrichedBrief.strategy.creativeDirections
@@ -337,10 +263,12 @@ export async function POST(request: Request) {
     ? (() => {
         const direction =
           strategyDirections[existingConceptCount % strategyDirections.length];
+        const alternateNumber =
+          Math.floor(existingConceptCount / strategyDirections.length) + 1;
         return [{
           ...direction,
           key: `${direction.key}-${existingConceptCount + 1}`,
-          title: `${direction.title} — Alternate ${existingConceptCount - 3}`,
+          title: `${direction.title} — Alternate ${alternateNumber}`,
           thesis: `${direction.thesis} Explore a clearly different construction and silhouette.`,
         }];
       })()
@@ -378,7 +306,8 @@ export async function POST(request: Request) {
           : `Cloudflare Workers AI returned ${response.status} without an image.`,
       );
     }
-    const generationId = crypto.randomUUID();
+    const generationId =
+      existingProjectId && actionId ? actionId : crypto.randomUUID();
     const format = imageFormat(base64);
     const objectKey = `users/${userHash}/projects/${projectId}/${generationId}.${format.extension}`;
     const bytes = Uint8Array.from(atob(base64), (character) =>
@@ -400,11 +329,45 @@ export async function POST(request: Request) {
       user_email: user.email,
       direction_key: direction.key,
       direction_title: direction.title,
-      prompt,
+      prompt: `${prompt}\n\n[LOOPEN_QC:0][LOOPEN_STATUS:Review][LOOPEN_REASON:${encodeURIComponent("Automated review pending; inspect before refinement.")}]`,
       object_key: objectKey,
       status: "completed",
       created_at: Date.now(),
     });
+    let qualityScore: number | undefined;
+    let reviewStatus = "Review";
+    let reviewReason = "Automated review unavailable; inspect before refinement.";
+    try {
+      const quality = await assessLogoImage(
+        base64,
+        {
+          avoid: enrichedBrief.avoid,
+          direction: `${direction.title}: ${direction.thesis}`,
+          stage: "concept",
+        },
+        runtime,
+      );
+      qualityScore = quality.score;
+      reviewStatus = quality.approved
+        ? "Recommended"
+        : quality.containsText
+          ? "Rejected · text detected"
+          : "Review";
+      reviewReason = quality.reason;
+      await updateRows(
+        "logo_generations",
+        { id: `eq.${generationId}`, user_email: `eq.${user.email}` },
+        {
+          prompt: `${prompt}\n\n[LOOPEN_QC:${qualityScore}][LOOPEN_STATUS:${reviewStatus}][LOOPEN_REASON:${encodeURIComponent(reviewReason)}]`,
+        },
+      );
+    } catch (error) {
+      console.warn({
+        event: "logo_review_unavailable",
+        direction: direction.key,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
     console.log({
       event: "logo_concept_completed",
       direction: direction.key,
@@ -420,6 +383,9 @@ export async function POST(request: Request) {
       downloadUrl: `/api/images/${generationId}?download=1`,
       id: generationId,
       imageUrl: `/api/images/${generationId}`,
+      qualityScore,
+      reviewReason,
+      reviewStatus,
     };
   }
 

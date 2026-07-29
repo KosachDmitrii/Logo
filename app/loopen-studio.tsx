@@ -15,6 +15,8 @@ type GeneratedConcept = {
   imageUrl: string;
   qualityScore?: number;
   rationale?: string;
+  reviewReason?: string;
+  reviewStatus?: string;
 };
 
 type BrandStrategy = {
@@ -76,32 +78,32 @@ const concepts: Concept[] = [
   {
     id: "continuous",
     index: "01",
-    name: "Continuous Loop",
-    thesis: "A single gesture. Movement without an endpoint.",
+    name: "Continuous Space",
+    thesis: "One uninterrupted form with an asymmetric visual flow.",
     className: "mark-loop",
     accent: "acid",
   },
   {
     id: "portal",
     index: "02",
-    name: "Open Portal",
-    thesis: "A living frame that turns attention into motion.",
+    name: "Open Counterform",
+    thesis: "One compact mass transformed by an unexpected internal void.",
     className: "mark-portal",
     accent: "cobalt",
   },
   {
     id: "signal",
     index: "03",
-    name: "Loop Signal",
-    thesis: "Two connected states, always exchanging energy.",
+    name: "Modular Rhythm",
+    thesis: "Three unequal modules create recognition through spacing.",
     className: "mark-signal",
     accent: "coral",
   },
   {
     id: "fold",
     index: "04",
-    name: "Soft Fold",
-    thesis: "A precise system with a human, tactile edge.",
+    name: "Constructive Tension",
+    thesis: "Rounded and sharp masses meet at one controlled joint.",
     className: "mark-fold",
     accent: "lavender",
   },
@@ -147,9 +149,9 @@ export default function LoopenStudio({
     "MVRDV, OMA, BIG, Snøhetta, Assemble, Space10, Adjaye Associates",
   );
   const [logoType, setLogoType] =
-    useState<PremiumBrief["logoType"]>("wordmark");
+    useState<PremiumBrief["logoType"]>("abstract");
   const [visualDirection, setVisualDirection] = useState(
-    "Bold editorial wordmark with architectural structure, unexpected spacing and one playful custom letter detail. Swiss modernist discipline disrupted by a warm, unconventional gesture.",
+    "Abstract, non-literal graphic mark with architectural precision, strong negative space and one playful geometric interruption.",
   );
   const [usage, setUsage] = useState(
     "Architectural drawings, construction-site signage, project presentations, website, social media, competition boards, wayfinding, printed publications and building plaques.",
@@ -169,6 +171,7 @@ export default function LoopenStudio({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
   const [notice, setNotice] = useState("");
+  const [diversityWarning, setDiversityWarning] = useState("");
   const [assets, setAssets] = useState<StudioAsset[]>([]);
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -183,6 +186,9 @@ export default function LoopenStudio({
   const [lockupColor, setLockupColor] = useState("#201f1e");
   const [descriptor, setDescriptor] = useState("Architecture as a catalyst");
   const [wordmarkStyle, setWordmarkStyle] = useState("modern");
+  const [wordmarkCase, setWordmarkCase] = useState<"original" | "upper" | "lower">("original");
+  const [wordmarkWeight, setWordmarkWeight] = useState(600);
+  const [wordmarkTracking, setWordmarkTracking] = useState(-3);
   const [markScale, setMarkScale] = useState(100);
 
   const selected = useMemo(
@@ -324,6 +330,7 @@ export default function LoopenStudio({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requestId: crypto.randomUUID(),
           brandName,
           coreIdea,
           personalities,
@@ -361,9 +368,10 @@ export default function LoopenStudio({
       setIsGenerating(false);
       setNotice(
         payload.failures?.length
-          ? `${payload.generations.length} of 4 directions generated. ${payload.failures.length} failed after retry: ${payload.failures[0]}`
-          : "All 4 strategic directions generated and saved.",
+          ? `${payload.generations.length} of 4 directions generated. ${payload.failures.length} request failed; no automatic retry was made.`
+          : "All 4 graphic marks generated, reviewed and saved.",
       );
+      void auditDiversity(payload.generations);
       void loadHistory();
       document
         .getElementById("concepts")
@@ -381,12 +389,12 @@ export default function LoopenStudio({
   async function generateMore() {
     if (!projectId || generatedConcepts.length >= 8) return;
     setIsGeneratingMore(true);
-    setNotice("Generating one more fast concept with Klein 9B…");
+    setNotice("Generating exactly one additional graphic mark with Klein 4B…");
     try {
       const response = await fetch("/api/generate-concepts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, actionId: crypto.randomUUID() }),
       });
       const payload = (await response.json()) as {
         error?: string;
@@ -397,6 +405,7 @@ export default function LoopenStudio({
         throw new Error(payload.error ?? "More concepts could not be generated.");
       }
       setGeneratedConcepts((current) => [...current, ...payload.generations!]);
+      void auditDiversity([...generatedConcepts, ...payload.generations]);
       setNotice(
         payload.failures?.length
           ? `The additional concept could not be completed: ${payload.failures[0]}`
@@ -414,6 +423,11 @@ export default function LoopenStudio({
       setNotice("Select one or two concepts before refinement.");
       return;
     }
+    if (
+      !window.confirm(
+        `Create ${selectedConceptIds.length} paid FLUX.2 Dev refinement${selectedConceptIds.length > 1 ? "s" : ""} at 1024 px? No automatic retries will run.`,
+      )
+    ) return;
     setIsRefining(true);
     setNotice(`Creating ${selectedConceptIds.length} high-fidelity FLUX.2 Dev refinement${selectedConceptIds.length > 1 ? "s" : ""}…`);
     const response = await fetch(`/api/projects/${projectId}/refine`, {
@@ -441,6 +455,11 @@ export default function LoopenStudio({
       setNotice("Choose a refined symbol before vectorization.");
       return;
     }
+    if (
+      !window.confirm(
+        "Run one preflight review and, if it passes, one paid Recraft vectorization request?",
+      )
+    ) return;
     setIsVectorizing(true);
     setNotice("Tracing the selected symbol into an exact SVG…");
     const response = await fetch(`/api/projects/${projectId}/vectorize`, {
@@ -481,6 +500,9 @@ export default function LoopenStudio({
         descriptor,
         layout,
         markScale,
+        wordmarkCase,
+        wordmarkWeight,
+        wordmarkTracking,
         wordmarkStyle,
       }),
     });
@@ -570,6 +592,77 @@ export default function LoopenStudio({
         ? `${generation.directionTitle} added to the refinement shortlist (${selectedConceptIds.length + 1}/2).`
         : "The direction is selected locally, but could not be saved.",
     );
+  }
+
+  async function deleteConcept(generation: GeneratedConcept) {
+    if (!window.confirm(`Delete “${generation.directionTitle}”?`)) return;
+    const response = await fetch(`/api/images/${generation.id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      setNotice("Concept could not be deleted.");
+      return;
+    }
+    setGeneratedConcepts((current) =>
+      current.filter((item) => item.id !== generation.id),
+    );
+    setSelectedConceptIds((current) =>
+      current.filter((id) => id !== generation.id),
+    );
+    setNotice("Concept deleted. No replacement was generated.");
+  }
+
+  async function auditDiversity(items: GeneratedConcept[]) {
+    if (items.length < 2) return;
+    try {
+      const hashes = await Promise.all(
+        items.map(
+          (item) =>
+            new Promise<string>((resolve, reject) => {
+              const image = new Image();
+              image.onload = () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 16;
+                canvas.height = 16;
+                const context = canvas.getContext("2d", { willReadFrequently: true });
+                if (!context) return reject(new Error("Canvas unavailable"));
+                context.drawImage(image, 0, 0, 16, 16);
+                const pixels = context.getImageData(0, 0, 16, 16).data;
+                const values = Array.from({ length: 256 }, (_, index) => {
+                  const offset = index * 4;
+                  return (
+                    pixels[offset] * 0.299 +
+                    pixels[offset + 1] * 0.587 +
+                    pixels[offset + 2] * 0.114
+                  );
+                });
+                const average =
+                  values.reduce((sum, value) => sum + value, 0) / values.length;
+                resolve(values.map((value) => (value >= average ? "1" : "0")).join(""));
+              };
+              image.onerror = reject;
+              image.src = item.imageUrl;
+            }),
+        ),
+      );
+      let closest = 256;
+      for (let left = 0; left < hashes.length; left += 1) {
+        for (let right = left + 1; right < hashes.length; right += 1) {
+          let distance = 0;
+          for (let bit = 0; bit < hashes[left].length; bit += 1) {
+            if (hashes[left][bit] !== hashes[right][bit]) distance += 1;
+          }
+          closest = Math.min(closest, distance);
+        }
+      }
+      setDiversityWarning(
+        closest < 28
+          ? "Similarity warning: at least two concepts have a closely related silhouette. Review them manually; Loopen will not regenerate without your action."
+          : "",
+      );
+    } catch {
+      setDiversityWarning("Automatic silhouette comparison was unavailable. Review variety manually.");
+    }
   }
 
   return (
@@ -754,7 +847,7 @@ export default function LoopenStudio({
           </div>
           <div className="premium-fields production-brief">
             <label>
-              <span className="mini-label">Logo type</span>
+              <span className="mini-label">Final identity type</span>
               <select value={logoType} onChange={(event) => setLogoType(event.target.value as PremiumBrief["logoType"])}>
                 <option value="abstract">Abstract symbol</option>
                 <option value="monogram">Monogram</option>
@@ -782,7 +875,7 @@ export default function LoopenStudio({
           </div>
           <div className="generate-row">
             <p>
-              <span>4</span> strategic directions
+              <span>4</span> images · Klein 4B · 512 px · exactly 4 image requests + non-blocking reviews
             </p>
             <button
               className="primary-button"
@@ -793,7 +886,7 @@ export default function LoopenStudio({
               {isGenerating
                 ? "Generating real concepts…"
                 : user
-                  ? "Generate 4 real directions"
+                  ? "Generate 4 graphic marks"
                   : "Sign in to generate"}
               {isGenerating ? (
                 <span className="water-loader" aria-label="Generating">
@@ -879,6 +972,11 @@ export default function LoopenStudio({
             24 px before it earns the right to become a brand.
           </p>
         </div>
+        {diversityWarning && (
+          <p className="diversity-warning" role="status">
+            {diversityWarning}
+          </p>
+        )}
 
         {generatedConcepts.length ? (
           <div className="concept-grid">
@@ -894,19 +992,17 @@ export default function LoopenStudio({
               const conceptKey = generated.directionKey;
               const isActive = selectedConceptIds.includes(generated.id);
               return (
-              <button
+              <article
                 className={`concept-card ${isActive ? "selected" : ""}`}
-                type="button"
                 key={generated.id}
-                onClick={() => selectGeneratedConcept(conceptKey)}
-                aria-pressed={isActive}
               >
                 <div className="concept-meta">
                   <span>{String(conceptIndex + 1).padStart(2, "0")}</span>
-                  <span className={`score ${concept.accent}`}>
-                    {generated.qualityScore
-                      ? `QC ${generated.qualityScore}/100`
-                      : "Legacy · unchecked"}
+                  <span
+                    className={`score ${concept.accent}`}
+                    title={generated.reviewReason ?? "Manual review required"}
+                  >
+                    {generated.reviewStatus ?? "Review"}
                   </span>
                 </div>
                 <div className="concept-mark generated-mark">
@@ -918,12 +1014,28 @@ export default function LoopenStudio({
                 <div className="concept-copy">
                   <h3>{generated.directionTitle}</h3>
                   <p>{generated.rationale ?? concept.thesis}</p>
+                  <small className="review-reason">
+                    {generated.reviewReason ?? "Inspect before refinement."}
+                  </small>
                 </div>
-                <span className="select-indicator">
+                <button
+                  className="select-indicator"
+                  type="button"
+                  onClick={() => selectGeneratedConcept(conceptKey)}
+                  aria-pressed={isActive}
+                >
                   {isActive ? `Selected ${selectedConceptIds.indexOf(generated.id) + 1}/2` : "Select"}{" "}
                   <b>{isActive ? "●" : "+"}</b>
-                </span>
-              </button>
+                </button>
+                <button
+                  className="delete-concept"
+                  type="button"
+                  onClick={() => deleteConcept(generated)}
+                  aria-label={`Delete ${generated.directionTitle}`}
+                >
+                  Delete
+                </button>
+              </article>
               );
             })}
           </div>
@@ -941,7 +1053,7 @@ export default function LoopenStudio({
 
         {generatedConcepts.length > 0 && generatedConcepts.length < 8 && (
           <div className="more-concepts">
-            <span>{generatedConcepts.length} concepts ready · select up to 2</span>
+            <span>{generatedConcepts.length} concepts ready · next action makes exactly 1 image request</span>
             <button
               type="button"
               onClick={generateMore}
@@ -1093,6 +1205,22 @@ export default function LoopenStudio({
               </select>
             </label>
             <label>
+              <span className="mini-label">Case</span>
+              <select value={wordmarkCase} onChange={(event) => setWordmarkCase(event.target.value as typeof wordmarkCase)}>
+                <option value="original">Original</option>
+                <option value="upper">Uppercase</option>
+                <option value="lower">Lowercase</option>
+              </select>
+            </label>
+            <label>
+              <span className="mini-label">Wordmark weight — {wordmarkWeight}</span>
+              <input type="range" min="400" max="800" step="100" value={wordmarkWeight} onChange={(event) => setWordmarkWeight(Number(event.target.value))} />
+            </label>
+            <label>
+              <span className="mini-label">Tracking — {wordmarkTracking}</span>
+              <input type="range" min="-8" max="8" value={wordmarkTracking} onChange={(event) => setWordmarkTracking(Number(event.target.value))} />
+            </label>
+            <label>
               <span className="mini-label">Optical mark scale — {markScale}%</span>
               <input type="range" min="88" max="112" value={markScale} onChange={(event) => setMarkScale(Number(event.target.value))} />
             </label>
@@ -1110,7 +1238,16 @@ export default function LoopenStudio({
             ) : <div className="preview-placeholder">SVG</div>}
             {lockupLayout !== "icon" && (
               <div>
-                <strong className={`wordmark-${wordmarkStyle}`}>{brandName || "Brand name"}</strong>
+                <strong
+                  className={`wordmark-${wordmarkStyle}`}
+                  style={{ fontWeight: wordmarkWeight, letterSpacing: `${wordmarkTracking / 100}em` }}
+                >
+                  {wordmarkCase === "upper"
+                    ? (brandName || "Brand name").toUpperCase()
+                    : wordmarkCase === "lower"
+                      ? (brandName || "Brand name").toLowerCase()
+                      : brandName || "Brand name"}
+                </strong>
                 {descriptor && <span>{descriptor}</span>}
               </div>
             )}
@@ -1119,7 +1256,7 @@ export default function LoopenStudio({
             <article>
               <span>Responsive test</span>
               <div className="size-test">
-                {[16, 24, 48].map((size) => (
+                {[16, 24, 32, 64].map((size) => (
                   <figure key={size}>
                     {selectedVectorAsset ? <img src={selectedVectorAsset.url} alt="" style={{ width: size, height: size }} /> : <i />}
                     <figcaption>{size}px</figcaption>

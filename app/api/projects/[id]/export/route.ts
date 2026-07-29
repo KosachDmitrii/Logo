@@ -22,6 +22,9 @@ export async function POST(
     layout?: "horizontal" | "vertical" | "icon";
     color?: string;
     markScale?: number;
+    wordmarkCase?: "original" | "upper" | "lower";
+    wordmarkWeight?: number;
+    wordmarkTracking?: number;
     wordmarkStyle?: string;
   };
   const row = await selectOne<{
@@ -51,7 +54,13 @@ export async function POST(
   const width = iconOnly ? 512 : horizontal ? 1400 : 900;
   const height = iconOnly ? 512 : horizontal ? 420 : 900;
   const color = /^#[0-9a-f]{6}$/i.test(input.color ?? "") ? input.color! : "#201f1e";
-  const brand = escapeXml(row.logo_projects.brand_name);
+  const displayBrand =
+    input.wordmarkCase === "upper"
+      ? row.logo_projects.brand_name.toUpperCase()
+      : input.wordmarkCase === "lower"
+        ? row.logo_projects.brand_name.toLowerCase()
+        : row.logo_projects.brand_name;
+  const brand = escapeXml(displayBrand);
   const descriptor = escapeXml((input.descriptor ?? "").trim().slice(0, 80));
   const scale = Math.min(1.12, Math.max(0.88, Number(input.markScale ?? 100) / 100));
   const typography = {
@@ -81,6 +90,14 @@ export async function POST(
     spacing: "-5",
   };
   const scaled = (size: number) => Math.round(size * scale);
+  const wordmarkWeight = Math.min(
+    800,
+    Math.max(400, Math.round(Number(input.wordmarkWeight ?? typography.weight) / 100) * 100),
+  );
+  const wordmarkTracking = Math.min(
+    8,
+    Math.max(-8, Number(input.wordmarkTracking ?? typography.spacing)),
+  );
   const mark = iconOnly
     ? `<svg x="${(512 - scaled(448)) / 2}" y="${(512 - scaled(448)) / 2}" width="${scaled(448)}" height="${scaled(448)}" viewBox="${escapeXml(viewBox)}">${inner}</svg>`
     : horizontal
@@ -89,9 +106,9 @@ export async function POST(
   const text = iconOnly
     ? ""
     : horizontal
-    ? `<text x="440" y="215" font-family="${typography.family}" font-size="112" font-weight="${typography.weight}" letter-spacing="${typography.spacing}">${brand}</text>
+    ? `<text x="440" y="215" font-family="${typography.family}" font-size="112" font-weight="${wordmarkWeight}" letter-spacing="${wordmarkTracking}">${brand}</text>
        ${descriptor ? `<text x="446" y="275" font-family="Arial, Helvetica, sans-serif" font-size="24" letter-spacing="9">${descriptor.toUpperCase()}</text>` : ""}`
-    : `<text x="450" y="650" text-anchor="middle" font-family="${typography.family}" font-size="112" font-weight="${typography.weight}" letter-spacing="${typography.spacing}">${brand}</text>
+    : `<text x="450" y="650" text-anchor="middle" font-family="${typography.family}" font-size="112" font-weight="${wordmarkWeight}" letter-spacing="${wordmarkTracking}">${brand}</text>
        ${descriptor ? `<text x="450" y="715" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" letter-spacing="9">${descriptor.toUpperCase()}</text>` : ""}`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="${color}">
   <title>${brand} logo</title>

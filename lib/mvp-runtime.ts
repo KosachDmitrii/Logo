@@ -32,6 +32,12 @@ export type Direction = {
   thesis: string;
 };
 
+type DirectionRecipe = {
+  composition: string;
+  geometry: string;
+  signature: string;
+};
+
 type RuntimeEnv = {
   FILES?: R2Bucket;
   OPENAI_API_KEY?: string;
@@ -45,29 +51,66 @@ type RuntimeEnv = {
 export const directions: Direction[] = [
   {
     key: "continuous",
-    title: "Continuous Logic",
+    title: "Continuous Space",
     thesis:
-      "One evolving gesture that communicates learning, rhythm and forward movement.",
+      "One uninterrupted form turns spatial continuity into a memorable abstract silhouette.",
   },
   {
     key: "portal",
-    title: "Open Portal",
+    title: "Open Counterform",
     thesis:
-      "A precise opening that turns repetition into entry, discovery and possibility.",
+      "A surprising internal void creates openness without drawing a literal doorway.",
   },
   {
     key: "signal",
-    title: "Signal Exchange",
+    title: "Modular Rhythm",
     thesis:
-      "Two distinct states connected by a confident transfer of energy and information.",
+      "Three unequal modules create a precise rhythm through spacing, not architectural illustration.",
   },
   {
     key: "fold",
-    title: "Soft Structure",
+    title: "Constructive Tension",
     thesis:
-      "A disciplined geometric system softened by one tactile, memorable fold.",
+      "Two opposing masses meet at one controlled interruption, balancing rigor and play.",
   },
 ];
+
+function directionRecipe(direction: Direction): DirectionRecipe {
+  const recipes: Record<string, DirectionRecipe> = {
+    continuous: {
+      composition: "one continuous asymmetric form with a clear visual flow",
+      geometry:
+        "a broad bent band with one controlled change of direction and generous internal space",
+      signature:
+        "the uninterrupted path and deliberately off-center balance",
+    },
+    portal: {
+      composition:
+        "one compact mass transformed by a single asymmetric internal counterform",
+      geometry:
+        "a curved outer silhouette with one precisely cut oblique void, never a rectangular opening",
+      signature: "the unexpected negative-space cut",
+    },
+    signal: {
+      composition:
+        "three separate unequal modules arranged in a horizontal rhythmic sequence",
+      geometry:
+        "one circle-derived module, one short bar and one angled module with deliberate spacing",
+      signature: "the cadence between three non-touching parts",
+    },
+    fold: {
+      composition: "two interlocking masses under visible constructive tension",
+      geometry:
+        "one rounded mass and one sharp oblique mass meeting at a narrow controlled joint",
+      signature: "the contrast between soft and precise geometry",
+    },
+  };
+  return recipes[direction.key.split("-")[0]] ?? {
+    composition: "one compact asymmetric abstract composition",
+    geometry: "two or three simple non-literal geometric masses",
+    signature: "one unusual relationship between forms",
+  };
+}
 
 export function getRuntimeEnv(): Required<
   Pick<RuntimeEnv, "FILES">
@@ -201,61 +244,28 @@ export function validateBrief(value: unknown): LogoBrief {
 export function buildPrompt(
   brief: LogoBrief,
   direction: Direction,
-  options: { recoveryMode?: boolean } = {},
 ) {
-  if (options.recoveryMode) {
-    return `
-Create exactly one clean abstract geometric logo symbol.
-
-Creative direction: ${direction.title}
-Visual thesis: ${direction.thesis}
-
-Use one simple near-black shape with balanced negative space, centered on a
-plain white background. Make it distinctive, calm, professional, flat,
-single-color and recognizable at 24 pixels.
-
-The image must contain only the symbol. No text, letters, words, initials,
-numbers, typography, captions, borders, mockups, people, products, scenery,
-gradients, shadows, texture, lighting effects, 3D or photographic elements.
-Do not use literal industry icons or familiar stock-logo constructions.
-    `.trim();
-  }
+  const recipe = directionRecipe(direction);
   return `
-Create one original professional abstract logo symbol. The brand name is
-intentionally withheld because the image must contain only the symbol.
+Create exactly one original graphic logo mark, not a brand-name treatment.
+The brand name is intentionally absent and will be typeset separately.
 
-Brand idea: ${brief.coreIdea}
-Industry: ${brief.industry}
-What the company does: ${brief.companyDescription}
-Audience: ${brief.audience || "modern, design-conscious customers"}
-Positioning: ${brief.positioning || "premium, differentiated and contemporary"}
-Personality: ${brief.personalities.join(", ") || "intelligent, clear, memorable"}
-The final identity type is ${brief.logoType}; this image supplies only its symbol component.
-Visual direction: ${brief.visualDirection || "minimal, distinctive and ownable"}
-Primary uses: ${brief.usage || "digital, print, signage and small icons"}
+Creative route: ${direction.title}
+Idea: ${direction.thesis}
+Composition: ${recipe.composition}.
+Construction: ${recipe.geometry}.
+Distinctive device: recognition comes from ${recipe.signature}.
+Character: ${brief.personalities.join(", ") || "intelligent, precise, playful"}.
 
-Strategic direction: ${direction.title}
-Concept thesis: ${direction.thesis}
-Category codes observed: ${brief.strategy?.categoryCodes.join("; ") || "clarity, trust and category recognition"}
-Differentiation strategy: ${brief.strategy?.differentiation || "use an ownable visual mechanism rather than a literal industry symbol"}
+Render a single isolated near-black vector-like mark, centered on a plain
+off-white square. Use flat solid shapes, a strong silhouette, balanced negative
+space and very few components. It must remain recognizable at 24 pixels.
 
-Design requirements:
-- exactly one isolated abstract symbol, centered
-- one clear visual idea with simple geometric construction
-- flat near-black shape on a plain warm light-gray background
-- strong silhouette and balanced negative space
-- consistent visual weight
-- recognizable at 24 pixels
-- suitable for later vector reconstruction
-- contemporary Swiss editorial restraint with a subtle human touch
-
-ABSOLUTELY NO text, letters, words, brand name, initials, monograms, numbers,
-captions, labels, signatures, pseudo-text or typographic glyphs.
-Do not create a mockup, presentation board, stationery, or multiple options.
-Do not use gradients, shadows, texture, lighting effects, 3D, or photographic elements.
-Avoid literal industry icons, monograms, familiar category leaders and
-generic stock-logo constructions.
-The result must be visibly different from common stock-logo clichés.
+The canvas contains the mark only: no letters, words, initials, numbers,
+pseudo-text, captions, borders, presentation layout, products, people or
+scenery. Keep the idea abstract and non-literal. No building, roof, house,
+doorway, skyline or floor-plan pictogram. No gradient, shadow, texture, lighting
+effect, outline clutter, 3D or photographic treatment.
   `.trim();
 }
 

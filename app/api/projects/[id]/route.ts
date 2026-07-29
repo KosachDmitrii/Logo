@@ -90,6 +90,12 @@ export async function GET(
           ?.thesis ?? "A distinct strategic route for the brand.",
       createdAt: item.created_at,
       qualityScore: Number(item.prompt.match(/\[LOOPEN_QC:(\d+)\]/)?.[1]) || undefined,
+      reviewStatus:
+        item.prompt.match(/\[LOOPEN_STATUS:([^\]]+)\]/)?.[1] ?? "Review",
+      reviewReason: decodeURIComponent(
+        item.prompt.match(/\[LOOPEN_REASON:([^\]]*)\]/)?.[1] ??
+          "Inspect this concept before refinement.",
+      ),
       downloadUrl: `/api/images/${item.id}?download=1`,
       imageUrl: `/api/images/${item.id}`,
     })),

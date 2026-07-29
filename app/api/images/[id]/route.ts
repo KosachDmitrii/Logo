@@ -1,6 +1,11 @@
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { getRuntimeEnv } from "../../../../lib/mvp-runtime";
-import { selectOne } from "../../../../lib/supabase";
+import {
+  deleteRows,
+  selectOne,
+  selectRows,
+  updateRows,
+} from "../../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -53,4 +58,56 @@ export async function GET(
   }
 
   return new Response(object.body, { headers });
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const user = await getChatGPTUser();
+  if (!user) {
+    return Response.json({ error: "Authentication required." }, { status: 401 });
+  }
+  const { id } = await context.params;
+  const generation = await selectOne<{
+    object_key: string;
+    project_id: string;
+  }>(
+    "logo_generations",
+    {
+      select: "object_key,project_id",
+      id: `eq.${id}`,
+      user_email: `eq.${user.email}`,
+    },
+  );
+  if (!generation) {
+    return Response.json({ error: "Concept not found." }, { status: 404 });
+  }
+  const assets = await selectRows<{ object_key: string }>("logo_assets", {
+    select: "object_key",
+    parent_id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
+  await deleteRows("logo_assets", {
+    parent_id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
+  await deleteRows("logo_generations", {
+    id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
+  await updateRows(
+    "logo_projects",
+    {
+      id: `eq.${generation.project_id}`,
+      user_email: `eq.${user.email}`,
+      selected_generation_id: `eq.${id}`,
+    },
+    { selected_generation_id: null, updated_at: Date.now() },
+  );
+  await getRuntimeEnv().FILES.delete([
+    generation.object_key,
+    ...assets.map((asset) => asset.object_key),
+  ]);
+  return new Response(null, { status: 204 });
 }
