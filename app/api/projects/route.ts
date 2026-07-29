@@ -183,6 +183,9 @@ export async function POST(request: Request) {
         ]
       : [],
   );
+  if (failures.length) {
+    console.error("Cloudflare Workers AI concept failures:", failures);
+  }
 
   await updateRows(
     "logo_projects",
