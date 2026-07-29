@@ -368,7 +368,7 @@ export default function LoopenStudio({
       setIsGenerating(false);
       setNotice(
         payload.failures?.length
-          ? `${payload.generations.length} of 4 directions generated. ${payload.failures.length} request failed; no automatic retry was made.`
+          ? `${payload.generations.length} of 4 directions generated. ${payload.failures.length} still failed after one safety recovery.`
           : "All 4 graphic marks generated, reviewed and saved.",
       );
       void auditDiversity(payload.generations);
@@ -462,24 +462,36 @@ export default function LoopenStudio({
     ) return;
     setIsVectorizing(true);
     setNotice("Tracing the selected symbol into an exact SVG…");
-    const response = await fetch(`/api/projects/${projectId}/vectorize`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assetId: selectedRefinement }),
-    });
-    const payload = (await response.json()) as { assets?: StudioAsset[]; error?: string };
-    setIsVectorizing(false);
-    if (!response.ok || !payload.assets?.length) {
-      setNotice(payload.error ?? "Vectorization could not be completed.");
-      return;
+    try {
+      const response = await fetch(`/api/projects/${projectId}/vectorize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assetId: selectedRefinement }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        assets?: StudioAsset[];
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.assets?.length) {
+        setNotice(payload?.error ?? "Vectorization could not be completed.");
+        return;
+      }
+      setAssets((current) => [
+        ...current.filter((asset) => asset.stage !== "vector"),
+        ...payload.assets!,
+      ]);
+      setSelectedVector(payload.assets[0].id);
+      setNotice("Production SVGs are ready. Adjust and export your lockup.");
+      void loadHistory();
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Vectorization could not be completed.",
+      );
+    } finally {
+      setIsVectorizing(false);
     }
-    setAssets((current) => [
-      ...current.filter((asset) => asset.stage !== "vector"),
-      ...payload.assets!,
-    ]);
-    setSelectedVector(payload.assets[0].id);
-    setNotice("Production SVGs are ready. Adjust and export your lockup.");
-    void loadHistory();
   }
 
   async function exportLockup(

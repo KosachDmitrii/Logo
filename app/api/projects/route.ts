@@ -35,6 +35,10 @@ const conceptModel = "@cf/black-forest-labs/flux-2-klein-4b";
 
 export const dynamic = "force-dynamic";
 
+function isSafetyBlocked(message: string) {
+  return message.includes("flagged") || message.includes("(3030)");
+}
+
 async function parseCloudflareResponse(response: Response) {
   const text = await response.text();
   try {
@@ -108,9 +112,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const user = await getChatGPTUser();
-  if (!user) {
+  if (!user?.email) {
     return Response.json({ error: "Sign in with ChatGPT to generate." }, { status: 401 });
   }
+  const userEmail = user.email;
 
   const runtime = getRuntimeEnv();
   if (!runtime.CLOUDFLARE_ACCOUNT_ID || !runtime.CLOUDFLARE_API_TOKEN) {
@@ -145,7 +150,7 @@ export async function POST(request: Request) {
   const now = Date.now();
   if (!existingProjectId && process.env.NODE_ENV === "production") {
     const recent = await countRows("logo_projects", {
-      user_email: `eq.${user.email}`,
+      user_email: `eq.${userEmail}`,
       created_at: `gt.${now - 60 * 60 * 1000}`,
       status: "neq.failed",
     });
@@ -172,14 +177,14 @@ export async function POST(request: Request) {
     }>("logo_projects", {
       select: "brief_json",
       id: `eq.${existingProjectId}`,
-      user_email: `eq.${user.email}`,
+      user_email: `eq.${userEmail}`,
     });
     if (!project) {
       return Response.json({ error: "Project not found." }, { status: 404 });
     }
     existingConceptCount = await countRows("logo_generations", {
       project_id: `eq.${existingProjectId}`,
-      user_email: `eq.${user.email}`,
+      user_email: `eq.${userEmail}`,
     });
     if (existingConceptCount >= 8) {
       return Response.json(
@@ -206,7 +211,7 @@ export async function POST(request: Request) {
       const duplicate = await selectOne<{ id: string }>("logo_projects", {
         select: "id",
         id: `eq.${requestId}`,
-        user_email: `eq.${user.email}`,
+        user_email: `eq.${userEmail}`,
       });
       if (duplicate) {
         return Response.json(
@@ -225,7 +230,7 @@ export async function POST(request: Request) {
     enrichedBrief = { ...brief, strategy };
     await insertRow("logo_projects", {
       id: projectId,
-      user_email: user.email,
+      user_email: userEmail,
       brand_name: brief.brandName,
       brief_json: enrichedBrief,
       status: "generating",
@@ -235,7 +240,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const userHash = await hashIdentity(user.email);
+  const userHash = await hashIdentity(userEmail);
   const actionId =
     typeof input.actionId === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -273,15 +278,22 @@ export async function POST(request: Request) {
         }];
       })()
     : strategyDirections;
-  async function generateDirection(direction: (typeof batchDirections)[number]) {
+  async function requestConceptImage(
+    direction: (typeof batchDirections)[number],
+    recoveryMode: boolean,
+  ) {
     const startedAt = Date.now();
-    const prompt = buildPrompt(enrichedBrief, direction);
+    const prompt = buildPrompt(enrichedBrief, direction, { recoveryMode });
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
     const form = new FormData();
     form.append("prompt", prompt);
     form.append("width", "512");
     form.append("height", "512");
     form.append("seed", String(seed));
+    // BFL moderation: 0 = strictest, 5 = most permissive (default 2).
+    // Undocumented on CF Klein docs, but accepted by the Workers AI multipart API
+    // and required for abstract logo prompts that otherwise false-positive as 3030.
+    form.append("safety_tolerance", "5");
 
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/${conceptModel}`,
@@ -306,6 +318,25 @@ export async function POST(request: Request) {
           : `Cloudflare Workers AI returned ${response.status} without an image.`,
       );
     }
+    return { base64, inferenceMs, prompt, recoveryMode };
+  }
+
+  async function generateDirection(direction: (typeof batchDirections)[number]) {
+    const startedAt = Date.now();
+    let image;
+    try {
+      image = await requestConceptImage(direction, false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!isSafetyBlocked(message)) throw error;
+      console.warn({
+        event: "logo_concept_safety_recovery",
+        direction: direction.key,
+        reason: message.replace(/\s*\([0-9a-f-]{20,}\)\s*/gi, " ").slice(0, 280),
+      });
+      image = await requestConceptImage(direction, true);
+    }
+    const { base64, inferenceMs, prompt, recoveryMode } = image;
     const generationId =
       existingProjectId && actionId ? actionId : crypto.randomUUID();
     const format = imageFormat(base64);
@@ -320,13 +351,14 @@ export async function POST(request: Request) {
         direction: direction.key,
         model: conceptModel,
         project: projectId,
+        recovery: recoveryMode ? "1" : "0",
       },
     });
 
     await insertRow("logo_generations", {
       id: generationId,
       project_id: projectId,
-      user_email: user.email,
+      user_email: userEmail,
       direction_key: direction.key,
       direction_title: direction.title,
       prompt: `${prompt}\n\n[LOOPEN_QC:0][LOOPEN_STATUS:Review][LOOPEN_REASON:${encodeURIComponent("Automated review pending; inspect before refinement.")}]`,
@@ -356,7 +388,7 @@ export async function POST(request: Request) {
       reviewReason = quality.reason;
       await updateRows(
         "logo_generations",
-        { id: `eq.${generationId}`, user_email: `eq.${user.email}` },
+        { id: `eq.${generationId}`, user_email: `eq.${userEmail}` },
         {
           prompt: `${prompt}\n\n[LOOPEN_QC:${qualityScore}][LOOPEN_STATUS:${reviewStatus}][LOOPEN_REASON:${encodeURIComponent(reviewReason)}]`,
         },
@@ -374,6 +406,7 @@ export async function POST(request: Request) {
       inferenceMs,
       totalMs: Date.now() - startedAt,
       model: conceptModel,
+      recoveryMode,
     });
 
     return {
@@ -411,7 +444,7 @@ export async function POST(request: Request) {
 
   await updateRows(
     "logo_projects",
-    { id: `eq.${projectId}`, user_email: `eq.${user.email}` },
+    { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
     {
       status: generations.length ? "completed" : "failed",
       updated_at: Date.now(),
@@ -425,17 +458,13 @@ export async function POST(request: Request) {
         failure.includes("daily free allocation") ||
         failure.includes("(4006)"),
     );
-    const safetyBlocked = failures.some(
-      (failure) =>
-        failure.includes("flagged") ||
-        failure.includes("(3030)"),
-    );
+    const safetyBlocked = failures.some((failure) => isSafetyBlocked(failure));
     return Response.json(
       {
         error: quotaExceeded
           ? "Cloudflare Workers AI daily quota is exhausted. Wait for the daily reset or enable the Workers Paid plan, then try again."
           : safetyBlocked
-            ? "Cloudflare blocked the generated image. Loopen did not retry or make another paid image request."
+            ? "Cloudflare blocked the generated image even after one neutral recovery attempt. Try More concept +1 again."
           : failures[0] ?? "No concepts were generated.",
         projectId,
       },

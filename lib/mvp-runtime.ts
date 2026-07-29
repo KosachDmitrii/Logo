@@ -244,7 +244,26 @@ export function validateBrief(value: unknown): LogoBrief {
 export function buildPrompt(
   brief: LogoBrief,
   direction: Direction,
+  options: { recoveryMode?: boolean } = {},
 ) {
+  if (options.recoveryMode) {
+    return `
+Create exactly one clean abstract geometric logo symbol.
+
+Creative direction: ${direction.title}
+Visual thesis: ${direction.thesis}
+
+Use one simple near-black shape with balanced negative space, centered on a
+plain white background. Make it distinctive, calm, professional, flat,
+single-color and recognizable at 24 pixels.
+
+The image must contain only the symbol. No text, letters, words, initials,
+numbers, typography, captions, borders, mockups, people, products, scenery,
+gradients, shadows, texture, lighting effects, 3D or photographic elements.
+Do not use literal industry icons or familiar stock-logo constructions.
+    `.trim();
+  }
+
   const recipe = directionRecipe(direction);
   return `
 Create exactly one original graphic logo mark, not a brand-name treatment.

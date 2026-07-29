@@ -76,6 +76,7 @@ export async function POST(
       form.append("width", "1024");
       form.append("height", "1024");
       form.append("steps", "20");
+      form.append("safety_tolerance", "5");
 
       const response = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-2-dev`,
