@@ -680,17 +680,18 @@ export default function LoopenStudio({
 
         <div className="brief-panel">
           <div className="field-row">
-            <label htmlFor="brand-name">Brand name</label>
+            <label htmlFor="brand-name">Brand name *</label>
             <span>01</span>
             <input
               id="brand-name"
               value={brandName}
               onChange={(event) => setBrandName(event.target.value)}
               maxLength={80}
+              required
             />
           </div>
           <div className="field-row">
-            <label htmlFor="brand-idea">Core idea</label>
+            <label htmlFor="brand-idea">Core idea *</label>
             <span>02</span>
             <textarea
               id="brand-idea"
@@ -698,16 +699,17 @@ export default function LoopenStudio({
               value={coreIdea}
               onChange={(event) => setCoreIdea(event.target.value)}
               maxLength={500}
+              required
             />
           </div>
           <div className="premium-fields">
             <label>
               <span className="mini-label">Industry *</span>
-              <input value={industry} onChange={(event) => setIndustry(event.target.value)} maxLength={120} />
+              <input value={industry} onChange={(event) => setIndustry(event.target.value)} maxLength={120} required />
             </label>
             <label>
               <span className="mini-label">What the company does *</span>
-              <textarea value={companyDescription} onChange={(event) => setCompanyDescription(event.target.value)} maxLength={500} rows={3} />
+              <textarea value={companyDescription} onChange={(event) => setCompanyDescription(event.target.value)} maxLength={500} rows={3} required />
             </label>
             <label>
               <span className="mini-label">Positioning</span>

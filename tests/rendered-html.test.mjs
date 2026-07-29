@@ -107,6 +107,8 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(studio, /Brand guide \/ PDF/);
   assert.match(studio, /Industry \*/);
   assert.match(studio, /What the company does \*/);
+  assert.match(studio, /Brand name \*/);
+  assert.match(studio, /Core idea \*/);
   assert.match(studio, /Competitors/);
   assert.match(studio, /Icon only/);
   assert.match(refine, /@cf\/black-forest-labs\/flux-2-dev/);
