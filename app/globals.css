@@ -974,11 +974,19 @@ button {
   margin: 0 0 10px;
 }
 
+.concept-copy {
+  padding-bottom: 62px;
+}
+
 .concept-copy p {
+  display: -webkit-box;
   font-size: 12px;
   line-height: 1.45;
   margin: 0;
   max-width: 240px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
 }
 
 .select-indicator {

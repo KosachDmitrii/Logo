@@ -13,6 +13,7 @@ type GeneratedConcept = {
   downloadUrl: string;
   id: string;
   imageUrl: string;
+  qualityScore?: number;
   rationale?: string;
 };
 
@@ -48,6 +49,7 @@ type StudioAsset = {
   model: string;
   parentId: string;
   provider: string;
+  qualityScore?: number;
   stage: "refine" | "vector";
   url: string;
 };
@@ -197,6 +199,9 @@ export default function LoopenStudio({
   const vectors = assets.filter((asset) => asset.stage === "vector");
   const selectedVectorAsset = vectors.find(
     (asset) => asset.id === selectedVector,
+  );
+  const focusedGeneration = generatedConcepts.find(
+    (item) => item.directionKey === selectedConcept,
   );
 
   useEffect(() => {
@@ -894,7 +899,11 @@ export default function LoopenStudio({
               >
                 <div className="concept-meta">
                   <span>{String(conceptIndex + 1).padStart(2, "0")}</span>
-                  <span className={`score ${concept.accent}`}>Strategic route</span>
+                  <span className={`score ${concept.accent}`}>
+                    {generated.qualityScore
+                      ? `QC ${generated.qualityScore}/100`
+                      : "Legacy · unchecked"}
+                  </span>
                 </div>
                 <div className="concept-mark generated-mark">
                   <img
@@ -947,7 +956,10 @@ export default function LoopenStudio({
           </div>
           <div>
             <span>Refinement shortlist</span>
-            <strong>{selectedConceptIds.length}/2 concepts selected</strong>
+            <strong>
+              {selectedConceptIds.length}/2 selected
+              {focusedGeneration ? ` · ${focusedGeneration.directionTitle}` : ""}
+            </strong>
           </div>
           <div className="selected-actions">
             {generatedConcepts.find(
@@ -1004,12 +1016,15 @@ export default function LoopenStudio({
               >
                 <img src={asset.url} alt={`${brandName} ${asset.label}`} />
                 <span>{asset.label}</span>
-                <small>{asset.model}</small>
+                <small>
+                  {asset.model}
+                  {asset.qualityScore ? ` · QC ${asset.qualityScore}/100` : ""}
+                </small>
               </button>
             )) : (
               <div className="empty-stage">
-                <strong>Two controlled variations</strong>
-                <p>Choose a generated direction above, then refine its geometry and optical balance.</p>
+                <strong>Controlled symbol refinement</strong>
+                <p>Choose one or two approved symbols above. The exact brand name is composed separately in the lockup editor.</p>
                 <button type="button" onClick={refineSelected} disabled={isRefining}>
                   {isRefining ? "Refining…" : "Create refinements →"}
                 </button>

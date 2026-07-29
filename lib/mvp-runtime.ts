@@ -23,6 +23,7 @@ export type BrandStrategy = {
   typography: string;
   palette: string[];
   trademarkNotice: string;
+  creativeDirections: Direction[];
 };
 
 export type Direction = {
@@ -102,7 +103,7 @@ export function buildRefinementPrompt(
   variant: number,
 ) {
   return `
-Refine the supplied logo symbol for "${brief.brandName}".
+Refine the supplied image into one production-ready abstract logo symbol.
 
 Brand idea: ${brief.coreIdea}
 Industry: ${brief.industry}
@@ -115,12 +116,14 @@ Logo type: ${brief.logoType}
 Visual direction: ${brief.visualDirection}
 Competitors to remain visually distinct from: ${brief.competitors || "none supplied"}
 
-Preserve the central visual idea, recognizable silhouette and overall geometry.
+Image 0 is the approved source symbol. Preserve its central visual idea,
+recognizable silhouette and overall geometry. Do not reinterpret it as a new concept.
 Improve optical balance, spacing, negative space, consistency, small-size clarity
 and professional vector-readiness. Remove accidental details and generic styling.
 
 Return one isolated flat near-black symbol centered on a plain white background.
-No text, mockup, gradients, shadows, texture, 3D or unrelated new concept.
+ABSOLUTELY NO letters, words, brand name, pseudo-text, typography, numbers or captions.
+No border, mockup, presentation card, gradients, shadows, texture, 3D or unrelated new concept.
   `.trim();
 }
 
@@ -197,7 +200,8 @@ export function validateBrief(value: unknown): LogoBrief {
 
 export function buildPrompt(brief: LogoBrief, direction: Direction) {
   return `
-Create one original professional logo symbol for the brand "${brief.brandName}".
+Create one original professional abstract logo symbol. The brand context is
+"${brief.brandName}", but the brand name must never appear in the image.
 
 Brand idea: ${brief.coreIdea}
 Industry: ${brief.industry}
@@ -205,7 +209,7 @@ What the company does: ${brief.companyDescription}
 Audience: ${brief.audience || "modern, design-conscious customers"}
 Positioning: ${brief.positioning || "premium, differentiated and contemporary"}
 Personality: ${brief.personalities.join(", ") || "intelligent, clear, memorable"}
-Requested identity type: ${brief.logoType}
+The final identity type is ${brief.logoType}; this image supplies only its symbol component.
 Visual direction: ${brief.visualDirection || "minimal, distinctive and ownable"}
 Primary uses: ${brief.usage || "digital, print, signage and small icons"}
 Competitors to avoid resembling: ${brief.competitors || "no named competitors"}
@@ -216,7 +220,7 @@ Category codes observed: ${brief.strategy?.categoryCodes.join("; ") || "clarity,
 Differentiation strategy: ${brief.strategy?.differentiation || "use an ownable visual mechanism rather than a literal industry symbol"}
 
 Design requirements:
-- one isolated abstract symbol, centered
+- exactly one isolated abstract symbol, centered
 - one clear visual idea with simple geometric construction
 - flat near-black shape on a plain warm light-gray background
 - strong silhouette and balanced negative space
@@ -225,7 +229,8 @@ Design requirements:
 - suitable for later vector reconstruction
 - contemporary Swiss editorial restraint with a subtle human touch
 
-Do not include text or the brand name.
+ABSOLUTELY NO text, letters, words, brand name, initials, monograms, numbers,
+captions, labels, signatures, pseudo-text or typographic glyphs.
 Do not create a mockup, presentation board, stationery, or multiple options.
 Do not use gradients, shadows, texture, lighting effects, 3D, or photographic elements.
 Avoid: ${brief.avoid || "generic startup symbols, literal arrows, obvious infinity marks"}.

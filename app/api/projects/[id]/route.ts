@@ -38,9 +38,10 @@ export async function GET(
       id: string;
       direction_key: string;
       direction_title: string;
+      prompt: string;
       created_at: number;
     }>("logo_generations", {
-      select: "id,direction_key,direction_title,created_at",
+      select: "id,direction_key,direction_title,prompt,created_at",
       project_id: `eq.${id}`,
       user_email: `eq.${user.email}`,
       order: "created_at.asc",
@@ -53,10 +54,11 @@ export async function GET(
       provider: string;
       model: string;
       content_type: string;
+      prompt: string;
       created_at: number;
     }>("logo_assets", {
       select:
-        "id,parent_id,stage,label,provider,model,content_type,created_at",
+        "id,parent_id,stage,label,provider,model,content_type,prompt,created_at",
       project_id: `eq.${id}`,
       user_email: `eq.${user.email}`,
       order: "created_at.asc",
@@ -77,9 +79,17 @@ export async function GET(
       directionKey: item.direction_key,
       directionTitle: item.direction_title,
       rationale:
+        (
+          project.brief_json.strategy as
+            | { creativeDirections?: Array<{ title: string; thesis: string }> }
+            | undefined
+        )?.creativeDirections?.find(
+          (direction) => direction.title === item.direction_title,
+        )?.thesis ??
         directions.find((direction) => direction.key === item.direction_key)
           ?.thesis ?? "A distinct strategic route for the brand.",
       createdAt: item.created_at,
+      qualityScore: Number(item.prompt.match(/\[LOOPEN_QC:(\d+)\]/)?.[1]) || undefined,
       downloadUrl: `/api/images/${item.id}?download=1`,
       imageUrl: `/api/images/${item.id}`,
     })),
@@ -92,6 +102,7 @@ export async function GET(
       model: item.model,
       contentType: item.content_type,
       createdAt: item.created_at,
+      qualityScore: Number(item.prompt.match(/\[LOOPEN_QC:(\d+)\]/)?.[1]) || undefined,
       downloadUrl: `/api/assets/${item.id}?download=1`,
       url: `/api/assets/${item.id}`,
     })),

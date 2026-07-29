@@ -29,7 +29,7 @@ test("ships the finished Loopen product surface", async () => {
 });
 
 test("keeps generation authenticated, persistent, and server-side", async () => {
-  const [route, imageRoute, selectRoute, runtime, hosting, migration, supabase] =
+  const [route, imageRoute, selectRoute, runtime, quality, hosting, migration, supabase] =
     await Promise.all([
       readFile(new URL("../app/api/projects/route.ts", import.meta.url), "utf8"),
       readFile(
@@ -41,6 +41,7 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
         "utf8",
       ),
       readFile(new URL("../lib/mvp-runtime.ts", import.meta.url), "utf8"),
+      readFile(new URL("../lib/logo-quality.ts", import.meta.url), "utf8"),
       readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
       readFile(
         new URL(
@@ -58,8 +59,13 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.match(route, /@cf\/black-forest-labs\/flux-2-klein-9b/);
   assert.match(route, /CLOUDFLARE_API_TOKEN/);
   assert.match(route, /Promise\.allSettled/);
-  assert.match(route, /form\.append\("width", "768"\)/);
-  assert.match(route, /attempt < 2/);
+  assert.match(route, /form\.append\("width", "512"\)/);
+  assert.match(route, /attempt < 3/);
+  assert.match(route, /assessLogoImage/);
+  assert.match(quality, /containsText/);
+  assert.match(quality, /score >= 75/);
+  assert.match(quality, /llama-3\.2-11b-vision-instruct/);
+  assert.match(runtime, /ABSOLUTELY NO text/);
   assert.match(runtime, /Continuous Logic/);
   assert.match(runtime, /Open Portal/);
   assert.match(runtime, /Signal Exchange/);
@@ -114,10 +120,12 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(refine, /@cf\/black-forest-labs\/flux-2-dev/);
   assert.match(refine, /form\.append\("width", "1024"\)/);
   assert.match(refine, /generationIds/);
+  assert.match(refine, /assessLogoImage/);
   assert.match(studio, /More concept \+1/);
   assert.match(studio, /select up to 2/);
   assert.match(vectorize, /external\.api\.recraft\.ai/);
   assert.match(vectorize, /RECRAFT_API_KEY/);
+  assert.match(vectorize, /not safe to vectorize/);
   assert.doesNotMatch(vectorize, /imageToImage/);
   assert.match(exportRoute, /sanitizeSvg/);
   assert.match(exportRoute, /iconOnly/);

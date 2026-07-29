@@ -14,6 +14,7 @@ import {
   selectRows,
   updateRows,
 } from "../../../lib/supabase";
+import { assessLogoImage } from "../../../lib/logo-quality";
 
 type ProjectRow = {
   id: string;
@@ -70,6 +71,31 @@ function fallbackStrategy(brief: ReturnType<typeof validateBrief>): BrandStrateg
     palette: ["#201F1E", "#F3F0EA", "#FFCF68", "#FFFFFF"],
     trademarkNotice:
       "Automated similarity checks are directional only. A qualified trademark professional must clear the final identity in every intended market.",
+    creativeDirections: [
+      {
+        key: "catalyst",
+        title: "Brand Catalyst",
+        thesis: `Translate “${brief.coreIdea}” into one active geometric relationship without illustrating the category.`,
+      },
+      {
+        key: "counterform",
+        title: "Ownable Counterform",
+        thesis:
+          "Build recognition through one surprising piece of negative space and a compact silhouette.",
+      },
+      {
+        key: "constructive",
+        title: "Constructive Tension",
+        thesis:
+          "Balance disciplined structure with one deliberate interruption that expresses the brand personality.",
+      },
+      {
+        key: "human-system",
+        title: "Human System",
+        thesis:
+          "Create a modular, precise symbol softened by one approachable and memorable gesture.",
+      },
+    ],
   };
 }
 
@@ -101,7 +127,10 @@ ${JSON.stringify(brief)}
 Return exactly these keys:
 categoryCodes (3 short strings), competitorRisks (2 short strings),
 differentiation (one sentence), typography (one sentence),
-palette (exactly 4 accessible hex colors), trademarkNotice (one sentence).
+palette (exactly 4 accessible hex colors), trademarkNotice (one sentence),
+creativeDirections (exactly 4 objects with unique lowercase key, a 2-4 word
+title, and a one-sentence thesis). Each direction must be specific to this brief,
+visually distinct, non-literal and compatible with a text-free abstract symbol.
 Do not claim a legal trademark search was performed.`,
             },
           ],
@@ -134,6 +163,26 @@ Do not claim a legal trademark search was performed.`,
           ? parsed.palette
           : fallback.palette,
       trademarkNotice: fallback.trademarkNotice,
+      creativeDirections:
+        Array.isArray(parsed.creativeDirections) &&
+        parsed.creativeDirections.length === 4
+          ? parsed.creativeDirections.map((direction, index) => {
+              const candidate = direction as Partial<(typeof directions)[number]>;
+              return {
+                key:
+                  String(candidate.key ?? `direction-${index + 1}`)
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/^-|-$/g, "") || `direction-${index + 1}`,
+                title:
+                  String(candidate.title ?? "").trim().slice(0, 60) ||
+                  fallback.creativeDirections[index].title,
+                thesis:
+                  String(candidate.thesis ?? "").trim().slice(0, 240) ||
+                  fallback.creativeDirections[index].thesis,
+              };
+            })
+          : fallback.creativeDirections,
     };
   } catch {
     return fallback;
@@ -269,9 +318,14 @@ export async function POST(request: Request) {
   }
 
   const userHash = await hashIdentity(user.email);
+  const strategyDirections =
+    enrichedBrief.strategy.creativeDirections?.length === 4
+      ? enrichedBrief.strategy.creativeDirections
+      : directions;
   const batchDirections = existingProjectId
     ? (() => {
-        const direction = directions[existingConceptCount % directions.length];
+        const direction =
+          strategyDirections[existingConceptCount % strategyDirections.length];
         return [{
           ...direction,
           key: `${direction.key}-${existingConceptCount + 1}`,
@@ -279,13 +333,14 @@ export async function POST(request: Request) {
           thesis: `${direction.thesis} Explore a clearly different construction and silhouette.`,
         }];
       })()
-    : directions;
+    : strategyDirections;
   async function generateDirection(direction: (typeof batchDirections)[number]) {
+    const startedAt = Date.now();
     const prompt = buildPrompt(enrichedBrief, direction);
     const form = new FormData();
     form.append("prompt", prompt);
-    form.append("width", "768");
-    form.append("height", "768");
+    form.append("width", "512");
+    form.append("height", "512");
     form.append(
       "seed",
       String(crypto.getRandomValues(new Uint32Array(1))[0]),
@@ -302,6 +357,7 @@ export async function POST(request: Request) {
       },
     );
     const payload = await parseCloudflareResponse(response);
+    const inferenceMs = Date.now() - startedAt;
     const base64 = payload.result?.image;
     if (!response.ok || !base64) {
       const cloudflareError = payload.errors?.[0];
@@ -311,6 +367,21 @@ export async function POST(request: Request) {
               cloudflareError.code ? ` (${cloudflareError.code})` : ""
             }`
           : `Cloudflare Workers AI returned ${response.status} without an image.`,
+      );
+    }
+    const quality = await assessLogoImage(
+      base64,
+      {
+        avoid: enrichedBrief.avoid,
+        direction: `${direction.title}: ${direction.thesis}`,
+        stage: "concept",
+      },
+      runtime,
+    );
+    const qualityMs = Date.now() - startedAt - inferenceMs;
+    if (!quality.approved) {
+      throw new Error(
+        `Concept rejected by quality control (${quality.score}/100): ${quality.reason}`,
       );
     }
 
@@ -334,10 +405,18 @@ export async function POST(request: Request) {
       user_email: user.email,
       direction_key: direction.key,
       direction_title: direction.title,
-      prompt,
+      prompt: `${prompt}\n\n[LOOPEN_QC:${quality.score}]`,
       object_key: objectKey,
       status: "completed",
       created_at: Date.now(),
+    });
+    console.log({
+      event: "logo_concept_completed",
+      direction: direction.key,
+      inferenceMs,
+      qualityMs,
+      totalMs: Date.now() - startedAt,
+      qualityScore: quality.score,
     });
 
     return {
@@ -347,12 +426,13 @@ export async function POST(request: Request) {
       downloadUrl: `/api/images/${generationId}?download=1`,
       id: generationId,
       imageUrl: `/api/images/${generationId}`,
+      qualityScore: quality.score,
     };
   }
 
   async function generateWithRetry(direction: (typeof batchDirections)[number]) {
     let lastError: unknown;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         return await generateDirection(direction);
       } catch (error) {

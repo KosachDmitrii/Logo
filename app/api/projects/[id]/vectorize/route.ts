@@ -8,6 +8,10 @@ import {
   selectOne,
   updateRows,
 } from "../../../../../lib/supabase";
+import {
+  arrayBufferToBase64,
+  assessLogoImage,
+} from "../../../../../lib/logo-quality";
 
 type RecraftResponse = {
   image?: { b64_json?: string; url?: string };
@@ -43,10 +47,14 @@ export async function POST(
 
   const { id: projectId } = await context.params;
   const { assetId } = (await request.json()) as { assetId?: string };
-  const asset = await selectOne<{ id: string; object_key: string }>(
+  const asset = await selectOne<{
+    id: string;
+    object_key: string;
+    logo_projects: { brief_json: { avoid?: string } };
+  }>(
     "logo_assets",
     {
-      select: "id,object_key",
+      select: "id,object_key,logo_projects!inner(brief_json)",
       id: `eq.${assetId ?? ""}`,
       project_id: `eq.${projectId}`,
       user_email: `eq.${user.email}`,
@@ -57,6 +65,25 @@ export async function POST(
   const source = await runtime.FILES.get(asset.object_key);
   if (!source) return Response.json({ error: "Refined image data not found." }, { status: 404 });
   const bytes = await source.arrayBuffer();
+  const quality = await assessLogoImage(
+    arrayBufferToBase64(bytes),
+    {
+      avoid:
+        asset.logo_projects.brief_json.avoid ??
+        "text, mockups and generic category clichés",
+      direction: "the user-approved refined logo symbol",
+      stage: "vector",
+    },
+    runtime,
+  );
+  if (!quality.approved) {
+    return Response.json(
+      {
+        error: `This refinement is not safe to vectorize (${quality.score}/100): ${quality.reason}`,
+      },
+      { status: 422 },
+    );
+  }
 
   const jobs = [
     {
