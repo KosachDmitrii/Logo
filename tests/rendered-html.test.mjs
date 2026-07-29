@@ -64,7 +64,7 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.match(route, /assessLogoImage/);
   assert.match(quality, /containsText/);
   assert.match(quality, /score >= 75/);
-  assert.match(quality, /llama-3\.2-11b-vision-instruct/);
+  assert.match(quality, /moondream3\.1-9B-A2B/);
   assert.match(runtime, /ABSOLUTELY NO text/);
   assert.match(runtime, /Continuous Logic/);
   assert.match(runtime, /Open Portal/);

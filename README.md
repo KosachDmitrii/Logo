@@ -52,13 +52,12 @@ sign-in step is required.
 Loopen treats generated images as untrusted candidates:
 
 - FLUX creates symbol-only artwork; the brand name is composed separately.
-- Llama 3.2 Vision rejects text, mockups, forbidden clichés, weak silhouettes,
+- Moondream 3.1 rejects text, mockups, forbidden clichés, weak silhouettes,
   and off-strategy candidates before they are saved.
 - A failed candidate is regenerated up to three times.
 - Refined artwork is checked again before Recraft vectorization.
 
-Workers AI requires the account owner to accept the Meta license once before
-`@cf/meta/llama-3.2-11b-vision-instruct` can run. Send the documented one-time
-`{"prompt":"agree"}` request from the Cloudflare account before enabling
-production generation. Quality control fails closed if the vision model is not
-available.
+Quality control uses `@cf/moondream/moondream3.1-9B-A2B`, which accepts the
+generated image as a base64 data URI and does not require the separate Meta
+model-agreement request. Quality control fails closed if the vision model is
+not available.

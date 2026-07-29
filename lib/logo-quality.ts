@@ -15,7 +15,7 @@ type QualityRuntime = {
 };
 
 type VisionResponse = {
-  result?: { response?: string };
+  result?: { answer?: string };
   errors?: Array<{ message?: string }>;
 };
 
@@ -73,7 +73,7 @@ export async function assessLogoImage(
     throw new Error("Logo quality control is not configured.");
   }
   const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3.2-11b-vision-instruct`,
+    `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/moondream/moondream3.1-9B-A2B`,
     {
       method: "POST",
       headers: {
@@ -81,15 +81,10 @@ export async function assessLogoImage(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a strict senior identity-design production reviewer. Return only compact valid JSON.",
-          },
-          {
-            role: "user",
-            content: `Review this ${context.stage} image as a production logo symbol.
+        task: "query",
+        image: `data:image/png;base64,${base64}`,
+        question: `Act as a strict senior identity-design production reviewer.
+Review this ${context.stage} image as a production logo symbol.
 Expected direction: ${context.direction}
 Forbidden ideas and forms: ${context.avoid || "generic stock-logo clichés"}
 
@@ -97,21 +92,21 @@ Reject it if it contains any letters, words, numbers, captions or pseudo-text; a
 
 Return exactly:
 {"approved":boolean,"containsText":boolean,"containsMockup":boolean,"forbiddenCliche":boolean,"simpleSilhouette":boolean,"directionMatch":boolean,"score":number,"reason":"short sentence"}
-Set approved=true only for a clean, isolated, flat, single-color symbol on a plain background with score 75 or higher.`,
-          },
-        ],
-        image: `data:image/png;base64,${base64}`,
+Set approved=true only for a clean, isolated, flat, single-color symbol on a plain background with score 75 or higher.
+Return only compact valid JSON, without markdown.`,
+        reasoning: false,
         max_tokens: 260,
         temperature: 0,
+        stream: false,
       }),
     },
   );
   const payload = (await response.json()) as VisionResponse;
-  const text = payload.result?.response;
+  const text = payload.result?.answer;
   if (!response.ok || !text) {
     throw new Error(
       payload.errors?.[0]?.message ??
-        "Logo quality control is unavailable. Confirm the Workers AI vision-model license.",
+        "Logo quality control is unavailable.",
     );
   }
   return parseReport(text);
