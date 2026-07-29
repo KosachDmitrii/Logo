@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type StudioUser = {
   displayName: string;
@@ -13,6 +13,27 @@ type GeneratedConcept = {
   downloadUrl: string;
   id: string;
   imageUrl: string;
+};
+
+type StudioAsset = {
+  contentType: string;
+  downloadUrl: string;
+  id: string;
+  label: string;
+  model: string;
+  parentId: string;
+  provider: string;
+  stage: "refine" | "vector";
+  url: string;
+};
+
+type SavedProject = {
+  brandName: string;
+  createdAt: number;
+  id: string;
+  selectedGenerationId?: string;
+  status: string;
+  updatedAt: number;
 };
 
 type Concept = {
@@ -98,11 +119,87 @@ export default function LoopenStudio({
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [notice, setNotice] = useState("");
+  const [assets, setAssets] = useState<StudioAsset[]>([]);
+  const [projects, setProjects] = useState<SavedProject[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isRefining, setIsRefining] = useState(false);
+  const [isVectorizing, setIsVectorizing] = useState(false);
+  const [selectedRefinement, setSelectedRefinement] = useState("");
+  const [selectedVector, setSelectedVector] = useState("");
+  const [lockupLayout, setLockupLayout] = useState<"horizontal" | "vertical">(
+    "horizontal",
+  );
+  const [lockupColor, setLockupColor] = useState("#201f1e");
+  const [descriptor, setDescriptor] = useState("Adaptive identity");
 
   const selected = useMemo(
-    () => concepts.find((concept) => concept.id === selectedConcept)!,
-    [selectedConcept],
+    () =>
+      concepts.find((concept) => concept.id === selectedConcept) ??
+      concepts.find(
+        (concept) =>
+          concept.id ===
+          generatedConcepts.find(
+            (generation) => generation.directionKey === selectedConcept,
+          )?.directionKey,
+      ) ??
+      concepts[0],
+    [generatedConcepts, selectedConcept],
   );
+  const refinements = assets.filter((asset) => asset.stage === "refine");
+  const vectors = assets.filter((asset) => asset.stage === "vector");
+  const selectedGeneration = generatedConcepts.find(
+    (item) => item.directionKey === selectedConcept,
+  );
+  const selectedVectorAsset = vectors.find(
+    (asset) => asset.id === selectedVector,
+  );
+
+  useEffect(() => {
+    if (!user) return;
+    void loadHistory();
+  }, [user]);
+
+  async function loadHistory() {
+    const response = await fetch("/api/projects");
+    if (!response.ok) return;
+    const payload = (await response.json()) as { projects?: SavedProject[] };
+    setProjects(payload.projects ?? []);
+  }
+
+  async function openProject(id: string) {
+    setNotice("Loading saved project…");
+    const response = await fetch(`/api/projects/${id}`);
+    const payload = (await response.json()) as {
+      error?: string;
+      project?: { brandName: string; brief: { coreIdea?: string; personalities?: string[] }; selectedGenerationId?: string };
+      generations?: GeneratedConcept[];
+      assets?: StudioAsset[];
+    };
+    if (!response.ok || !payload.project) {
+      setNotice(payload.error ?? "Project could not be loaded.");
+      return;
+    }
+    const loadedAssets = payload.assets ?? [];
+    const loadedGenerations = payload.generations ?? [];
+    setProjectId(id);
+    setBrandName(payload.project.brandName);
+    setCoreIdea(payload.project.brief.coreIdea ?? "");
+    setPersonalities(payload.project.brief.personalities ?? []);
+    setGeneratedConcepts(loadedGenerations);
+    setAssets(loadedAssets);
+    const selectedLoaded =
+      loadedGenerations.find(
+        (item) => item.id === payload.project?.selectedGenerationId,
+      ) ?? loadedGenerations[0];
+    if (selectedLoaded) setSelectedConcept(selectedLoaded.directionKey);
+    const latestRefine = loadedAssets.filter((asset) => asset.stage === "refine").at(-1);
+    const latestVector = loadedAssets.filter((asset) => asset.stage === "vector").at(-1);
+    setSelectedRefinement(latestRefine?.id ?? "");
+    setSelectedVector(latestVector?.id ?? "");
+    setIsHistoryOpen(false);
+    setNotice(`${payload.project.brandName} project loaded.`);
+    document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth" });
+  }
 
   function togglePersonality(item: string) {
     setPersonalities((current) =>
@@ -148,11 +245,15 @@ export default function LoopenStudio({
 
       setGeneratedConcepts(payload.generations);
       setProjectId(payload.projectId);
+      setAssets([]);
+      setSelectedRefinement("");
+      setSelectedVector("");
       setSelectedConcept(payload.generations[0].directionKey);
       setIsGenerating(false);
       setNotice(
         `${payload.generations.length} real directions generated and saved to your project.`,
       );
+      void loadHistory();
       document
         .getElementById("concepts")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -164,6 +265,90 @@ export default function LoopenStudio({
           : "Generation could not be completed.",
       );
     }
+  }
+
+  async function refineSelected() {
+    if (!projectId || !selectedGeneration) {
+      setNotice("Select a generated direction before refinement.");
+      return;
+    }
+    setIsRefining(true);
+    setNotice("Creating two high-fidelity refinements…");
+    const response = await fetch(`/api/projects/${projectId}/refine`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ generationId: selectedGeneration.id }),
+    });
+    const payload = (await response.json()) as { assets?: StudioAsset[]; error?: string };
+    setIsRefining(false);
+    if (!response.ok || !payload.assets?.length) {
+      setNotice(payload.error ?? "Refinement could not be completed.");
+      return;
+    }
+    setAssets((current) => [
+      ...current.filter((asset) => asset.stage !== "refine"),
+      ...payload.assets!,
+    ]);
+    setSelectedRefinement(payload.assets[0].id);
+    setNotice("Two refinements are ready. Choose one for vector production.");
+    void loadHistory();
+  }
+
+  async function vectorizeSelected() {
+    if (!projectId || !selectedRefinement) {
+      setNotice("Choose a refined symbol before vectorization.");
+      return;
+    }
+    setIsVectorizing(true);
+    setNotice("Building preserved and clean SVG versions…");
+    const response = await fetch(`/api/projects/${projectId}/vectorize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assetId: selectedRefinement }),
+    });
+    const payload = (await response.json()) as { assets?: StudioAsset[]; error?: string };
+    setIsVectorizing(false);
+    if (!response.ok || !payload.assets?.length) {
+      setNotice(payload.error ?? "Vectorization could not be completed.");
+      return;
+    }
+    setAssets((current) => [
+      ...current.filter((asset) => asset.stage !== "vector"),
+      ...payload.assets!,
+    ]);
+    setSelectedVector(payload.assets[0].id);
+    setNotice("Production SVGs are ready. Adjust and export your lockup.");
+    void loadHistory();
+  }
+
+  async function exportLockup() {
+    if (!projectId || !selectedVector) {
+      setNotice("Choose a vector result before export.");
+      return;
+    }
+    const response = await fetch(`/api/projects/${projectId}/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        assetId: selectedVector,
+        color: lockupColor,
+        descriptor,
+        layout: lockupLayout,
+      }),
+    });
+    if (!response.ok) {
+      const payload = (await response.json()) as { error?: string };
+      setNotice(payload.error ?? "Export could not be created.");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${brandName}-${lockupLayout}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setNotice("Production SVG lockup downloaded.");
   }
 
   async function selectGeneratedConcept(directionKey: string) {
@@ -200,15 +385,39 @@ export default function LoopenStudio({
           <a href="#concepts">Method</a>
           <a href="#manifesto">About</a>
         </nav>
-        <a
+        <button
           className="project-pill"
-          href={user ? signOutPath : signInPath}
-          title={user ? "Sign out" : "Sign in with ChatGPT"}
+          type="button"
+          onClick={() =>
+            user ? setIsHistoryOpen((current) => !current) : (window.location.href = signInPath)
+          }
+          title={user ? "Open project history" : "Sign in with ChatGPT"}
         >
           <span className="online-dot" />
-          {user ? user.displayName : "Sign in"}
-        </a>
+          {user ? `${projects.length} projects` : "Sign in"}
+        </button>
       </header>
+      {user && isHistoryOpen && (
+        <aside className="history-drawer" aria-label="Project history">
+          <div className="history-head">
+            <div>
+              <span>Private workspace</span>
+              <strong>{user.displayName}</strong>
+            </div>
+            <button type="button" onClick={() => setIsHistoryOpen(false)} aria-label="Close history">×</button>
+          </div>
+          <div className="history-list">
+            {projects.length ? projects.map((project) => (
+              <button type="button" key={project.id} onClick={() => openProject(project.id)}>
+                <span>{new Date(project.createdAt).toLocaleDateString()}</span>
+                <strong>{project.brandName}</strong>
+                <small>{project.status}</small>
+              </button>
+            )) : <p>No saved projects yet.</p>}
+          </div>
+          <a href={signOutPath}>Sign out →</a>
+        </aside>
+      )}
 
       <section className="hero" id="top">
         <div className="hero-kicker">
@@ -443,23 +652,121 @@ export default function LoopenStudio({
             <button
               className="approve-button"
               type="button"
-              onClick={() =>
-                setNotice(
-                  generatedConcepts.length
-                    ? `${generatedConcepts.find((item) => item.directionKey === selectedConcept)?.directionTitle ?? selected.name} is selected for the next refinement stage.`
-                    : "Generate real concepts before choosing a refinement route.",
-                )
-              }
+              onClick={refineSelected}
+              disabled={isRefining}
             >
-              Select this route <span>→</span>
+              {isRefining ? "Refining…" : "Refine this route"} <span>→</span>
             </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="workflow-section" id="workflow">
+        <div className="workflow-heading">
+          <p className="eyebrow">03 / Production pipeline</p>
+          <h2>From chosen thought<br />to usable identity.</h2>
+          <p>Every stage keeps a visible parent, so the creative decision never disappears inside a black box.</p>
+        </div>
+
+        <div className="workflow-stage">
+          <div className="stage-index"><span>01</span><strong>Refine</strong></div>
+          <div className="asset-grid">
+            {refinements.length ? refinements.map((asset) => (
+              <button
+                type="button"
+                className={selectedRefinement === asset.id ? "asset-card active" : "asset-card"}
+                key={asset.id}
+                onClick={() => setSelectedRefinement(asset.id)}
+              >
+                <img src={asset.url} alt={`${brandName} ${asset.label}`} />
+                <span>{asset.label}</span>
+                <small>{asset.model}</small>
+              </button>
+            )) : (
+              <div className="empty-stage">
+                <strong>Two controlled variations</strong>
+                <p>Choose a generated direction above, then refine its geometry and optical balance.</p>
+                <button type="button" onClick={refineSelected} disabled={isRefining}>
+                  {isRefining ? "Refining…" : "Create refinements →"}
+                </button>
+              </div>
+            )}
+          </div>
+          {refinements.length > 0 && (
+            <button className="stage-action" type="button" onClick={vectorizeSelected} disabled={isVectorizing}>
+              {isVectorizing ? "Creating SVGs…" : "Vectorize selected"} <span>→</span>
+            </button>
+          )}
+        </div>
+
+        <div className="workflow-stage">
+          <div className="stage-index"><span>02</span><strong>Vector</strong></div>
+          <div className="asset-grid vector-grid">
+            {vectors.length ? vectors.map((asset) => (
+              <button
+                type="button"
+                className={selectedVector === asset.id ? "asset-card active" : "asset-card"}
+                key={asset.id}
+                onClick={() => setSelectedVector(asset.id)}
+              >
+                <img src={asset.url} alt={`${brandName} ${asset.label}`} />
+                <span>{asset.label}</span>
+                <small>{asset.model}</small>
+              </button>
+            )) : (
+              <div className="empty-stage">
+                <strong>Preserve or reconstruct</strong>
+                <p>Recraft returns a faithful trace and a cleaner rebuilt vector for comparison.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="lockup-editor">
+          <div className="editor-controls">
+            <div>
+              <span className="mini-label">Layout</span>
+              <div className="segmented">
+                <button type="button" className={lockupLayout === "horizontal" ? "active" : ""} onClick={() => setLockupLayout("horizontal")}>Horizontal</button>
+                <button type="button" className={lockupLayout === "vertical" ? "active" : ""} onClick={() => setLockupLayout("vertical")}>Vertical</button>
+              </div>
+            </div>
+            <label>
+              <span className="mini-label">Descriptor</span>
+              <input value={descriptor} maxLength={80} onChange={(event) => setDescriptor(event.target.value)} />
+            </label>
+            <label>
+              <span className="mini-label">Color</span>
+              <input type="color" value={lockupColor} onChange={(event) => setLockupColor(event.target.value)} />
+            </label>
+          </div>
+          <div
+            className={`lockup-preview ${lockupLayout}`}
+            style={{ color: lockupColor }}
+          >
+            {selectedVectorAsset ? (
+              <img src={selectedVectorAsset.url} alt="" />
+            ) : <div className="preview-placeholder">SVG</div>}
+            <div>
+              <strong>{brandName || "Brand name"}</strong>
+              {descriptor && <span>{descriptor}</span>}
+            </div>
+          </div>
+          <div className="export-row">
+            <div><span>03</span><strong>Export system</strong></div>
+            <div>
+              {refinements.find((asset) => asset.id === selectedRefinement) && (
+                <a href={refinements.find((asset) => asset.id === selectedRefinement)!.downloadUrl}>Download PNG</a>
+              )}
+              <button type="button" onClick={exportLockup} disabled={!selectedVector}>Download lockup SVG ↓</button>
+            </div>
           </div>
         </div>
       </section>
 
       <section className="system-section">
         <div className="system-left">
-          <p className="eyebrow">03 / Brand system</p>
+          <p className="eyebrow">04 / Brand system</p>
           <h2>
             One idea.
             <br />

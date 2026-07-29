@@ -62,3 +62,41 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.doesNotMatch(route + runtime, /VITE_OPENAI_API_KEY/);
   assert.ok(root);
 });
+
+test("ships the complete refinement and vector production workflow", async () => {
+  const [studio, runtime, refine, vectorize, exportRoute, assetRoute, migration] =
+    await Promise.all([
+      readFile(new URL("../app/loopen-studio.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../lib/mvp-runtime.ts", import.meta.url), "utf8"),
+      readFile(
+        new URL("../app/api/projects/[id]/refine/route.ts", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../app/api/projects/[id]/vectorize/route.ts", import.meta.url),
+        "utf8",
+      ),
+      readFile(
+        new URL("../app/api/projects/[id]/export/route.ts", import.meta.url),
+        "utf8",
+      ),
+      readFile(new URL("../app/api/assets/[id]/route.ts", import.meta.url), "utf8"),
+      readFile(
+        new URL("../drizzle/0001_plain_the_fallen.sql", import.meta.url),
+        "utf8",
+      ),
+    ]);
+
+  assert.match(studio, /Project history/);
+  assert.match(studio, /Create refinements/);
+  assert.match(studio, /Vectorize selected/);
+  assert.match(studio, /Download lockup SVG/);
+  assert.match(refine, /\/v1\/images\/edits/);
+  assert.match(refine, /gpt-image-2/);
+  assert.match(vectorize, /external\.api\.recraft\.ai/);
+  assert.match(vectorize, /RECRAFT_API_KEY/);
+  assert.match(exportRoute, /sanitizeSvg/);
+  assert.match(assetRoute, /Content-Disposition/);
+  assert.match(runtime, /CREATE TABLE IF NOT EXISTS logo_assets/);
+  assert.match(migration, /CREATE TABLE `logo_assets`/);
+});

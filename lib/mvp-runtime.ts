@@ -18,6 +18,7 @@ type RuntimeEnv = {
   DB?: D1Database;
   FILES?: R2Bucket;
   OPENAI_API_KEY?: string;
+  RECRAFT_API_KEY?: string;
 };
 
 export const directions: Direction[] = [
@@ -50,7 +51,7 @@ export const directions: Direction[] = [
 export function getRuntimeEnv(): Required<
   Pick<RuntimeEnv, "DB" | "FILES">
 > &
-  Pick<RuntimeEnv, "OPENAI_API_KEY"> {
+  Pick<RuntimeEnv, "OPENAI_API_KEY" | "RECRAFT_API_KEY"> {
   const runtime = env as unknown as RuntimeEnv;
   if (!runtime.DB || !runtime.FILES) {
     throw new Error("Project storage is not configured.");
@@ -60,6 +61,7 @@ export function getRuntimeEnv(): Required<
     DB: runtime.DB,
     FILES: runtime.FILES,
     OPENAI_API_KEY: runtime.OPENAI_API_KEY,
+    RECRAFT_API_KEY: runtime.RECRAFT_API_KEY,
   };
 }
 
@@ -103,7 +105,75 @@ export async function ensureSchema(database: D1Database) {
       CREATE INDEX IF NOT EXISTS logo_generations_user_idx
       ON logo_generations (user_email)
     `),
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS logo_assets (
+        id TEXT PRIMARY KEY NOT NULL,
+        project_id TEXT NOT NULL,
+        user_email TEXT NOT NULL,
+        parent_id TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        label TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        object_key TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES logo_projects(id) ON DELETE CASCADE
+      )
+    `),
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS logo_assets_project_stage_idx
+      ON logo_assets (project_id, stage)
+    `),
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS logo_assets_user_idx
+      ON logo_assets (user_email)
+    `),
   ]);
+}
+
+export function buildRefinementPrompt(
+  brief: LogoBrief,
+  directionTitle: string,
+  variant: number,
+) {
+  return `
+Refine the supplied logo symbol for "${brief.brandName}".
+
+Brand idea: ${brief.coreIdea}
+Personality: ${brief.personalities.join(", ") || "intelligent, clear, memorable"}
+Selected direction: ${directionTitle}
+Variant: ${variant === 1 ? "optically balanced and restrained" : "slightly bolder and more distinctive"}
+
+Preserve the central visual idea, recognizable silhouette and overall geometry.
+Improve optical balance, spacing, negative space, consistency, small-size clarity
+and professional vector-readiness. Remove accidental details and generic styling.
+
+Return one isolated flat near-black symbol centered on a plain white background.
+No text, mockup, gradients, shadows, texture, 3D or unrelated new concept.
+  `.trim();
+}
+
+export function sanitizeSvg(svg: string) {
+  return svg
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*')/gi, "")
+    .replace(/\s(?:href|xlink:href)\s*=\s*(?:"https?:[^"]*"|'https?:[^']*')/gi, "")
+    .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, "");
+}
+
+export function escapeXml(value: string) {
+  return value.replace(/[<>&"']/g, (character) => {
+    const entities: Record<string, string> = {
+      "<": "&lt;",
+      ">": "&gt;",
+      "&": "&amp;",
+      '"': "&quot;",
+      "'": "&apos;",
+    };
+    return entities[character];
+  });
 }
 
 export function validateBrief(value: unknown): LogoBrief {

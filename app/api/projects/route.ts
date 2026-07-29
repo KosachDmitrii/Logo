@@ -29,7 +29,7 @@ export async function GET() {
 
   const result = await DB.prepare(
     `SELECT id, brand_name AS brandName, status, selected_generation_id AS selectedGenerationId,
-            created_at AS createdAt
+            created_at AS createdAt, updated_at AS updatedAt
      FROM logo_projects
      WHERE user_email = ?
      ORDER BY created_at DESC

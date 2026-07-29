@@ -40,3 +40,27 @@ export const generations = sqliteTable(
     index("logo_generations_user_idx").on(table.userEmail),
   ],
 );
+
+export const assets = sqliteTable(
+  "logo_assets",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userEmail: text("user_email").notNull(),
+    parentId: text("parent_id").notNull(),
+    stage: text("stage").notNull(),
+    label: text("label").notNull(),
+    provider: text("provider").notNull(),
+    model: text("model").notNull(),
+    prompt: text("prompt").notNull(),
+    objectKey: text("object_key").notNull(),
+    contentType: text("content_type").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [
+    index("logo_assets_project_stage_idx").on(table.projectId, table.stage),
+    index("logo_assets_user_idx").on(table.userEmail),
+  ],
+);
