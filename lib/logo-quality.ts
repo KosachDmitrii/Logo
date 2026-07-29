@@ -72,6 +72,11 @@ export async function assessLogoImage(
   if (!runtime.CLOUDFLARE_ACCOUNT_ID || !runtime.CLOUDFLARE_API_TOKEN) {
     throw new Error("Logo quality control is not configured.");
   }
+  const contentType = base64.startsWith("/9j/")
+    ? "image/jpeg"
+    : base64.startsWith("UklGR")
+      ? "image/webp"
+      : "image/png";
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/moondream/moondream3.1-9B-A2B`,
     {
@@ -82,7 +87,7 @@ export async function assessLogoImage(
       },
       body: JSON.stringify({
         task: "query",
-        image: `data:image/png;base64,${base64}`,
+        image: `data:${contentType};base64,${base64}`,
         question: `Act as a strict senior identity-design production reviewer.
 Review this ${context.stage} image as a production logo symbol.
 Expected direction: ${context.direction}

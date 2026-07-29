@@ -37,6 +37,26 @@ type CloudflareTextResponse = {
   errors?: Array<{ code?: number; message?: string }>;
 };
 
+type ImageModel = {
+  id: string;
+  request: "json" | "multipart";
+};
+
+const conceptModels: ImageModel[] = [
+  {
+    id: "@cf/black-forest-labs/flux-2-klein-9b",
+    request: "multipart",
+  },
+  {
+    id: "@cf/black-forest-labs/flux-2-klein-9b",
+    request: "multipart",
+  },
+  {
+    id: "@cf/black-forest-labs/flux-1-schnell",
+    request: "json",
+  },
+];
+
 export const dynamic = "force-dynamic";
 
 async function parseCloudflareResponse(response: Response) {
@@ -48,6 +68,16 @@ async function parseCloudflareResponse(response: Response) {
       `Cloudflare Workers AI returned ${response.status} with an invalid response.`,
     );
   }
+}
+
+function imageFormat(base64: string) {
+  if (base64.startsWith("/9j/")) {
+    return { contentType: "image/jpeg", extension: "jpg" };
+  }
+  if (base64.startsWith("UklGR")) {
+    return { contentType: "image/webp", extension: "webp" };
+  }
+  return { contentType: "image/png", extension: "png" };
 }
 
 function fallbackStrategy(brief: ReturnType<typeof validateBrief>): BrandStrategy {
@@ -336,27 +366,35 @@ export async function POST(request: Request) {
     : strategyDirections;
   async function generateDirection(
     direction: (typeof batchDirections)[number],
-    recoveryMode = false,
+    attempt = 0,
   ) {
     const startedAt = Date.now();
+    const model = conceptModels[attempt] ?? conceptModels.at(-1)!;
+    const recoveryMode = attempt > 0;
     const prompt = buildPrompt(enrichedBrief, direction, { recoveryMode });
-    const form = new FormData();
-    form.append("prompt", prompt);
-    form.append("width", "512");
-    form.append("height", "512");
-    form.append(
-      "seed",
-      String(crypto.getRandomValues(new Uint32Array(1))[0]),
-    );
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+    let body: BodyInit;
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}`,
+    };
+    if (model.request === "multipart") {
+      const form = new FormData();
+      form.append("prompt", prompt);
+      form.append("width", "512");
+      form.append("height", "512");
+      form.append("seed", String(seed));
+      body = form;
+    } else {
+      headers["Content-Type"] = "application/json";
+      body = JSON.stringify({ prompt, seed, steps: 4 });
+    }
 
     const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-2-klein-9b`,
+      `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/${model.id}`,
       {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}`,
-        },
-        body: form,
+        headers,
+        body,
       },
     );
     const payload = await parseCloudflareResponse(response);
@@ -389,15 +427,17 @@ export async function POST(request: Request) {
     }
 
     const generationId = crypto.randomUUID();
-    const objectKey = `users/${userHash}/projects/${projectId}/${generationId}.png`;
+    const format = imageFormat(base64);
+    const objectKey = `users/${userHash}/projects/${projectId}/${generationId}.${format.extension}`;
     const bytes = Uint8Array.from(atob(base64), (character) =>
       character.charCodeAt(0),
     );
 
     await runtime.FILES.put(objectKey, bytes, {
-      httpMetadata: { contentType: "image/png" },
+      httpMetadata: { contentType: format.contentType },
       customMetadata: {
         direction: direction.key,
+        model: model.id,
         project: projectId,
       },
     });
@@ -420,6 +460,7 @@ export async function POST(request: Request) {
       qualityMs,
       totalMs: Date.now() - startedAt,
       qualityScore: quality.score,
+      model: model.id,
     });
 
     return {
@@ -437,7 +478,7 @@ export async function POST(request: Request) {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        return await generateDirection(direction, attempt > 0);
+        return await generateDirection(direction, attempt);
       } catch (error) {
         lastError = error;
         const message = error instanceof Error ? error.message : String(error);
@@ -448,6 +489,7 @@ export async function POST(request: Request) {
           direction: direction.key,
           attempt: attempt + 1,
           recoveryMode: attempt > 0,
+          model: conceptModels[attempt]?.id,
           reason: message.replace(/\s*\([0-9a-f-]{20,}\)\s*/gi, " ").slice(0, 280),
         });
         if (attempt < 2 && !quotaExhausted) {
