@@ -166,6 +166,7 @@ export default function LoopenStudio({
   const [assets, setAssets] = useState<StudioAsset[]>([]);
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [deletingProjectId, setDeletingProjectId] = useState("");
   const [isRefining, setIsRefining] = useState(false);
   const [isVectorizing, setIsVectorizing] = useState(false);
   const [selectedRefinement, setSelectedRefinement] = useState("");
@@ -254,6 +255,40 @@ export default function LoopenStudio({
     setIsHistoryOpen(false);
     setNotice(`${payload.project.brandName} project loaded.`);
     document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  async function deleteProject(project: SavedProject) {
+    const confirmed = window.confirm(
+      `Delete “${project.brandName}” and all of its generated assets? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingProjectId(project.id);
+    const response = await fetch(`/api/projects/${project.id}`, {
+      method: "DELETE",
+    });
+    setDeletingProjectId("");
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      setNotice(payload?.error ?? "Project could not be deleted.");
+      return;
+    }
+
+    setProjects((current) =>
+      current.filter((item) => item.id !== project.id),
+    );
+    if (projectId === project.id) {
+      setProjectId(null);
+      setGeneratedConcepts([]);
+      setSelectedConceptIds([]);
+      setAssets([]);
+      setSelectedRefinement("");
+      setSelectedVector("");
+      setStrategy(null);
+    }
+    setNotice(`${project.brandName} was permanently deleted.`);
   }
 
   function togglePersonality(item: string) {
@@ -565,11 +600,27 @@ export default function LoopenStudio({
           </div>
           <div className="history-list">
             {projects.length ? projects.map((project) => (
-              <button type="button" key={project.id} onClick={() => openProject(project.id)}>
-                <span>{new Date(project.createdAt).toLocaleDateString()}</span>
-                <strong>{project.brandName}</strong>
-                <small>{project.status}</small>
-              </button>
+              <div className="history-project" key={project.id}>
+                <button
+                  className="history-open"
+                  type="button"
+                  onClick={() => openProject(project.id)}
+                >
+                  <span>{new Date(project.createdAt).toLocaleDateString()}</span>
+                  <strong>{project.brandName}</strong>
+                  <small>{project.status}</small>
+                </button>
+                <button
+                  className="history-delete"
+                  type="button"
+                  onClick={() => deleteProject(project)}
+                  disabled={deletingProjectId === project.id}
+                  aria-label={`Delete ${project.brandName} project`}
+                  title="Delete project"
+                >
+                  {deletingProjectId === project.id ? "…" : "×"}
+                </button>
+              </div>
             )) : <p>No saved projects yet.</p>}
           </div>
           <span className="local-session-note">Local private session</span>

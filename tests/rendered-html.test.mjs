@@ -19,6 +19,7 @@ test("ships the finished Loopen product surface", async () => {
   assert.match(studio, /Generate 4 real directions/);
   assert.match(studio, /\/api\/project-list/);
   assert.match(studio, /\/api\/generate-concepts/);
+  assert.match(studio, /Delete .* project/);
   assert.match(studio, /Download PNG/);
   assert.match(css, /--acid:\s*#ffcf68/);
   assert.doesNotMatch(page + studio + layout, /codex-preview|SkeletonPreview/);
@@ -68,6 +69,7 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.match(migration, /create table if not exists public\.logo_projects/i);
   assert.match(migration, /create table if not exists public\.logo_generations/i);
   assert.match(supabase, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(supabase, /method: "DELETE"/);
   assert.match(supabase, /Authorization: `Bearer \$\{key\}`/);
   assert.doesNotMatch(route + runtime, /runtime\.DB|D1Database/);
   assert.ok(root);

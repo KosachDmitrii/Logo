@@ -1,5 +1,6 @@
 import { getChatGPTUser } from "../../../chatgpt-auth";
-import { selectOne, selectRows } from "../../../../lib/supabase";
+import { getRuntimeEnv } from "../../../../lib/mvp-runtime";
+import { deleteRows, selectOne, selectRows } from "../../../../lib/supabase";
 import { directions } from "../../../../lib/mvp-runtime";
 
 export const dynamic = "force-dynamic";
@@ -95,4 +96,53 @@ export async function GET(
       url: `/api/assets/${item.id}`,
     })),
   });
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const user = await getChatGPTUser();
+  if (!user) {
+    return Response.json({ error: "Authentication required." }, { status: 401 });
+  }
+
+  const { id } = await context.params;
+  const project = await selectOne<{ id: string }>("logo_projects", {
+    select: "id",
+    id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
+  if (!project) {
+    return Response.json({ error: "Project not found." }, { status: 404 });
+  }
+
+  const [generations, assets] = await Promise.all([
+    selectRows<{ object_key: string }>("logo_generations", {
+      select: "object_key",
+      project_id: `eq.${id}`,
+      user_email: `eq.${user.email}`,
+    }),
+    selectRows<{ object_key: string }>("logo_assets", {
+      select: "object_key",
+      project_id: `eq.${id}`,
+      user_email: `eq.${user.email}`,
+    }),
+  ]);
+
+  await deleteRows("logo_projects", {
+    id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
+
+  const objectKeys = [...generations, ...assets].map((item) => item.object_key);
+  if (objectKeys.length) {
+    try {
+      await getRuntimeEnv().FILES.delete(objectKeys);
+    } catch (error) {
+      console.error("Project metadata was deleted, but R2 cleanup failed:", error);
+    }
+  }
+
+  return new Response(null, { status: 204 });
 }

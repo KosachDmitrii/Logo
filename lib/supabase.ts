@@ -93,6 +93,21 @@ export async function updateRows<T extends Record<string, unknown>>(
   );
 }
 
+export async function deleteRows(
+  table: string,
+  query: Record<string, QueryValue>,
+) {
+  const { url } = config();
+  const response = await fetch(
+    `${url}/rest/v1/${table}${queryString(query)}`,
+    {
+      method: "DELETE",
+      headers: headers("return=minimal"),
+    },
+  );
+  if (!response.ok) await parse(response);
+}
+
 export async function countRows(
   table: string,
   query: Record<string, QueryValue>,
