@@ -100,3 +100,13 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(runtime, /CREATE TABLE IF NOT EXISTS logo_assets/);
   assert.match(migration, /CREATE TABLE `logo_assets`/);
 });
+
+test("uses a sign-in-free local development identity", async () => {
+  const auth = await readFile(
+    new URL("../app/chatgpt-auth.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(auth, /process\.env\.NODE_ENV !== "production"/);
+  assert.match(auth, /local@loopen\.dev/);
+});

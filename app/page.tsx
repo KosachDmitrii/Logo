@@ -1,6 +1,5 @@
 import {
   chatGPTSignInPath,
-  chatGPTSignOutPath,
   getChatGPTUser,
 } from "./chatgpt-auth";
 import LoopenStudio from "./loopen-studio";
@@ -21,7 +20,6 @@ export default async function Home() {
           : null
       }
       signInPath={chatGPTSignInPath("/#brief")}
-      signOutPath={chatGPTSignOutPath("/")}
     />
   );
 }

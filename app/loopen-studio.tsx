@@ -96,11 +96,9 @@ const personalityOptions = [
 
 export default function LoopenStudio({
   signInPath,
-  signOutPath,
   user,
 }: {
   signInPath: string;
-  signOutPath: string;
   user: StudioUser | null;
 }) {
   const [selectedConcept, setSelectedConcept] = useState("continuous");
@@ -415,7 +413,7 @@ export default function LoopenStudio({
               </button>
             )) : <p>No saved projects yet.</p>}
           </div>
-          <a href={signOutPath}>Sign out →</a>
+          <span className="local-session-note">Local private session</span>
         </aside>
       )}
 
