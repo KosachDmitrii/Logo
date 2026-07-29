@@ -372,7 +372,7 @@ export default function LoopenStudio({
   async function generateMore() {
     if (!projectId || generatedConcepts.length >= 8) return;
     setIsGeneratingMore(true);
-    setNotice("Generating four more fast concepts with Klein 9B…");
+    setNotice("Generating one more fast concept with Klein 9B…");
     try {
       const response = await fetch("/api/generate-concepts", {
         method: "POST",
@@ -390,8 +390,8 @@ export default function LoopenStudio({
       setGeneratedConcepts((current) => [...current, ...payload.generations!]);
       setNotice(
         payload.failures?.length
-          ? `${payload.generations.length} additional concepts are ready; ${payload.failures.length} failed.`
-          : "Four additional concepts are ready.",
+          ? `The additional concept could not be completed: ${payload.failures[0]}`
+          : "One additional concept is ready.",
       );
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "More concepts could not be generated.");
@@ -932,7 +932,7 @@ export default function LoopenStudio({
               onClick={generateMore}
               disabled={isGeneratingMore}
             >
-              {isGeneratingMore ? "Generating four more…" : "More concepts +4"}
+              {isGeneratingMore ? "Generating one more…" : "More concept +1"}
             </button>
           </div>
         )}

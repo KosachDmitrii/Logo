@@ -214,7 +214,7 @@ export async function POST(request: Request) {
     strategy: BrandStrategy;
   };
   let strategy: BrandStrategy;
-  let batch = 0;
+  let existingConceptCount = 0;
 
   if (existingProjectId) {
     const project = await selectOne<{
@@ -229,11 +229,11 @@ export async function POST(request: Request) {
     if (!project) {
       return Response.json({ error: "Project not found." }, { status: 404 });
     }
-    const existingCount = await countRows("logo_generations", {
+    existingConceptCount = await countRows("logo_generations", {
       project_id: `eq.${existingProjectId}`,
       user_email: `eq.${user.email}`,
     });
-    if (existingCount >= 8) {
+    if (existingConceptCount >= 8) {
       return Response.json(
         { error: "This project already has the maximum of 8 concepts." },
         { status: 409 },
@@ -243,7 +243,6 @@ export async function POST(request: Request) {
       project.brief_json.strategy ??
       fallbackStrategy(project.brief_json);
     enrichedBrief = { ...project.brief_json, strategy };
-    batch = Math.floor(existingCount / 4);
   } else {
     let brief;
     try {
@@ -270,16 +269,17 @@ export async function POST(request: Request) {
   }
 
   const userHash = await hashIdentity(user.email);
-  const batchDirections = directions.map((direction) =>
-    batch
-      ? {
+  const batchDirections = existingProjectId
+    ? (() => {
+        const direction = directions[existingConceptCount % directions.length];
+        return [{
           ...direction,
-          key: `${direction.key}-${batch + 1}`,
-          title: `${direction.title} — Alternate`,
+          key: `${direction.key}-${existingConceptCount + 1}`,
+          title: `${direction.title} — Alternate ${existingConceptCount - 3}`,
           thesis: `${direction.thesis} Explore a clearly different construction and silhouette.`,
-        }
-      : direction,
-  );
+        }];
+      })()
+    : directions;
   async function generateDirection(direction: (typeof batchDirections)[number]) {
     const prompt = buildPrompt(enrichedBrief, direction);
     const form = new FormData();

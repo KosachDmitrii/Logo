@@ -112,7 +112,7 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(refine, /@cf\/black-forest-labs\/flux-2-dev/);
   assert.match(refine, /form\.append\("width", "1024"\)/);
   assert.match(refine, /generationIds/);
-  assert.match(studio, /More concepts \+4/);
+  assert.match(studio, /More concept \+1/);
   assert.match(studio, /select up to 2/);
   assert.match(vectorize, /external\.api\.recraft\.ai/);
   assert.match(vectorize, /RECRAFT_API_KEY/);
