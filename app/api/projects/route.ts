@@ -334,9 +334,12 @@ export async function POST(request: Request) {
         }];
       })()
     : strategyDirections;
-  async function generateDirection(direction: (typeof batchDirections)[number]) {
+  async function generateDirection(
+    direction: (typeof batchDirections)[number],
+    recoveryMode = false,
+  ) {
     const startedAt = Date.now();
-    const prompt = buildPrompt(enrichedBrief, direction);
+    const prompt = buildPrompt(enrichedBrief, direction, { recoveryMode });
     const form = new FormData();
     form.append("prompt", prompt);
     form.append("width", "512");
@@ -434,14 +437,21 @@ export async function POST(request: Request) {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        return await generateDirection(direction);
+        return await generateDirection(direction, attempt > 0);
       } catch (error) {
         lastError = error;
         const message = error instanceof Error ? error.message : String(error);
         const quotaExhausted =
           message.includes("daily free allocation") || message.includes("(4006)");
-        if (attempt === 0 && !quotaExhausted) {
-          await new Promise((resolve) => setTimeout(resolve, 1200));
+        console.warn({
+          event: "logo_concept_attempt_rejected",
+          direction: direction.key,
+          attempt: attempt + 1,
+          recoveryMode: attempt > 0,
+          reason: message.replace(/\s*\([0-9a-f-]{20,}\)\s*/gi, " ").slice(0, 280),
+        });
+        if (attempt < 2 && !quotaExhausted) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
     }
@@ -483,14 +493,21 @@ export async function POST(request: Request) {
         failure.includes("daily free allocation") ||
         failure.includes("(4006)"),
     );
+    const safetyBlocked = failures.some(
+      (failure) =>
+        failure.includes("flagged") ||
+        failure.includes("(3030)"),
+    );
     return Response.json(
       {
         error: quotaExceeded
           ? "Cloudflare Workers AI daily quota is exhausted. Wait for the daily reset or enable the Workers Paid plan, then try again."
+          : safetyBlocked
+            ? "The image safety filter blocked every attempt, including the neutral recovery prompt. No image was saved; try generating again."
           : failures[0] ?? "No concepts were generated.",
         projectId,
       },
-      { status: quotaExceeded ? 429 : 502 },
+      { status: quotaExceeded ? 429 : safetyBlocked ? 422 : 502 },
     );
   }
 

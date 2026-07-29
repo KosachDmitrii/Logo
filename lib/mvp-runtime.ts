@@ -198,10 +198,31 @@ export function validateBrief(value: unknown): LogoBrief {
   };
 }
 
-export function buildPrompt(brief: LogoBrief, direction: Direction) {
+export function buildPrompt(
+  brief: LogoBrief,
+  direction: Direction,
+  options: { recoveryMode?: boolean } = {},
+) {
+  if (options.recoveryMode) {
+    return `
+Create exactly one clean abstract geometric logo symbol.
+
+Creative direction: ${direction.title}
+Visual thesis: ${direction.thesis}
+
+Use one simple near-black shape with balanced negative space, centered on a
+plain white background. Make it distinctive, calm, professional, flat,
+single-color and recognizable at 24 pixels.
+
+The image must contain only the symbol. No text, letters, words, initials,
+numbers, typography, captions, borders, mockups, people, products, scenery,
+gradients, shadows, texture, lighting effects, 3D or photographic elements.
+Do not use literal industry icons or familiar stock-logo constructions.
+    `.trim();
+  }
   return `
-Create one original professional abstract logo symbol. The brand context is
-"${brief.brandName}", but the brand name must never appear in the image.
+Create one original professional abstract logo symbol. The brand name is
+intentionally withheld because the image must contain only the symbol.
 
 Brand idea: ${brief.coreIdea}
 Industry: ${brief.industry}
@@ -212,7 +233,6 @@ Personality: ${brief.personalities.join(", ") || "intelligent, clear, memorable"
 The final identity type is ${brief.logoType}; this image supplies only its symbol component.
 Visual direction: ${brief.visualDirection || "minimal, distinctive and ownable"}
 Primary uses: ${brief.usage || "digital, print, signage and small icons"}
-Competitors to avoid resembling: ${brief.competitors || "no named competitors"}
 
 Strategic direction: ${direction.title}
 Concept thesis: ${direction.thesis}
@@ -233,8 +253,8 @@ ABSOLUTELY NO text, letters, words, brand name, initials, monograms, numbers,
 captions, labels, signatures, pseudo-text or typographic glyphs.
 Do not create a mockup, presentation board, stationery, or multiple options.
 Do not use gradients, shadows, texture, lighting effects, 3D, or photographic elements.
-Avoid: ${brief.avoid || "generic startup symbols, literal arrows, obvious infinity marks"}.
-Avoid close resemblance to named competitors and familiar category leaders.
+Avoid literal industry icons, monograms, familiar category leaders and
+generic stock-logo constructions.
 The result must be visibly different from common stock-logo clichés.
   `.trim();
 }
