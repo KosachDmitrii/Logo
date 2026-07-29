@@ -1,5 +1,6 @@
 import { getChatGPTUser } from "../../../chatgpt-auth";
-import { ensureSchema, getRuntimeEnv } from "../../../../lib/mvp-runtime";
+import { getRuntimeEnv } from "../../../../lib/mvp-runtime";
+import { selectOne } from "../../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -14,38 +15,39 @@ export async function GET(
 
   const { id } = await context.params;
   const runtime = getRuntimeEnv();
-  await ensureSchema(runtime.DB);
-  const asset = await runtime.DB.prepare(
-    `SELECT a.object_key AS objectKey, a.content_type AS contentType, a.label,
-            p.brand_name AS brandName
-     FROM logo_assets a JOIN logo_projects p ON p.id = a.project_id
-     WHERE a.id = ? AND a.user_email = ?`,
-  )
-    .bind(id, user.email)
-    .first<{ objectKey: string; contentType: string; label: string; brandName: string }>();
+  const asset = await selectOne<{
+    object_key: string;
+    content_type: string;
+    label: string;
+    logo_projects: { brand_name: string };
+  }>("logo_assets", {
+    select: "object_key,content_type,label,logo_projects!inner(brand_name)",
+    id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
 
   if (!asset) {
     return Response.json({ error: "Asset not found." }, { status: 404 });
   }
 
-  const object = await runtime.FILES.get(asset.objectKey);
+  const object = await runtime.FILES.get(asset.object_key);
   if (!object?.body) {
     return Response.json({ error: "Asset data not found." }, { status: 404 });
   }
 
   const headers = new Headers({
     "Cache-Control": "private, max-age=3600",
-    "Content-Type": asset.contentType,
+    "Content-Type": asset.content_type,
     ETag: object.httpEtag,
   });
   if (new URL(request.url).searchParams.get("download") === "1") {
-    const name = `${asset.brandName}-${asset.label}`
+    const name = `${asset.logo_projects.brand_name}-${asset.label}`
       .replace(/[^a-zA-Z0-9_-]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 80);
     headers.set(
       "Content-Disposition",
-      `attachment; filename="${name || "loopen-asset"}.${asset.contentType.includes("svg") ? "svg" : "png"}"`,
+      `attachment; filename="${name || "loopen-asset"}.${asset.content_type.includes("svg") ? "svg" : "png"}"`,
     );
   }
   return new Response(object.body, { headers });

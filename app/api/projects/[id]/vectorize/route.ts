@@ -1,9 +1,13 @@
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import {
-  ensureSchema,
   getRuntimeEnv,
   sanitizeSvg,
 } from "../../../../../lib/mvp-runtime";
+import {
+  insertRow,
+  selectOne,
+  updateRows,
+} from "../../../../../lib/supabase";
 
 type RecraftResponse = {
   image?: { b64_json?: string; url?: string };
@@ -30,7 +34,6 @@ export async function POST(
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const runtime = getRuntimeEnv();
-  await ensureSchema(runtime.DB);
   if (!runtime.RECRAFT_API_KEY) {
     return Response.json(
       { error: "Add RECRAFT_API_KEY to the production environment to create SVG files." },
@@ -40,14 +43,18 @@ export async function POST(
 
   const { id: projectId } = await context.params;
   const { assetId } = (await request.json()) as { assetId?: string };
-  const asset = await runtime.DB.prepare(
-    `SELECT id, object_key AS objectKey FROM logo_assets
-     WHERE id = ? AND project_id = ? AND user_email = ? AND stage = 'refine'`,
-  )
-    .bind(assetId ?? "", projectId, user.email)
-    .first<{ id: string; objectKey: string }>();
+  const asset = await selectOne<{ id: string; object_key: string }>(
+    "logo_assets",
+    {
+      select: "id,object_key",
+      id: `eq.${assetId ?? ""}`,
+      project_id: `eq.${projectId}`,
+      user_email: `eq.${user.email}`,
+      stage: "eq.refine",
+    },
+  );
   if (!asset) return Response.json({ error: "Refined asset not found." }, { status: 404 });
-  const source = await runtime.FILES.get(asset.objectKey);
+  const source = await runtime.FILES.get(asset.object_key);
   if (!source) return Response.json({ error: "Refined image data not found." }, { status: 404 });
   const bytes = await source.arrayBuffer();
 
@@ -90,24 +97,23 @@ export async function POST(
       const id = crypto.randomUUID();
       const objectKey = `users/assets/${user.email.length}/${projectId}/${id}.svg`;
       await runtime.FILES.put(objectKey, svg, { httpMetadata: { contentType: "image/svg+xml" } });
-      await runtime.DB.prepare(
-        `INSERT INTO logo_assets
-          (id, project_id, user_email, parent_id, stage, label, provider, model,
-           prompt, object_key, content_type, created_at)
-         VALUES (?, ?, ?, ?, 'vector', ?, 'recraft', ?, ?, ?, 'image/svg+xml', ?)`,
-      )
-        .bind(
-          id,
-          projectId,
-          user.email,
-          asset.id,
-          job.label,
-          job.model,
-          "prompt" in job.fields ? job.fields.prompt : "Raster-to-vector preservation",
-          objectKey,
-          Date.now(),
-        )
-        .run();
+      await insertRow("logo_assets", {
+        id,
+        project_id: projectId,
+        user_email: user.email,
+        parent_id: asset.id,
+        stage: "vector",
+        label: job.label,
+        provider: "recraft",
+        model: job.model,
+        prompt:
+          "prompt" in job.fields
+            ? job.fields.prompt
+            : "Raster-to-vector preservation",
+        object_key: objectKey,
+        content_type: "image/svg+xml",
+        created_at: Date.now(),
+      });
       return {
         id,
         parentId: asset.id,
@@ -130,8 +136,10 @@ export async function POST(
       { status: 502 },
     );
   }
-  await runtime.DB.prepare(
-    `UPDATE logo_projects SET status = 'vectorized', updated_at = ? WHERE id = ? AND user_email = ?`,
-  ).bind(Date.now(), projectId, user.email).run();
+  await updateRows(
+    "logo_projects",
+    { id: `eq.${projectId}`, user_email: `eq.${user.email}` },
+    { status: "vectorized", updated_at: Date.now() },
+  );
   return Response.json({ assets }, { status: 201 });
 }

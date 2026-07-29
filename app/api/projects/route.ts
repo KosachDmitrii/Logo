@@ -2,18 +2,30 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 import {
   buildPrompt,
   directions,
-  ensureSchema,
   getRuntimeEnv,
   hashIdentity,
   validateBrief,
 } from "../../../lib/mvp-runtime";
+import {
+  countRows,
+  insertRow,
+  selectRows,
+  updateRows,
+} from "../../../lib/supabase";
 
-type OpenAIImageResponse = {
-  data?: Array<{ b64_json?: string }>;
-  error?: {
-    code?: string;
-    message?: string;
-  };
+type ProjectRow = {
+  id: string;
+  brand_name: string;
+  status: string;
+  selected_generation_id: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+type CloudflareImageResponse = {
+  success?: boolean;
+  result?: { image?: string };
+  errors?: Array<{ message?: string }>;
 };
 
 export const dynamic = "force-dynamic";
@@ -24,21 +36,23 @@ export async function GET() {
     return Response.json({ error: "Authentication required." }, { status: 401 });
   }
 
-  const { DB } = getRuntimeEnv();
-  await ensureSchema(DB);
-
-  const result = await DB.prepare(
-    `SELECT id, brand_name AS brandName, status, selected_generation_id AS selectedGenerationId,
-            created_at AS createdAt, updated_at AS updatedAt
-     FROM logo_projects
-     WHERE user_email = ?
-     ORDER BY created_at DESC
-     LIMIT 12`,
-  )
-    .bind(user.email)
-    .all();
-
-  return Response.json({ projects: result.results });
+  const rows = await selectRows<ProjectRow>("logo_projects", {
+    select:
+      "id,brand_name,status,selected_generation_id,created_at,updated_at",
+    user_email: `eq.${user.email}`,
+    order: "created_at.desc",
+    limit: 12,
+  });
+  return Response.json({
+    projects: rows.map((row) => ({
+      id: row.id,
+      brandName: row.brand_name,
+      status: row.status,
+      selectedGenerationId: row.selected_generation_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    })),
+  });
 }
 
 export async function POST(request: Request) {
@@ -48,13 +62,11 @@ export async function POST(request: Request) {
   }
 
   const runtime = getRuntimeEnv();
-  await ensureSchema(runtime.DB);
-
-  if (!runtime.OPENAI_API_KEY) {
+  if (!runtime.CLOUDFLARE_ACCOUNT_ID || !runtime.CLOUDFLARE_API_TOKEN) {
     return Response.json(
       {
         error:
-          "Image generation is not configured yet. Add OPENAI_API_KEY to the production environment.",
+          "Concept generation is not configured. Add the Cloudflare account ID and Workers AI token.",
       },
       { status: 503 },
     );
@@ -71,15 +83,11 @@ export async function POST(request: Request) {
   }
 
   const now = Date.now();
-  const recent = await runtime.DB.prepare(
-    `SELECT COUNT(*) AS count
-     FROM logo_projects
-     WHERE user_email = ? AND created_at > ?`,
-  )
-    .bind(user.email, now - 60 * 60 * 1000)
-    .first<{ count: number }>();
-
-  if ((recent?.count ?? 0) >= 3) {
+  const recent = await countRows("logo_projects", {
+    user_email: `eq.${user.email}`,
+    created_at: `gt.${now - 60 * 60 * 1000}`,
+  });
+  if (recent >= 3) {
     return Response.json(
       { error: "Hourly generation limit reached. Try again later." },
       { status: 429 },
@@ -87,52 +95,44 @@ export async function POST(request: Request) {
   }
 
   const projectId = crypto.randomUUID();
-  await runtime.DB.prepare(
-    `INSERT INTO logo_projects
-      (id, user_email, brand_name, brief_json, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'generating', ?, ?)`,
-  )
-    .bind(
-      projectId,
-      user.email,
-      brief.brandName,
-      JSON.stringify(brief),
-      now,
-      now,
-    )
-    .run();
+  await insertRow("logo_projects", {
+    id: projectId,
+    user_email: user.email,
+    brand_name: brief.brandName,
+    brief_json: brief,
+    status: "generating",
+    selected_generation_id: null,
+    created_at: now,
+    updated_at: now,
+  });
 
   const userHash = await hashIdentity(user.email);
   const settled = await Promise.allSettled(
     directions.map(async (direction) => {
       const prompt = buildPrompt(brief, direction);
       const response = await fetch(
-        "https://api.openai.com/v1/images/generations",
+        `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-2-dev`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${runtime.OPENAI_API_KEY}`,
+            Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "gpt-image-2",
             prompt,
-            n: 1,
-            size: "1024x1024",
-            quality: "medium",
-            output_format: "png",
-            moderation: "auto",
+            width: 1024,
+            height: 1024,
+            steps: 12,
+            seed: crypto.getRandomValues(new Uint32Array(1))[0],
           }),
         },
       );
-      const payload = (await response.json()) as OpenAIImageResponse;
-      const base64 = payload.data?.[0]?.b64_json;
+      const payload = (await response.json()) as CloudflareImageResponse;
+      const base64 = payload.result?.image;
       if (!response.ok || !base64) {
-        const detail =
-          payload.error?.code === "moderation_blocked"
-            ? "A concept was blocked by the safety filter. Revise the brief."
-            : payload.error?.message || "OpenAI returned no image.";
-        throw new Error(detail);
+        throw new Error(
+          payload.errors?.[0]?.message || "Cloudflare Workers AI returned no image.",
+        );
       }
 
       const generationId = crypto.randomUUID();
@@ -149,23 +149,17 @@ export async function POST(request: Request) {
         },
       });
 
-      await runtime.DB.prepare(
-        `INSERT INTO logo_generations
-          (id, project_id, user_email, direction_key, direction_title, prompt,
-           object_key, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?)`,
-      )
-        .bind(
-          generationId,
-          projectId,
-          user.email,
-          direction.key,
-          direction.title,
-          prompt,
-          objectKey,
-          Date.now(),
-        )
-        .run();
+      await insertRow("logo_generations", {
+        id: generationId,
+        project_id: projectId,
+        user_email: user.email,
+        direction_key: direction.key,
+        direction_title: direction.title,
+        prompt,
+        object_key: objectKey,
+        status: "completed",
+        created_at: Date.now(),
+      });
 
       return {
         directionKey: direction.key,
@@ -190,11 +184,14 @@ export async function POST(request: Request) {
       : [],
   );
 
-  await runtime.DB.prepare(
-    `UPDATE logo_projects SET status = ?, updated_at = ? WHERE id = ?`,
-  )
-    .bind(generations.length ? "completed" : "failed", Date.now(), projectId)
-    .run();
+  await updateRows(
+    "logo_projects",
+    { id: `eq.${projectId}`, user_email: `eq.${user.email}` },
+    {
+      status: generations.length ? "completed" : "failed",
+      updated_at: Date.now(),
+    },
+  );
 
   if (!generations.length) {
     return Response.json(

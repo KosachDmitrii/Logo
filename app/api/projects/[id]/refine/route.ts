@@ -1,9 +1,13 @@
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import {
   buildRefinementPrompt,
-  ensureSchema,
   getRuntimeEnv,
 } from "../../../../../lib/mvp-runtime";
+import {
+  insertRow,
+  selectOne,
+  updateRows,
+} from "../../../../../lib/supabase";
 
 type ImageResponse = {
   data?: Array<{ b64_json?: string }>;
@@ -19,31 +23,38 @@ export async function POST(
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const runtime = getRuntimeEnv();
-  await ensureSchema(runtime.DB);
   if (!runtime.OPENAI_API_KEY) {
     return Response.json({ error: "OpenAI refinement is not configured." }, { status: 503 });
   }
 
   const { id: projectId } = await context.params;
   const { generationId } = (await request.json()) as { generationId?: string };
-  const row = await runtime.DB.prepare(
-    `SELECT g.id, g.object_key AS objectKey, g.direction_title AS directionTitle,
-            p.brief_json AS briefJson
-     FROM logo_generations g JOIN logo_projects p ON p.id = g.project_id
-     WHERE g.id = ? AND g.project_id = ? AND g.user_email = ?`,
-  )
-    .bind(generationId ?? "", projectId, user.email)
-    .first<{ id: string; objectKey: string; directionTitle: string; briefJson: string }>();
+  const row = await selectOne<{
+    id: string;
+    object_key: string;
+    direction_title: string;
+    logo_projects: { brief_json: Record<string, unknown> };
+  }>("logo_generations", {
+    select:
+      "id,object_key,direction_title,logo_projects!inner(brief_json)",
+    id: `eq.${generationId ?? ""}`,
+    project_id: `eq.${projectId}`,
+    user_email: `eq.${user.email}`,
+  });
   if (!row) return Response.json({ error: "Selected concept not found." }, { status: 404 });
 
-  const source = await runtime.FILES.get(row.objectKey);
+  const source = await runtime.FILES.get(row.object_key);
   if (!source) return Response.json({ error: "Source image not found." }, { status: 404 });
   const sourceBytes = await source.arrayBuffer();
-  const brief = JSON.parse(row.briefJson);
+  const brief = row.logo_projects.brief_json;
 
   const results = await Promise.allSettled(
     [1, 2].map(async (variant) => {
-      const prompt = buildRefinementPrompt(brief, row.directionTitle, variant);
+      const prompt = buildRefinementPrompt(
+        brief as Parameters<typeof buildRefinementPrompt>[0],
+        row.direction_title,
+        variant,
+      );
       const form = new FormData();
       form.append("model", "gpt-image-2");
       form.append("image[]", new Blob([sourceBytes], { type: "image/png" }), "concept.png");
@@ -72,14 +83,20 @@ export async function POST(
       await runtime.FILES.put(objectKey, bytes, {
         httpMetadata: { contentType: "image/png" },
       });
-      await runtime.DB.prepare(
-        `INSERT INTO logo_assets
-          (id, project_id, user_email, parent_id, stage, label, provider, model,
-           prompt, object_key, content_type, created_at)
-         VALUES (?, ?, ?, ?, 'refine', ?, 'openai', 'gpt-image-2', ?, ?, 'image/png', ?)`,
-      )
-        .bind(id, projectId, user.email, row.id, `Refinement ${variant}`, prompt, objectKey, Date.now())
-        .run();
+      await insertRow("logo_assets", {
+        id,
+        project_id: projectId,
+        user_email: user.email,
+        parent_id: row.id,
+        stage: "refine",
+        label: `Refinement ${variant}`,
+        provider: "openai",
+        model: "gpt-image-2",
+        prompt,
+        object_key: objectKey,
+        content_type: "image/png",
+        created_at: Date.now(),
+      });
       return {
         id,
         parentId: row.id,
@@ -102,8 +119,10 @@ export async function POST(
       { status: 502 },
     );
   }
-  await runtime.DB.prepare(
-    `UPDATE logo_projects SET status = 'refined', updated_at = ? WHERE id = ? AND user_email = ?`,
-  ).bind(Date.now(), projectId, user.email).run();
+  await updateRows(
+    "logo_projects",
+    { id: `eq.${projectId}`, user_email: `eq.${user.email}` },
+    { status: "refined", updated_at: Date.now() },
+  );
   return Response.json({ assets }, { status: 201 });
 }

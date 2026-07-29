@@ -1,5 +1,5 @@
 import { getChatGPTUser } from "../../../chatgpt-auth";
-import { ensureSchema, getRuntimeEnv } from "../../../../lib/mvp-runtime";
+import { selectOne, selectRows } from "../../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -13,48 +13,80 @@ export async function GET(
   }
 
   const { id } = await context.params;
-  const { DB } = getRuntimeEnv();
-  await ensureSchema(DB);
-  const project = await DB.prepare(
-    `SELECT id, brand_name AS brandName, brief_json AS briefJson, status,
-            selected_generation_id AS selectedGenerationId, created_at AS createdAt
-     FROM logo_projects WHERE id = ? AND user_email = ?`,
-  )
-    .bind(id, user.email)
-    .first<Record<string, unknown>>();
+  const project = await selectOne<{
+    id: string;
+    brand_name: string;
+    brief_json: Record<string, unknown>;
+    status: string;
+    selected_generation_id: string | null;
+    created_at: number;
+  }>("logo_projects", {
+    select:
+      "id,brand_name,brief_json,status,selected_generation_id,created_at",
+    id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
 
   if (!project) {
     return Response.json({ error: "Project not found." }, { status: 404 });
   }
 
   const [generations, assets] = await Promise.all([
-    DB.prepare(
-      `SELECT id, direction_key AS directionKey, direction_title AS directionTitle,
-              created_at AS createdAt
-       FROM logo_generations WHERE project_id = ? AND user_email = ?
-       ORDER BY created_at`,
-    )
-      .bind(id, user.email)
-      .all(),
-    DB.prepare(
-      `SELECT id, parent_id AS parentId, stage, label, provider, model,
-              content_type AS contentType, created_at AS createdAt
-       FROM logo_assets WHERE project_id = ? AND user_email = ?
-       ORDER BY created_at`,
-    )
-      .bind(id, user.email)
-      .all(),
+    selectRows<{
+      id: string;
+      direction_key: string;
+      direction_title: string;
+      created_at: number;
+    }>("logo_generations", {
+      select: "id,direction_key,direction_title,created_at",
+      project_id: `eq.${id}`,
+      user_email: `eq.${user.email}`,
+      order: "created_at.asc",
+    }),
+    selectRows<{
+      id: string;
+      parent_id: string;
+      stage: "refine" | "vector";
+      label: string;
+      provider: string;
+      model: string;
+      content_type: string;
+      created_at: number;
+    }>("logo_assets", {
+      select:
+        "id,parent_id,stage,label,provider,model,content_type,created_at",
+      project_id: `eq.${id}`,
+      user_email: `eq.${user.email}`,
+      order: "created_at.asc",
+    }),
   ]);
 
   return Response.json({
-    project: { ...project, brief: JSON.parse(String(project.briefJson)), briefJson: undefined },
-    generations: generations.results.map((item) => ({
-      ...item,
+    project: {
+      id: project.id,
+      brandName: project.brand_name,
+      brief: project.brief_json,
+      status: project.status,
+      selectedGenerationId: project.selected_generation_id,
+      createdAt: project.created_at,
+    },
+    generations: generations.map((item) => ({
+      id: item.id,
+      directionKey: item.direction_key,
+      directionTitle: item.direction_title,
+      createdAt: item.created_at,
       downloadUrl: `/api/images/${item.id}?download=1`,
       imageUrl: `/api/images/${item.id}`,
     })),
-    assets: assets.results.map((item) => ({
-      ...item,
+    assets: assets.map((item) => ({
+      id: item.id,
+      parentId: item.parent_id,
+      stage: item.stage,
+      label: item.label,
+      provider: item.provider,
+      model: item.model,
+      contentType: item.content_type,
+      createdAt: item.created_at,
       downloadUrl: `/api/assets/${item.id}?download=1`,
       url: `/api/assets/${item.id}`,
     })),

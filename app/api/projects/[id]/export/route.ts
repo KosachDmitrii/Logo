@@ -1,10 +1,10 @@
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 import {
-  ensureSchema,
   escapeXml,
   getRuntimeEnv,
   sanitizeSvg,
 } from "../../../../../lib/mvp-runtime";
+import { selectOne } from "../../../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,6 @@ export async function POST(
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const runtime = getRuntimeEnv();
-  await ensureSchema(runtime.DB);
   const { id: projectId } = await context.params;
   const input = (await request.json()) as {
     assetId?: string;
@@ -23,15 +22,18 @@ export async function POST(
     layout?: "horizontal" | "vertical";
     color?: string;
   };
-  const row = await runtime.DB.prepare(
-    `SELECT a.object_key AS objectKey, p.brand_name AS brandName
-     FROM logo_assets a JOIN logo_projects p ON p.id = a.project_id
-     WHERE a.id = ? AND a.project_id = ? AND a.user_email = ? AND a.stage = 'vector'`,
-  )
-    .bind(input.assetId ?? "", projectId, user.email)
-    .first<{ objectKey: string; brandName: string }>();
+  const row = await selectOne<{
+    object_key: string;
+    logo_projects: { brand_name: string };
+  }>("logo_assets", {
+    select: "object_key,logo_projects!inner(brand_name)",
+    id: `eq.${input.assetId ?? ""}`,
+    project_id: `eq.${projectId}`,
+    user_email: `eq.${user.email}`,
+    stage: "eq.vector",
+  });
   if (!row) return Response.json({ error: "Vector asset not found." }, { status: 404 });
-  const object = await runtime.FILES.get(row.objectKey);
+  const object = await runtime.FILES.get(row.object_key);
   if (!object) return Response.json({ error: "Vector data not found." }, { status: 404 });
   const source = sanitizeSvg(await object.text());
   const inner = source
@@ -42,7 +44,7 @@ export async function POST(
   const width = horizontal ? 1400 : 900;
   const height = horizontal ? 420 : 900;
   const color = /^#[0-9a-f]{6}$/i.test(input.color ?? "") ? input.color! : "#201f1e";
-  const brand = escapeXml(row.brandName);
+  const brand = escapeXml(row.logo_projects.brand_name);
   const descriptor = escapeXml((input.descriptor ?? "").trim().slice(0, 80));
   const mark = horizontal
     ? `<svg x="40" y="40" width="340" height="340" viewBox="${escapeXml(viewBox)}">${inner}</svg>`
@@ -57,7 +59,10 @@ export async function POST(
   ${mark}
   ${text}
 </svg>`;
-  const filename = row.brandName.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-|-$/g, "") || "loopen";
+  const filename =
+    row.logo_projects.brand_name
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-|-$/g, "") || "loopen";
   return new Response(svg, {
     headers: {
       "Content-Type": "image/svg+xml",

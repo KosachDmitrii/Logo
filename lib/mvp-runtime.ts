@@ -15,10 +15,13 @@ export type Direction = {
 };
 
 type RuntimeEnv = {
-  DB?: D1Database;
   FILES?: R2Bucket;
   OPENAI_API_KEY?: string;
   RECRAFT_API_KEY?: string;
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_API_TOKEN?: string;
 };
 
 export const directions: Direction[] = [
@@ -49,88 +52,31 @@ export const directions: Direction[] = [
 ];
 
 export function getRuntimeEnv(): Required<
-  Pick<RuntimeEnv, "DB" | "FILES">
+  Pick<RuntimeEnv, "FILES">
 > &
-  Pick<RuntimeEnv, "OPENAI_API_KEY" | "RECRAFT_API_KEY"> {
+  Pick<
+    RuntimeEnv,
+    | "OPENAI_API_KEY"
+    | "RECRAFT_API_KEY"
+    | "SUPABASE_URL"
+    | "SUPABASE_SERVICE_ROLE_KEY"
+    | "CLOUDFLARE_ACCOUNT_ID"
+    | "CLOUDFLARE_API_TOKEN"
+  > {
   const runtime = env as unknown as RuntimeEnv;
-  if (!runtime.DB || !runtime.FILES) {
+  if (!runtime.FILES) {
     throw new Error("Project storage is not configured.");
   }
 
   return {
-    DB: runtime.DB,
     FILES: runtime.FILES,
     OPENAI_API_KEY: runtime.OPENAI_API_KEY,
     RECRAFT_API_KEY: runtime.RECRAFT_API_KEY,
+    SUPABASE_URL: runtime.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: runtime.SUPABASE_SERVICE_ROLE_KEY,
+    CLOUDFLARE_ACCOUNT_ID: runtime.CLOUDFLARE_ACCOUNT_ID,
+    CLOUDFLARE_API_TOKEN: runtime.CLOUDFLARE_API_TOKEN,
   };
-}
-
-export async function ensureSchema(database: D1Database) {
-  await database.batch([
-    database.prepare(`
-      CREATE TABLE IF NOT EXISTS logo_projects (
-        id TEXT PRIMARY KEY NOT NULL,
-        user_email TEXT NOT NULL,
-        brand_name TEXT NOT NULL,
-        brief_json TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'created',
-        selected_generation_id TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-    `),
-    database.prepare(`
-      CREATE TABLE IF NOT EXISTS logo_generations (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        user_email TEXT NOT NULL,
-        direction_key TEXT NOT NULL,
-        direction_title TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        object_key TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'completed',
-        created_at INTEGER NOT NULL,
-        FOREIGN KEY (project_id) REFERENCES logo_projects(id) ON DELETE CASCADE
-      )
-    `),
-    database.prepare(`
-      CREATE INDEX IF NOT EXISTS logo_projects_user_created_idx
-      ON logo_projects (user_email, created_at)
-    `),
-    database.prepare(`
-      CREATE INDEX IF NOT EXISTS logo_generations_project_idx
-      ON logo_generations (project_id)
-    `),
-    database.prepare(`
-      CREATE INDEX IF NOT EXISTS logo_generations_user_idx
-      ON logo_generations (user_email)
-    `),
-    database.prepare(`
-      CREATE TABLE IF NOT EXISTS logo_assets (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT NOT NULL,
-        user_email TEXT NOT NULL,
-        parent_id TEXT NOT NULL,
-        stage TEXT NOT NULL,
-        label TEXT NOT NULL,
-        provider TEXT NOT NULL,
-        model TEXT NOT NULL,
-        prompt TEXT NOT NULL,
-        object_key TEXT NOT NULL,
-        content_type TEXT NOT NULL,
-        created_at INTEGER NOT NULL,
-        FOREIGN KEY (project_id) REFERENCES logo_projects(id) ON DELETE CASCADE
-      )
-    `),
-    database.prepare(`
-      CREATE INDEX IF NOT EXISTS logo_assets_project_stage_idx
-      ON logo_assets (project_id, stage)
-    `),
-    database.prepare(`
-      CREATE INDEX IF NOT EXISTS logo_assets_user_idx
-      ON logo_assets (user_email)
-    `),
-  ]);
 }
 
 export function buildRefinementPrompt(

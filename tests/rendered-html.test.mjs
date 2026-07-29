@@ -26,7 +26,7 @@ test("ships the finished Loopen product surface", async () => {
 });
 
 test("keeps generation authenticated, persistent, and server-side", async () => {
-  const [route, imageRoute, selectRoute, runtime, hosting, migration] =
+  const [route, imageRoute, selectRoute, runtime, hosting, migration, supabase] =
     await Promise.all([
       readFile(new URL("../app/api/projects/route.ts", import.meta.url), "utf8"),
       readFile(
@@ -40,34 +40,38 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
       readFile(new URL("../lib/mvp-runtime.ts", import.meta.url), "utf8"),
       readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
       readFile(
-        new URL("../drizzle/0000_lonely_rhodey.sql", import.meta.url),
+        new URL(
+          "../supabase/migrations/20260729190000_loopen_schema.sql",
+          import.meta.url,
+        ),
         "utf8",
       ),
+      readFile(new URL("../lib/supabase.ts", import.meta.url), "utf8"),
     ]);
 
   assert.match(route, /getChatGPTUser/);
   assert.match(imageRoute, /getChatGPTUser/);
   assert.match(selectRoute, /getChatGPTUser/);
-  assert.match(route, /gpt-image-2/);
-  assert.match(route, /OPENAI_API_KEY/);
+  assert.match(route, /@cf\/black-forest-labs\/flux-2-dev/);
+  assert.match(route, /CLOUDFLARE_API_TOKEN/);
   assert.match(route, /Promise\.allSettled/);
   assert.match(runtime, /Continuous Logic/);
   assert.match(runtime, /Open Portal/);
   assert.match(runtime, /Signal Exchange/);
   assert.match(runtime, /Soft Structure/);
-  assert.match(hosting, /"d1": "DB"/);
+  assert.match(hosting, /"d1": null/);
   assert.match(hosting, /"r2": "FILES"/);
-  assert.match(migration, /CREATE TABLE `logo_projects`/);
-  assert.match(migration, /CREATE TABLE `logo_generations`/);
-  assert.doesNotMatch(route + runtime, /VITE_OPENAI_API_KEY/);
+  assert.match(migration, /create table if not exists public\.logo_projects/i);
+  assert.match(migration, /create table if not exists public\.logo_generations/i);
+  assert.match(supabase, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(route + runtime, /runtime\.DB|D1Database/);
   assert.ok(root);
 });
 
 test("ships the complete refinement and vector production workflow", async () => {
-  const [studio, runtime, refine, vectorize, exportRoute, assetRoute, migration] =
+  const [studio, refine, vectorize, exportRoute, assetRoute, migration] =
     await Promise.all([
       readFile(new URL("../app/loopen-studio.tsx", import.meta.url), "utf8"),
-      readFile(new URL("../lib/mvp-runtime.ts", import.meta.url), "utf8"),
       readFile(
         new URL("../app/api/projects/[id]/refine/route.ts", import.meta.url),
         "utf8",
@@ -82,7 +86,10 @@ test("ships the complete refinement and vector production workflow", async () =>
       ),
       readFile(new URL("../app/api/assets/[id]/route.ts", import.meta.url), "utf8"),
       readFile(
-        new URL("../drizzle/0001_plain_the_fallen.sql", import.meta.url),
+        new URL(
+          "../supabase/migrations/20260729190000_loopen_schema.sql",
+          import.meta.url,
+        ),
         "utf8",
       ),
     ]);
@@ -97,8 +104,7 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(vectorize, /RECRAFT_API_KEY/);
   assert.match(exportRoute, /sanitizeSvg/);
   assert.match(assetRoute, /Content-Disposition/);
-  assert.match(runtime, /CREATE TABLE IF NOT EXISTS logo_assets/);
-  assert.match(migration, /CREATE TABLE `logo_assets`/);
+  assert.match(migration, /create table if not exists public\.logo_assets/i);
 });
 
 test("uses a sign-in-free local development identity", async () => {

@@ -1,8 +1,5 @@
 import { getChatGPTUser } from "../../../../chatgpt-auth";
-import {
-  ensureSchema,
-  getRuntimeEnv,
-} from "../../../../../lib/mvp-runtime";
+import { selectOne, updateRows } from "../../../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -26,26 +23,26 @@ export async function POST(
     );
   }
 
-  const { DB } = getRuntimeEnv();
-  await ensureSchema(DB);
-  const generation = await DB.prepare(
-    `SELECT id FROM logo_generations
-     WHERE id = ? AND project_id = ? AND user_email = ?`,
-  )
-    .bind(generationId, projectId, user.email)
-    .first();
+  const generation = await selectOne<{ id: string }>("logo_generations", {
+    select: "id",
+    id: `eq.${generationId}`,
+    project_id: `eq.${projectId}`,
+    user_email: `eq.${user.email}`,
+  });
 
   if (!generation) {
     return Response.json({ error: "Generation not found." }, { status: 404 });
   }
 
-  await DB.prepare(
-    `UPDATE logo_projects
-     SET selected_generation_id = ?, status = 'selected', updated_at = ?
-     WHERE id = ? AND user_email = ?`,
-  )
-    .bind(generationId, Date.now(), projectId, user.email)
-    .run();
+  await updateRows(
+    "logo_projects",
+    { id: `eq.${projectId}`, user_email: `eq.${user.email}` },
+    {
+      selected_generation_id: generationId,
+      status: "selected",
+      updated_at: Date.now(),
+    },
+  );
 
   return Response.json({ ok: true });
 }

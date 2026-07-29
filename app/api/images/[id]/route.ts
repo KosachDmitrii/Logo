@@ -1,8 +1,6 @@
 import { getChatGPTUser } from "../../../chatgpt-auth";
-import {
-  ensureSchema,
-  getRuntimeEnv,
-} from "../../../../lib/mvp-runtime";
+import { getRuntimeEnv } from "../../../../lib/mvp-runtime";
+import { selectOne } from "../../../../lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -17,27 +15,21 @@ export async function GET(
 
   const { id } = await context.params;
   const runtime = getRuntimeEnv();
-  await ensureSchema(runtime.DB);
-
-  const generation = await runtime.DB.prepare(
-    `SELECT g.object_key AS objectKey, g.direction_key AS directionKey,
-            p.brand_name AS brandName
-     FROM logo_generations g
-     JOIN logo_projects p ON p.id = g.project_id
-     WHERE g.id = ? AND g.user_email = ?`,
-  )
-    .bind(id, user.email)
-    .first<{
-      brandName: string;
-      directionKey: string;
-      objectKey: string;
-    }>();
+  const generation = await selectOne<{
+    object_key: string;
+    direction_key: string;
+    logo_projects: { brand_name: string };
+  }>("logo_generations", {
+    select: "object_key,direction_key,logo_projects!inner(brand_name)",
+    id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
 
   if (!generation) {
     return Response.json({ error: "Image not found." }, { status: 404 });
   }
 
-  const object = await runtime.FILES.get(generation.objectKey);
+  const object = await runtime.FILES.get(generation.object_key);
   if (!object?.body) {
     return Response.json({ error: "Image data not found." }, { status: 404 });
   }
@@ -50,13 +42,13 @@ export async function GET(
   });
 
   if (url.searchParams.get("download") === "1") {
-    const safeBrand = generation.brandName
+    const safeBrand = generation.logo_projects.brand_name
       .replace(/[^a-zA-Z0-9_-]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 60);
     headers.set(
       "Content-Disposition",
-      `attachment; filename="${safeBrand || "loopen"}-${generation.directionKey}.png"`,
+      `attachment; filename="${safeBrand || "loopen"}-${generation.direction_key}.png"`,
     );
   }
 
