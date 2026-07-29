@@ -10,8 +10,8 @@ import {
 } from "../../../../../lib/supabase";
 
 type ImageResponse = {
-  data?: Array<{ b64_json?: string }>;
-  error?: { code?: string; message?: string };
+  result?: { image?: string };
+  errors?: Array<{ message?: string }>;
 };
 
 export const dynamic = "force-dynamic";
@@ -23,13 +23,25 @@ export async function POST(
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const runtime = getRuntimeEnv();
-  if (!runtime.OPENAI_API_KEY) {
-    return Response.json({ error: "OpenAI refinement is not configured." }, { status: 503 });
+  if (!runtime.CLOUDFLARE_ACCOUNT_ID || !runtime.CLOUDFLARE_API_TOKEN) {
+    return Response.json({ error: "Cloudflare refinement is not configured." }, { status: 503 });
   }
 
   const { id: projectId } = await context.params;
-  const { generationId } = (await request.json()) as { generationId?: string };
-  const row = await selectOne<{
+  const body = (await request.json()) as {
+    generationId?: string;
+    generationIds?: string[];
+  };
+  const generationIds = Array.from(
+    new Set(
+      (body.generationIds ?? (body.generationId ? [body.generationId] : []))
+        .filter((id): id is string => typeof id === "string" && Boolean(id)),
+    ),
+  ).slice(0, 2);
+  if (!generationIds.length) {
+    return Response.json({ error: "Select one or two concepts." }, { status: 400 });
+  }
+  const rows = await Promise.all(generationIds.map((generationId) => selectOne<{
     id: string;
     object_key: string;
     direction_title: string;
@@ -37,44 +49,45 @@ export async function POST(
   }>("logo_generations", {
     select:
       "id,object_key,direction_title,logo_projects!inner(brief_json)",
-    id: `eq.${generationId ?? ""}`,
+    id: `eq.${generationId}`,
     project_id: `eq.${projectId}`,
     user_email: `eq.${user.email}`,
-  });
-  if (!row) return Response.json({ error: "Selected concept not found." }, { status: 404 });
-
-  const source = await runtime.FILES.get(row.object_key);
-  if (!source) return Response.json({ error: "Source image not found." }, { status: 404 });
-  const sourceBytes = await source.arrayBuffer();
-  const brief = row.logo_projects.brief_json;
+  })));
+  if (rows.some((row) => !row)) {
+    return Response.json({ error: "A selected concept was not found." }, { status: 404 });
+  }
 
   const results = await Promise.allSettled(
-    [1, 2].map(async (variant) => {
+    rows.map(async (selectedRow, index) => {
+      const row = selectedRow!;
+      const source = await runtime.FILES.get(row.object_key);
+      if (!source) throw new Error("Source image not found.");
+      const sourceBytes = await source.arrayBuffer();
+      const brief = row.logo_projects.brief_json;
       const prompt = buildRefinementPrompt(
         brief as Parameters<typeof buildRefinementPrompt>[0],
         row.direction_title,
-        variant,
+        index + 1,
       );
       const form = new FormData();
-      form.append("model", "gpt-image-2");
-      form.append("image[]", new Blob([sourceBytes], { type: "image/png" }), "concept.png");
       form.append("prompt", prompt);
-      form.append("size", "1024x1024");
-      form.append("quality", "high");
-      form.append("output_format", "png");
+      form.append("input_image_0", new Blob([sourceBytes], { type: "image/png" }), "concept.png");
+      form.append("width", "1024");
+      form.append("height", "1024");
+      form.append("steps", "20");
 
-      const response = await fetch("https://api.openai.com/v1/images/edits", {
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-2-dev`,
+      {
         method: "POST",
-        headers: { Authorization: `Bearer ${runtime.OPENAI_API_KEY}` },
+        headers: { Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}` },
         body: form,
       });
       const payload = (await response.json()) as ImageResponse;
-      const base64 = payload.data?.[0]?.b64_json;
+      const base64 = payload.result?.image;
       if (!response.ok || !base64) {
         throw new Error(
-          payload.error?.code === "moderation_blocked"
-            ? "A refinement was blocked by the safety filter."
-            : payload.error?.message || "OpenAI returned no refined image.",
+          payload.errors?.[0]?.message || "FLUX.2 Dev returned no refined image.",
         );
       }
       const id = crypto.randomUUID();
@@ -89,9 +102,9 @@ export async function POST(
         user_email: user.email,
         parent_id: row.id,
         stage: "refine",
-        label: `Refinement ${variant}`,
-        provider: "openai",
-        model: "gpt-image-2",
+        label: `High fidelity ${index + 1}`,
+        provider: "cloudflare",
+        model: "flux-2-dev",
         prompt,
         object_key: objectKey,
         content_type: "image/png",
@@ -101,9 +114,9 @@ export async function POST(
         id,
         parentId: row.id,
         stage: "refine",
-        label: `Refinement ${variant}`,
-        provider: "openai",
-        model: "gpt-image-2",
+        label: `High fidelity ${index + 1}`,
+        provider: "cloudflare",
+        model: "flux-2-dev",
         contentType: "image/png",
         url: `/api/assets/${id}`,
         downloadUrl: `/api/assets/${id}?download=1`,

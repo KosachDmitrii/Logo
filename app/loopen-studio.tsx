@@ -13,6 +13,31 @@ type GeneratedConcept = {
   downloadUrl: string;
   id: string;
   imageUrl: string;
+  rationale?: string;
+};
+
+type BrandStrategy = {
+  categoryCodes: string[];
+  competitorRisks: string[];
+  differentiation: string;
+  typography: string;
+  palette: string[];
+  trademarkNotice: string;
+};
+
+type PremiumBrief = {
+  audience?: string;
+  avoid?: string;
+  companyDescription?: string;
+  competitors?: string;
+  coreIdea?: string;
+  industry?: string;
+  logoType?: "abstract" | "monogram" | "wordmark" | "emblem" | "combination";
+  personalities?: string[];
+  positioning?: string;
+  strategy?: BrandStrategy;
+  usage?: string;
+  visualDirection?: string;
 };
 
 type StudioAsset = {
@@ -41,7 +66,6 @@ type Concept = {
   index: string;
   name: string;
   thesis: string;
-  score: number;
   className: string;
   accent: string;
 };
@@ -52,7 +76,6 @@ const concepts: Concept[] = [
     index: "01",
     name: "Continuous Loop",
     thesis: "A single gesture. Movement without an endpoint.",
-    score: 94,
     className: "mark-loop",
     accent: "acid",
   },
@@ -61,7 +84,6 @@ const concepts: Concept[] = [
     index: "02",
     name: "Open Portal",
     thesis: "A living frame that turns attention into motion.",
-    score: 91,
     className: "mark-portal",
     accent: "cobalt",
   },
@@ -70,7 +92,6 @@ const concepts: Concept[] = [
     index: "03",
     name: "Loop Signal",
     thesis: "Two connected states, always exchanging energy.",
-    score: 88,
     className: "mark-signal",
     accent: "coral",
   },
@@ -79,7 +100,6 @@ const concepts: Concept[] = [
     index: "04",
     name: "Soft Fold",
     thesis: "A precise system with a human, tactile edge.",
-    score: 86,
     className: "mark-fold",
     accent: "lavender",
   },
@@ -102,6 +122,7 @@ export default function LoopenStudio({
   user: StudioUser | null;
 }) {
   const [selectedConcept, setSelectedConcept] = useState("continuous");
+  const [selectedConceptIds, setSelectedConceptIds] = useState<string[]>([]);
   const [generatedConcepts, setGeneratedConcepts] = useState<
     GeneratedConcept[]
   >([]);
@@ -110,12 +131,37 @@ export default function LoopenStudio({
   const [coreIdea, setCoreIdea] = useState(
     "Turn repetition into progress. Make every cycle smarter.",
   );
+  const [industry, setIndustry] = useState("Technology");
+  const [companyDescription, setCompanyDescription] = useState(
+    "An adaptive product studio that helps modern teams learn and improve continuously.",
+  );
+  const [audience, setAudience] = useState(
+    "Curious founders building modern, adaptable products.",
+  );
+  const [positioning, setPositioning] = useState(
+    "Premium, progressive and precise — with a human edge.",
+  );
+  const [competitors, setCompetitors] = useState("");
+  const [logoType, setLogoType] =
+    useState<PremiumBrief["logoType"]>("combination");
+  const [visualDirection, setVisualDirection] = useState(
+    "Geometric, minimal and editorial",
+  );
+  const [usage, setUsage] = useState(
+    "Website, product UI, social avatar, presentation and print",
+  );
+  const [avoid, setAvoid] = useState(
+    "Generic infinity marks, gradients, tech clichés and literal loops.",
+  );
+  const [strategy, setStrategy] = useState<BrandStrategy | null>(null);
+  const [isStrategyOpen, setIsStrategyOpen] = useState(false);
   const [personalities, setPersonalities] = useState([
     "Intelligent",
     "Experimental",
     "Bold",
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingMore, setIsGeneratingMore] = useState(false);
   const [notice, setNotice] = useState("");
   const [assets, setAssets] = useState<StudioAsset[]>([]);
   const [projects, setProjects] = useState<SavedProject[]>([]);
@@ -124,15 +170,18 @@ export default function LoopenStudio({
   const [isVectorizing, setIsVectorizing] = useState(false);
   const [selectedRefinement, setSelectedRefinement] = useState("");
   const [selectedVector, setSelectedVector] = useState("");
-  const [lockupLayout, setLockupLayout] = useState<"horizontal" | "vertical">(
+  const [lockupLayout, setLockupLayout] = useState<"horizontal" | "vertical" | "icon">(
     "horizontal",
   );
   const [lockupColor, setLockupColor] = useState("#201f1e");
   const [descriptor, setDescriptor] = useState("Adaptive identity");
+  const [wordmarkStyle, setWordmarkStyle] = useState("modern");
+  const [markScale, setMarkScale] = useState(100);
 
   const selected = useMemo(
     () =>
       concepts.find((concept) => concept.id === selectedConcept) ??
+      concepts.find((concept) => selectedConcept.startsWith(`${concept.id}-`)) ??
       concepts.find(
         (concept) =>
           concept.id ===
@@ -145,9 +194,6 @@ export default function LoopenStudio({
   );
   const refinements = assets.filter((asset) => asset.stage === "refine");
   const vectors = assets.filter((asset) => asset.stage === "vector");
-  const selectedGeneration = generatedConcepts.find(
-    (item) => item.directionKey === selectedConcept,
-  );
   const selectedVectorAsset = vectors.find(
     (asset) => asset.id === selectedVector,
   );
@@ -158,7 +204,7 @@ export default function LoopenStudio({
   }, [user]);
 
   async function loadHistory() {
-    const response = await fetch("/api/projects");
+    const response = await fetch("/api/project-list");
     if (!response.ok) return;
     const payload = (await response.json()) as { projects?: SavedProject[] };
     setProjects(payload.projects ?? []);
@@ -169,7 +215,7 @@ export default function LoopenStudio({
     const response = await fetch(`/api/projects/${id}`);
     const payload = (await response.json()) as {
       error?: string;
-      project?: { brandName: string; brief: { coreIdea?: string; personalities?: string[] }; selectedGenerationId?: string };
+      project?: { brandName: string; brief: PremiumBrief; selectedGenerationId?: string };
       generations?: GeneratedConcept[];
       assets?: StudioAsset[];
     };
@@ -182,6 +228,16 @@ export default function LoopenStudio({
     setProjectId(id);
     setBrandName(payload.project.brandName);
     setCoreIdea(payload.project.brief.coreIdea ?? "");
+    setIndustry(payload.project.brief.industry ?? "");
+    setCompanyDescription(payload.project.brief.companyDescription ?? "");
+    setAudience(payload.project.brief.audience ?? "");
+    setPositioning(payload.project.brief.positioning ?? "");
+    setCompetitors(payload.project.brief.competitors ?? "");
+    setLogoType(payload.project.brief.logoType ?? "abstract");
+    setVisualDirection(payload.project.brief.visualDirection ?? "");
+    setUsage(payload.project.brief.usage ?? "");
+    setAvoid(payload.project.brief.avoid ?? "");
+    setStrategy(payload.project.brief.strategy ?? null);
     setPersonalities(payload.project.brief.personalities ?? []);
     setGeneratedConcepts(loadedGenerations);
     setAssets(loadedAssets);
@@ -190,6 +246,7 @@ export default function LoopenStudio({
         (item) => item.id === payload.project?.selectedGenerationId,
       ) ?? loadedGenerations[0];
     if (selectedLoaded) setSelectedConcept(selectedLoaded.directionKey);
+    setSelectedConceptIds(selectedLoaded ? [selectedLoaded.id] : []);
     const latestRefine = loadedAssets.filter((asset) => asset.stage === "refine").at(-1);
     const latestVector = loadedAssets.filter((asset) => asset.stage === "vector").at(-1);
     setSelectedRefinement(latestRefine?.id ?? "");
@@ -219,22 +276,30 @@ export default function LoopenStudio({
     );
 
     try {
-      const response = await fetch("/api/projects", {
+      const response = await fetch("/api/generate-concepts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           brandName,
           coreIdea,
           personalities,
-          audience: "Curious founders building modern, adaptable products.",
-          avoid:
-            "Generic infinity marks, gradients, tech clichés, literal loops.",
+          industry,
+          companyDescription,
+          audience,
+          positioning,
+          competitors,
+          logoType,
+          visualDirection,
+          usage,
+          avoid,
         }),
       });
       const payload = (await response.json()) as {
         error?: string;
         generations?: GeneratedConcept[];
+        failures?: string[];
         projectId?: string;
+        strategy?: BrandStrategy;
       };
 
       if (!response.ok || !payload.projectId || !payload.generations?.length) {
@@ -243,13 +308,17 @@ export default function LoopenStudio({
 
       setGeneratedConcepts(payload.generations);
       setProjectId(payload.projectId);
+      setStrategy(payload.strategy ?? null);
       setAssets([]);
       setSelectedRefinement("");
       setSelectedVector("");
       setSelectedConcept(payload.generations[0].directionKey);
+      setSelectedConceptIds([payload.generations[0].id]);
       setIsGenerating(false);
       setNotice(
-        `${payload.generations.length} real directions generated and saved to your project.`,
+        payload.failures?.length
+          ? `${payload.generations.length} of 4 directions generated. ${payload.failures.length} failed after retry: ${payload.failures[0]}`
+          : "All 4 strategic directions generated and saved.",
       );
       void loadHistory();
       document
@@ -265,17 +334,48 @@ export default function LoopenStudio({
     }
   }
 
+  async function generateMore() {
+    if (!projectId || generatedConcepts.length >= 8) return;
+    setIsGeneratingMore(true);
+    setNotice("Generating four more fast concepts with Klein 9B…");
+    try {
+      const response = await fetch("/api/generate-concepts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        generations?: GeneratedConcept[];
+        failures?: string[];
+      };
+      if (!response.ok || !payload.generations?.length) {
+        throw new Error(payload.error ?? "More concepts could not be generated.");
+      }
+      setGeneratedConcepts((current) => [...current, ...payload.generations!]);
+      setNotice(
+        payload.failures?.length
+          ? `${payload.generations.length} additional concepts are ready; ${payload.failures.length} failed.`
+          : "Four additional concepts are ready.",
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "More concepts could not be generated.");
+    } finally {
+      setIsGeneratingMore(false);
+    }
+  }
+
   async function refineSelected() {
-    if (!projectId || !selectedGeneration) {
-      setNotice("Select a generated direction before refinement.");
+    if (!projectId || !selectedConceptIds.length) {
+      setNotice("Select one or two concepts before refinement.");
       return;
     }
     setIsRefining(true);
-    setNotice("Creating two high-fidelity refinements…");
+    setNotice(`Creating ${selectedConceptIds.length} high-fidelity FLUX.2 Dev refinement${selectedConceptIds.length > 1 ? "s" : ""}…`);
     const response = await fetch(`/api/projects/${projectId}/refine`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ generationId: selectedGeneration.id }),
+      body: JSON.stringify({ generationIds: selectedConceptIds }),
     });
     const payload = (await response.json()) as { assets?: StudioAsset[]; error?: string };
     setIsRefining(false);
@@ -288,7 +388,7 @@ export default function LoopenStudio({
       ...payload.assets!,
     ]);
     setSelectedRefinement(payload.assets[0].id);
-    setNotice("Two refinements are ready. Choose one for vector production.");
+    setNotice(`${payload.assets.length} high-fidelity refinement${payload.assets.length > 1 ? "s are" : " is"} ready. Choose one for vector production.`);
     void loadHistory();
   }
 
@@ -298,7 +398,7 @@ export default function LoopenStudio({
       return;
     }
     setIsVectorizing(true);
-    setNotice("Building preserved and clean SVG versions…");
+    setNotice("Tracing the selected symbol into an exact SVG…");
     const response = await fetch(`/api/projects/${projectId}/vectorize`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -319,7 +419,11 @@ export default function LoopenStudio({
     void loadHistory();
   }
 
-  async function exportLockup() {
+  async function exportLockup(
+    format: "svg" | "png" | "webp" = "svg",
+    layout: "horizontal" | "vertical" | "icon" = lockupLayout,
+    rasterSize?: number,
+  ) {
     if (!projectId || !selectedVector) {
       setNotice("Choose a vector result before export.");
       return;
@@ -331,7 +435,9 @@ export default function LoopenStudio({
         assetId: selectedVector,
         color: lockupColor,
         descriptor,
-        layout: lockupLayout,
+        layout,
+        markScale,
+        wordmarkStyle,
       }),
     });
     if (!response.ok) {
@@ -339,14 +445,53 @@ export default function LoopenStudio({
       setNotice(payload.error ?? "Export could not be created.");
       return;
     }
-    const blob = await response.blob();
+    const svgBlob = await response.blob();
+    let blob = svgBlob;
+    if (format !== "svg") {
+      const sourceUrl = URL.createObjectURL(svgBlob);
+      const image = new Image();
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("Could not render the SVG export."));
+        image.src = sourceUrl;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = rasterSize ?? image.naturalWidth;
+      canvas.height = rasterSize ?? image.naturalHeight;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Canvas export is unavailable.");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(sourceUrl);
+      blob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(
+          (result) => (result ? resolve(result) : reject(new Error("Raster export failed."))),
+          format === "png" ? "image/png" : "image/webp",
+          0.96,
+        ),
+      );
+    }
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${brandName}-${lockupLayout}.svg`;
+    link.download = `${brandName}-${layout}${rasterSize ? `-${rasterSize}` : ""}.${format}`;
     link.click();
     URL.revokeObjectURL(url);
-    setNotice("Production SVG lockup downloaded.");
+    setNotice(`Production ${format.toUpperCase()} downloaded.`);
+  }
+
+  function printBrandGuide() {
+    if (!projectId || !selectedVector) {
+      setNotice("Choose a vector result before creating the brand guide.");
+      return;
+    }
+    window.open(
+      `/api/projects/${projectId}/brand-guide?assetId=${encodeURIComponent(selectedVector)}&color=${encodeURIComponent(lockupColor)}&descriptor=${encodeURIComponent(descriptor)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+    setNotice("Brand guide opened. Choose Print → Save as PDF.");
   }
 
   async function selectGeneratedConcept(directionKey: string) {
@@ -355,6 +500,20 @@ export default function LoopenStudio({
       (item) => item.directionKey === directionKey,
     );
     if (!generation || !projectId) return;
+    const alreadySelected = selectedConceptIds.includes(generation.id);
+    if (!alreadySelected && selectedConceptIds.length >= 2) {
+      setNotice("You can select up to two concepts. Deselect one to continue.");
+      return;
+    }
+    setSelectedConceptIds((current) =>
+      alreadySelected
+        ? current.filter((id) => id !== generation.id)
+        : [...current, generation.id],
+    );
+    if (alreadySelected) {
+      setNotice(`${generation.directionTitle} removed from the refinement shortlist.`);
+      return;
+    }
 
     const response = await fetch(`/api/projects/${projectId}/select`, {
       method: "POST",
@@ -364,7 +523,7 @@ export default function LoopenStudio({
 
     setNotice(
       response.ok
-        ? `${generation.directionTitle} saved as the selected direction.`
+        ? `${generation.directionTitle} added to the refinement shortlist (${selectedConceptIds.length + 1}/2).`
         : "The direction is selected locally, but could not be saved.",
     );
   }
@@ -490,6 +649,24 @@ export default function LoopenStudio({
               maxLength={500}
             />
           </div>
+          <div className="premium-fields">
+            <label>
+              <span className="mini-label">Industry *</span>
+              <input value={industry} onChange={(event) => setIndustry(event.target.value)} maxLength={120} />
+            </label>
+            <label>
+              <span className="mini-label">What the company does *</span>
+              <textarea value={companyDescription} onChange={(event) => setCompanyDescription(event.target.value)} maxLength={500} rows={3} />
+            </label>
+            <label>
+              <span className="mini-label">Positioning</span>
+              <textarea value={positioning} onChange={(event) => setPositioning(event.target.value)} maxLength={300} rows={2} />
+            </label>
+            <label>
+              <span className="mini-label">Competitors</span>
+              <textarea value={competitors} onChange={(event) => setCompetitors(event.target.value)} maxLength={500} rows={2} placeholder="Names or URLs, separated by commas" />
+            </label>
+          </div>
           <div className="personality-row">
             <div className="field-label">
               <label>Personality</label>
@@ -513,15 +690,33 @@ export default function LoopenStudio({
               })}
             </div>
           </div>
-          <div className="direction-row">
-            <div>
-              <span className="mini-label">Avoid</span>
-              <p>Generic infinity marks, gradients, tech clichés, literal loops.</p>
-            </div>
-            <div>
+          <div className="premium-fields production-brief">
+            <label>
+              <span className="mini-label">Logo type</span>
+              <select value={logoType} onChange={(event) => setLogoType(event.target.value as PremiumBrief["logoType"])}>
+                <option value="abstract">Abstract symbol</option>
+                <option value="monogram">Monogram</option>
+                <option value="wordmark">Wordmark</option>
+                <option value="emblem">Emblem</option>
+                <option value="combination">Symbol + wordmark</option>
+              </select>
+            </label>
+            <label>
+              <span className="mini-label">Visual direction</span>
+              <input value={visualDirection} onChange={(event) => setVisualDirection(event.target.value)} maxLength={200} />
+            </label>
+            <label>
               <span className="mini-label">Audience</span>
-              <p>Curious founders building modern, adaptable products.</p>
-            </div>
+              <textarea value={audience} onChange={(event) => setAudience(event.target.value)} maxLength={300} rows={2} />
+            </label>
+            <label>
+              <span className="mini-label">Primary usage</span>
+              <textarea value={usage} onChange={(event) => setUsage(event.target.value)} maxLength={300} rows={2} />
+            </label>
+            <label className="wide-field">
+              <span className="mini-label">Avoid</span>
+              <textarea value={avoid} onChange={(event) => setAvoid(event.target.value)} maxLength={300} rows={2} />
+            </label>
           </div>
           <div className="generate-row">
             <p>
@@ -538,7 +733,13 @@ export default function LoopenStudio({
                 : user
                   ? "Generate 4 real directions"
                   : "Sign in to generate"}
-              <span>{isGenerating ? "◌" : "↗"}</span>
+              {isGenerating ? (
+                <span className="water-loader" aria-label="Generating">
+                  <i />
+                </span>
+              ) : (
+                <span>↗</span>
+              )}
             </button>
           </div>
           {!user && (
@@ -555,6 +756,56 @@ export default function LoopenStudio({
         </div>
       </section>
 
+      {strategy && (
+        <section className="strategy-section" aria-label="Brand research and strategy">
+          <div className="strategy-heading">
+            <p className="eyebrow">02 / Category research</p>
+            <h2>Know the category.<br />Refuse its clichés.</h2>
+            <p>{strategy.differentiation}</p>
+          </div>
+          <button
+            className="strategy-toggle"
+            type="button"
+            aria-expanded={isStrategyOpen}
+            onClick={() => setIsStrategyOpen((current) => !current)}
+          >
+            {isStrategyOpen ? "Hide research" : "View research details"}
+            <span>{isStrategyOpen ? "−" : "+"}</span>
+          </button>
+          {isStrategyOpen && <div className="strategy-grid">
+            <article>
+              <span>Visual codes</span>
+              {strategy.categoryCodes.map((item) => <p key={item}>{item}</p>)}
+            </article>
+            <article>
+              <span>Competitor risks</span>
+              {strategy.competitorRisks.map((item) => <p key={item}>{item}</p>)}
+            </article>
+            <article>
+              <span>Typography direction</span>
+              <p>{strategy.typography}</p>
+            </article>
+            <article>
+              <span>Starting palette</span>
+              <div className="palette-row">
+                {strategy.palette.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    title={`Use ${color}`}
+                    style={{ background: color }}
+                    onClick={() => setLockupColor(color)}
+                  >
+                    <i>{color}</i>
+                  </button>
+                ))}
+              </div>
+            </article>
+          </div>}
+          {isStrategyOpen && <p className="trademark-notice">Trademark note — {strategy.trademarkNotice}</p>}
+        </section>
+      )}
+
       <section className="concepts-section" id="concepts">
         <div className="concepts-header">
           <div>
@@ -567,61 +818,83 @@ export default function LoopenStudio({
           </p>
         </div>
 
-        <div className="concept-grid">
-          {concepts.map((concept, conceptIndex) => {
-            const generated = generatedConcepts[conceptIndex];
-            const conceptKey = generated?.directionKey ?? concept.id;
-            const isActive = selectedConcept === conceptKey;
-            return (
+        {generatedConcepts.length ? (
+          <div className="concept-grid">
+            {generatedConcepts.map((generated, conceptIndex) => {
+              const concept =
+                concepts.find(
+                  (item) =>
+                    item.id === generated.directionKey ||
+                    generated.directionKey.startsWith(`${item.id}-`),
+                ) ??
+                concepts[conceptIndex] ??
+                concepts[0];
+              const conceptKey = generated.directionKey;
+              const isActive = selectedConceptIds.includes(generated.id);
+              return (
               <button
                 className={`concept-card ${isActive ? "selected" : ""}`}
                 type="button"
-                key={generated?.id ?? concept.id}
+                key={generated.id}
                 onClick={() => selectGeneratedConcept(conceptKey)}
                 aria-pressed={isActive}
               >
                 <div className="concept-meta">
-                  <span>{concept.index}</span>
-                  <span className={`score ${concept.accent}`}>
-                    {concept.score}% fit
-                  </span>
+                  <span>{String(conceptIndex + 1).padStart(2, "0")}</span>
+                  <span className={`score ${concept.accent}`}>Strategic route</span>
                 </div>
-                {generated ? (
-                  <div className="concept-mark generated-mark">
-                    <img
-                      src={generated.imageUrl}
-                      alt={`${brandName} — ${generated.directionTitle}`}
-                    />
-                  </div>
-                ) : (
-                  <div className={`concept-mark ${concept.className}`}>
-                    <i />
-                    <b />
-                    <em />
-                  </div>
-                )}
+                <div className="concept-mark generated-mark">
+                  <img
+                    src={generated.imageUrl}
+                    alt={`${brandName} — ${generated.directionTitle}`}
+                  />
+                </div>
                 <div className="concept-copy">
-                  <h3>{generated?.directionTitle ?? concept.name}</h3>
-                  <p>{concept.thesis}</p>
+                  <h3>{generated.directionTitle}</h3>
+                  <p>{generated.rationale ?? concept.thesis}</p>
                 </div>
                 <span className="select-indicator">
-                  {isActive ? "Selected" : "Explore"}{" "}
-                  <b>{isActive ? "●" : "↗"}</b>
+                  {isActive ? `Selected ${selectedConceptIds.indexOf(generated.id) + 1}/2` : "Select"}{" "}
+                  <b>{isActive ? "●" : "+"}</b>
                 </span>
               </button>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="concept-empty">
+            <span>Awaiting a real brief</span>
+            <strong>No sample logos. No invented scores.</strong>
+            <p>
+              Complete the premium brief and generate four strategic directions.
+              Only actual Cloudflare results will appear here.
+            </p>
+            <a href="#brief">Complete the brief ↑</a>
+          </div>
+        )}
 
-        <div className="selected-bar">
+        {generatedConcepts.length > 0 && generatedConcepts.length < 8 && (
+          <div className="more-concepts">
+            <span>{generatedConcepts.length} concepts ready · select up to 2</span>
+            <button
+              type="button"
+              onClick={generateMore}
+              disabled={isGeneratingMore}
+            >
+              {isGeneratingMore ? "Generating four more…" : "More concepts +4"}
+            </button>
+          </div>
+        )}
+
+        {generatedConcepts.length > 0 && <div className="selected-bar">
           <div className={`selected-symbol ${selected.className}`} aria-hidden="true">
             <i />
             <b />
             <em />
           </div>
           <div>
-            <span>Selected direction</span>
-            <strong>{selected.name}</strong>
+            <span>Refinement shortlist</span>
+            <strong>{selectedConceptIds.length}/2 concepts selected</strong>
           </div>
           <div className="selected-actions">
             {generatedConcepts.find(
@@ -651,12 +924,12 @@ export default function LoopenStudio({
               className="approve-button"
               type="button"
               onClick={refineSelected}
-              disabled={isRefining}
+              disabled={isRefining || selectedConceptIds.length === 0}
             >
-              {isRefining ? "Refining…" : "Refine this route"} <span>→</span>
+              {isRefining ? "Refining…" : `Refine ${selectedConceptIds.length || ""} selected`} <span>→</span>
             </button>
           </div>
-        </div>
+        </div>}
       </section>
 
       <section className="workflow-section" id="workflow">
@@ -692,7 +965,7 @@ export default function LoopenStudio({
           </div>
           {refinements.length > 0 && (
             <button className="stage-action" type="button" onClick={vectorizeSelected} disabled={isVectorizing}>
-              {isVectorizing ? "Creating SVGs…" : "Vectorize selected"} <span>→</span>
+            {isVectorizing ? "Creating SVG…" : "Vectorize selected"} <span>→</span>
             </button>
           )}
         </div>
@@ -713,8 +986,8 @@ export default function LoopenStudio({
               </button>
             )) : (
               <div className="empty-stage">
-                <strong>Preserve or reconstruct</strong>
-                <p>Recraft returns a faithful trace and a cleaner rebuilt vector for comparison.</p>
+                <strong>Exact vector trace</strong>
+                <p>Recraft converts the selected symbol to SVG without generative reconstruction.</p>
               </div>
             )}
           </div>
@@ -727,6 +1000,7 @@ export default function LoopenStudio({
               <div className="segmented">
                 <button type="button" className={lockupLayout === "horizontal" ? "active" : ""} onClick={() => setLockupLayout("horizontal")}>Horizontal</button>
                 <button type="button" className={lockupLayout === "vertical" ? "active" : ""} onClick={() => setLockupLayout("vertical")}>Vertical</button>
+                <button type="button" className={lockupLayout === "icon" ? "active" : ""} onClick={() => setLockupLayout("icon")}>Icon only</button>
               </div>
             </div>
             <label>
@@ -737,18 +1011,66 @@ export default function LoopenStudio({
               <span className="mini-label">Color</span>
               <input type="color" value={lockupColor} onChange={(event) => setLockupColor(event.target.value)} />
             </label>
+            <label>
+              <span className="mini-label">Wordmark character</span>
+              <select value={wordmarkStyle} onChange={(event) => setWordmarkStyle(event.target.value)}>
+                <option value="modern">Modern grotesk</option>
+                <option value="geometric">Geometric</option>
+                <option value="humanist">Humanist</option>
+                <option value="editorial">Editorial serif</option>
+              </select>
+            </label>
+            <label>
+              <span className="mini-label">Optical mark scale — {markScale}%</span>
+              <input type="range" min="88" max="112" value={markScale} onChange={(event) => setMarkScale(Number(event.target.value))} />
+            </label>
           </div>
           <div
             className={`lockup-preview ${lockupLayout}`}
             style={{ color: lockupColor }}
           >
             {selectedVectorAsset ? (
-              <img src={selectedVectorAsset.url} alt="" />
+              <img
+                src={selectedVectorAsset.url}
+                alt=""
+                style={{ transform: `scale(${markScale / 100})` }}
+              />
             ) : <div className="preview-placeholder">SVG</div>}
-            <div>
-              <strong>{brandName || "Brand name"}</strong>
-              {descriptor && <span>{descriptor}</span>}
-            </div>
+            {lockupLayout !== "icon" && (
+              <div>
+                <strong className={`wordmark-${wordmarkStyle}`}>{brandName || "Brand name"}</strong>
+                {descriptor && <span>{descriptor}</span>}
+              </div>
+            )}
+          </div>
+          <div className="quality-lab">
+            <article>
+              <span>Responsive test</span>
+              <div className="size-test">
+                {[16, 24, 48].map((size) => (
+                  <figure key={size}>
+                    {selectedVectorAsset ? <img src={selectedVectorAsset.url} alt="" style={{ width: size, height: size }} /> : <i />}
+                    <figcaption>{size}px</figcaption>
+                  </figure>
+                ))}
+              </div>
+            </article>
+            <article>
+              <span>Contrast test</span>
+              <div className="contrast-test">
+                <div>{selectedVectorAsset && <img src={selectedVectorAsset.url} alt="" />}</div>
+                <div>{selectedVectorAsset && <img src={selectedVectorAsset.url} alt="" />}</div>
+              </div>
+            </article>
+            <article>
+              <span>Production checks</span>
+              <ul>
+                <li>Single-color silhouette</li>
+                <li>Small-size legibility</li>
+                <li>Light and dark backgrounds</li>
+                <li>Editable SVG paths</li>
+              </ul>
+            </article>
           </div>
           <div className="export-row">
             <div><span>03</span><strong>Export system</strong></div>
@@ -756,7 +1078,12 @@ export default function LoopenStudio({
               {refinements.find((asset) => asset.id === selectedRefinement) && (
                 <a href={refinements.find((asset) => asset.id === selectedRefinement)!.downloadUrl}>Download PNG</a>
               )}
-              <button type="button" onClick={exportLockup} disabled={!selectedVector}>Download lockup SVG ↓</button>
+              <button type="button" onClick={() => void exportLockup("svg")} disabled={!selectedVector}>SVG ↓</button>
+              <button type="button" onClick={() => void exportLockup("png")} disabled={!selectedVector}>PNG ↓</button>
+              <button type="button" onClick={() => void exportLockup("webp")} disabled={!selectedVector}>WebP ↓</button>
+              <button type="button" onClick={() => void exportLockup("png", "icon", 48)} disabled={!selectedVector}>Favicon 48 ↓</button>
+              <button type="button" onClick={() => void exportLockup("png", "icon", 1024)} disabled={!selectedVector}>Social avatar ↓</button>
+              <button type="button" onClick={printBrandGuide} disabled={!selectedVector}>Brand guide / PDF ↗</button>
             </div>
           </div>
         </div>

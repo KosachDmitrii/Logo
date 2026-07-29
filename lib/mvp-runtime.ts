@@ -4,8 +4,25 @@ export type LogoBrief = {
   audience: string;
   avoid: string;
   brandName: string;
+  companyDescription: string;
+  competitors: string;
   coreIdea: string;
+  industry: string;
+  logoType: "abstract" | "monogram" | "wordmark" | "emblem" | "combination";
   personalities: string[];
+  positioning: string;
+  usage: string;
+  visualDirection: string;
+  strategy?: BrandStrategy;
+};
+
+export type BrandStrategy = {
+  categoryCodes: string[];
+  competitorRisks: string[];
+  differentiation: string;
+  typography: string;
+  palette: string[];
+  trademarkNotice: string;
 };
 
 export type Direction = {
@@ -88,9 +105,15 @@ export function buildRefinementPrompt(
 Refine the supplied logo symbol for "${brief.brandName}".
 
 Brand idea: ${brief.coreIdea}
+Industry: ${brief.industry}
+What the company does: ${brief.companyDescription}
+Positioning: ${brief.positioning}
 Personality: ${brief.personalities.join(", ") || "intelligent, clear, memorable"}
 Selected direction: ${directionTitle}
 Variant: ${variant === 1 ? "optically balanced and restrained" : "slightly bolder and more distinctive"}
+Logo type: ${brief.logoType}
+Visual direction: ${brief.visualDirection}
+Competitors to remain visually distinct from: ${brief.competitors || "none supplied"}
 
 Preserve the central visual idea, recognizable silhouette and overall geometry.
 Improve optical balance, spacing, negative space, consistency, small-size clarity
@@ -130,8 +153,18 @@ export function validateBrief(value: unknown): LogoBrief {
   const input = value as Record<string, unknown>;
   const brandName = cleanString(input.brandName, 80);
   const coreIdea = cleanString(input.coreIdea, 500);
+  const industry = cleanString(input.industry, 120);
+  const companyDescription = cleanString(input.companyDescription, 500);
   const audience = cleanString(input.audience, 300);
   const avoid = cleanString(input.avoid, 300);
+  const positioning = cleanString(input.positioning, 300);
+  const competitors = cleanString(input.competitors, 500);
+  const visualDirection = cleanString(input.visualDirection, 200);
+  const usage = cleanString(input.usage, 300);
+  const logoTypes = ["abstract", "monogram", "wordmark", "emblem", "combination"] as const;
+  const logoType = logoTypes.includes(input.logoType as (typeof logoTypes)[number])
+    ? (input.logoType as LogoBrief["logoType"])
+    : "abstract";
   const personalities = Array.isArray(input.personalities)
     ? input.personalities
         .filter((item): item is string => typeof item === "string")
@@ -140,16 +173,25 @@ export function validateBrief(value: unknown): LogoBrief {
         .slice(0, 6)
     : [];
 
-  if (!brandName || !coreIdea) {
-    throw new Error("Brand name and core idea are required.");
+  if (!brandName || !coreIdea || !industry || !companyDescription) {
+    throw new Error(
+      "Brand name, industry, company description and core idea are required.",
+    );
   }
 
   return {
     audience,
     avoid,
     brandName,
+    companyDescription,
+    competitors,
     coreIdea,
+    industry,
+    logoType,
     personalities,
+    positioning,
+    usage,
+    visualDirection,
   };
 }
 
@@ -158,11 +200,20 @@ export function buildPrompt(brief: LogoBrief, direction: Direction) {
 Create one original professional logo symbol for the brand "${brief.brandName}".
 
 Brand idea: ${brief.coreIdea}
+Industry: ${brief.industry}
+What the company does: ${brief.companyDescription}
 Audience: ${brief.audience || "modern, design-conscious customers"}
+Positioning: ${brief.positioning || "premium, differentiated and contemporary"}
 Personality: ${brief.personalities.join(", ") || "intelligent, clear, memorable"}
+Requested identity type: ${brief.logoType}
+Visual direction: ${brief.visualDirection || "minimal, distinctive and ownable"}
+Primary uses: ${brief.usage || "digital, print, signage and small icons"}
+Competitors to avoid resembling: ${brief.competitors || "no named competitors"}
 
 Strategic direction: ${direction.title}
 Concept thesis: ${direction.thesis}
+Category codes observed: ${brief.strategy?.categoryCodes.join("; ") || "clarity, trust and category recognition"}
+Differentiation strategy: ${brief.strategy?.differentiation || "use an ownable visual mechanism rather than a literal industry symbol"}
 
 Design requirements:
 - one isolated abstract symbol, centered
@@ -178,6 +229,7 @@ Do not include text or the brand name.
 Do not create a mockup, presentation board, stationery, or multiple options.
 Do not use gradients, shadows, texture, lighting effects, 3D, or photographic elements.
 Avoid: ${brief.avoid || "generic startup symbols, literal arrows, obvious infinity marks"}.
+Avoid close resemblance to named competitors and familiar category leaders.
 The result must be visibly different from common stock-logo clichés.
   `.trim();
 }

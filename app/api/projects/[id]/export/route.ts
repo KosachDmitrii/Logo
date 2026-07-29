@@ -19,8 +19,10 @@ export async function POST(
   const input = (await request.json()) as {
     assetId?: string;
     descriptor?: string;
-    layout?: "horizontal" | "vertical";
+    layout?: "horizontal" | "vertical" | "icon";
     color?: string;
+    markScale?: number;
+    wordmarkStyle?: string;
   };
   const row = await selectOne<{
     object_key: string;
@@ -40,19 +42,56 @@ export async function POST(
     .replace(/^[\s\S]*?<svg[^>]*>/i, "")
     .replace(/<\/svg>[\s\S]*$/i, "");
   const viewBox = source.match(/viewBox\s*=\s*["']([^"']+)["']/i)?.[1] ?? "0 0 1024 1024";
-  const horizontal = input.layout !== "vertical";
-  const width = horizontal ? 1400 : 900;
-  const height = horizontal ? 420 : 900;
+  const layout =
+    input.layout === "vertical" || input.layout === "icon"
+      ? input.layout
+      : "horizontal";
+  const horizontal = layout === "horizontal";
+  const iconOnly = layout === "icon";
+  const width = iconOnly ? 512 : horizontal ? 1400 : 900;
+  const height = iconOnly ? 512 : horizontal ? 420 : 900;
   const color = /^#[0-9a-f]{6}$/i.test(input.color ?? "") ? input.color! : "#201f1e";
   const brand = escapeXml(row.logo_projects.brand_name);
   const descriptor = escapeXml((input.descriptor ?? "").trim().slice(0, 80));
-  const mark = horizontal
-    ? `<svg x="40" y="40" width="340" height="340" viewBox="${escapeXml(viewBox)}">${inner}</svg>`
-    : `<svg x="230" y="70" width="440" height="440" viewBox="${escapeXml(viewBox)}">${inner}</svg>`;
-  const text = horizontal
-    ? `<text x="440" y="215" font-family="Arial, Helvetica, sans-serif" font-size="112" font-weight="600" letter-spacing="-5">${brand}</text>
+  const scale = Math.min(1.12, Math.max(0.88, Number(input.markScale ?? 100) / 100));
+  const typography = {
+    editorial: {
+      family: "Georgia, Times New Roman, serif",
+      weight: "500",
+      spacing: "-3",
+    },
+    geometric: {
+      family: "Futura, Avenir Next, Arial, sans-serif",
+      weight: "600",
+      spacing: "-4",
+    },
+    humanist: {
+      family: "Avenir Next, Segoe UI, Arial, sans-serif",
+      weight: "500",
+      spacing: "-2",
+    },
+    modern: {
+      family: "Arial, Helvetica, sans-serif",
+      weight: "600",
+      spacing: "-5",
+    },
+  }[input.wordmarkStyle ?? "modern"] ?? {
+    family: "Arial, Helvetica, sans-serif",
+    weight: "600",
+    spacing: "-5",
+  };
+  const scaled = (size: number) => Math.round(size * scale);
+  const mark = iconOnly
+    ? `<svg x="${(512 - scaled(448)) / 2}" y="${(512 - scaled(448)) / 2}" width="${scaled(448)}" height="${scaled(448)}" viewBox="${escapeXml(viewBox)}">${inner}</svg>`
+    : horizontal
+    ? `<svg x="${210 - scaled(340) / 2}" y="${210 - scaled(340) / 2}" width="${scaled(340)}" height="${scaled(340)}" viewBox="${escapeXml(viewBox)}">${inner}</svg>`
+    : `<svg x="${450 - scaled(440) / 2}" y="${290 - scaled(440) / 2}" width="${scaled(440)}" height="${scaled(440)}" viewBox="${escapeXml(viewBox)}">${inner}</svg>`;
+  const text = iconOnly
+    ? ""
+    : horizontal
+    ? `<text x="440" y="215" font-family="${typography.family}" font-size="112" font-weight="${typography.weight}" letter-spacing="${typography.spacing}">${brand}</text>
        ${descriptor ? `<text x="446" y="275" font-family="Arial, Helvetica, sans-serif" font-size="24" letter-spacing="9">${descriptor.toUpperCase()}</text>` : ""}`
-    : `<text x="450" y="650" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="112" font-weight="600" letter-spacing="-5">${brand}</text>
+    : `<text x="450" y="650" text-anchor="middle" font-family="${typography.family}" font-size="112" font-weight="${typography.weight}" letter-spacing="${typography.spacing}">${brand}</text>
        ${descriptor ? `<text x="450" y="715" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" letter-spacing="9">${descriptor.toUpperCase()}</text>` : ""}`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="${color}">
   <title>${brand} logo</title>
@@ -66,7 +105,7 @@ export async function POST(
   return new Response(svg, {
     headers: {
       "Content-Type": "image/svg+xml",
-      "Content-Disposition": `attachment; filename="${filename}-${horizontal ? "horizontal" : "vertical"}.svg"`,
+      "Content-Disposition": `attachment; filename="${filename}-${layout}.svg"`,
     },
   });
 }

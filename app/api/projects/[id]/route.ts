@@ -1,5 +1,6 @@
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { selectOne, selectRows } from "../../../../lib/supabase";
+import { directions } from "../../../../lib/mvp-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,9 @@ export async function GET(
       id: item.id,
       directionKey: item.direction_key,
       directionTitle: item.direction_title,
+      rationale:
+        directions.find((direction) => direction.key === item.direction_key)
+          ?.thesis ?? "A distinct strategic route for the brand.",
       createdAt: item.created_at,
       downloadUrl: `/api/images/${item.id}?download=1`,
       imageUrl: `/api/images/${item.id}`,

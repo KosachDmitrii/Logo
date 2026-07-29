@@ -62,20 +62,13 @@ export async function POST(
     {
       endpoint: "vectorize",
       fileField: "file",
-      label: "Preserve original",
+      label: "Exact vector",
       model: "recraft-vectorize",
-      fields: { response_format: "b64_json", svg_compression: "on", limit_num_shapes: "on", max_num_shapes: "64" },
-    },
-    {
-      endpoint: "imageToImage",
-      fileField: "image",
-      label: "Clean reconstruction",
-      model: "recraftv3_vector",
       fields: {
-        prompt: "Clean minimal professional logo vector. Preserve the exact central symbol and silhouette. Simplify contours, remove raster artifacts, use flat black shapes only, no text, no background.",
-        strength: "0.15",
-        model: "recraftv3_vector",
         response_format: "b64_json",
+        svg_compression: "on",
+        limit_num_shapes: "on",
+        max_num_shapes: "64",
       },
     },
   ] as const;
