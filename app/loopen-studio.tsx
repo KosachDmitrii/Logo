@@ -129,36 +129,40 @@ export default function LoopenStudio({
     GeneratedConcept[]
   >([]);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [brandName, setBrandName] = useState("Loopen");
+  const [brandName, setBrandName] = useState("Ketchup");
   const [coreIdea, setCoreIdea] = useState(
-    "Turn repetition into progress. Make every cycle smarter.",
+    "Architecture as a catalyst: adding energy, clarity and human character to everyday spaces. Ketchup transforms ordinary constraints into bold, memorable and highly functional environments.",
   );
-  const [industry, setIndustry] = useState("Technology");
+  const [industry, setIndustry] = useState("Architecture and spatial design");
   const [companyDescription, setCompanyDescription] = useState(
-    "An adaptive product studio that helps modern teams learn and improve continuously.",
+    "Ketchup is a contemporary architecture studio designing residential, hospitality, retail and cultural spaces. The studio combines rigorous spatial thinking with playful experimentation, creating buildings and interiors that feel distinctive, useful and deeply connected to their context.",
   );
   const [audience, setAudience] = useState(
-    "Curious founders building modern, adaptable products.",
+    "Design-conscious property developers, hospitality founders, cultural institutions and private clients seeking contemporary architecture with a distinctive identity.",
   );
   const [positioning, setPositioning] = useState(
-    "Premium, progressive and precise — with a human edge.",
+    "An independent, design-led architecture studio for ambitious clients who want intelligent spaces with a strong point of view. Conceptually bold but never self-important; playful in spirit, precise in execution.",
   );
-  const [competitors, setCompetitors] = useState("");
+  const [competitors, setCompetitors] = useState(
+    "MVRDV, OMA, BIG, Snøhetta, Assemble, Space10, Adjaye Associates",
+  );
   const [logoType, setLogoType] =
-    useState<PremiumBrief["logoType"]>("combination");
+    useState<PremiumBrief["logoType"]>("wordmark");
   const [visualDirection, setVisualDirection] = useState(
-    "Geometric, minimal and editorial",
+    "Bold editorial wordmark with architectural structure, unexpected spacing and one playful custom letter detail. Swiss modernist discipline disrupted by a warm, unconventional gesture.",
   );
   const [usage, setUsage] = useState(
-    "Website, product UI, social avatar, presentation and print",
+    "Architectural drawings, construction-site signage, project presentations, website, social media, competition boards, wayfinding, printed publications and building plaques.",
   );
   const [avoid, setAvoid] = useState(
-    "Generic infinity marks, gradients, tech clichés and literal loops.",
+    "No tomatoes, ketchup bottles, sauce splashes or food imagery. Avoid houses, rooftops, skylines, floor-plan icons, columns, arches, K monograms, infinity symbols, gradients, shadows, 3D effects and generic corporate architecture branding.",
   );
   const [strategy, setStrategy] = useState<BrandStrategy | null>(null);
   const [isStrategyOpen, setIsStrategyOpen] = useState(false);
   const [personalities, setPersonalities] = useState([
     "Intelligent",
+    "Playful",
+    "Precise",
     "Experimental",
     "Bold",
   ]);
@@ -177,7 +181,7 @@ export default function LoopenStudio({
     "horizontal",
   );
   const [lockupColor, setLockupColor] = useState("#201f1e");
-  const [descriptor, setDescriptor] = useState("Adaptive identity");
+  const [descriptor, setDescriptor] = useState("Architecture as a catalyst");
   const [wordmarkStyle, setWordmarkStyle] = useState("modern");
   const [markScale, setMarkScale] = useState(100);
 
