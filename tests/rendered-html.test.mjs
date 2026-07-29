@@ -56,12 +56,13 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.match(route, /getChatGPTUser/);
   assert.match(imageRoute, /getChatGPTUser/);
   assert.match(selectRoute, /getChatGPTUser/);
-  assert.match(route, /@cf\/black-forest-labs\/flux-2-klein-9b/);
+  assert.match(route, /@cf\/black-forest-labs\/flux-2-klein-4b/);
   assert.match(route, /CLOUDFLARE_API_TOKEN/);
   assert.match(route, /Promise\.allSettled/);
   assert.match(route, /form\.append\("width", "512"\)/);
-  assert.match(route, /attempt < 3/);
-  assert.match(route, /assessLogoImage/);
+  assert.doesNotMatch(route, /generateWithRetry/);
+  assert.doesNotMatch(route, /assessLogoImage/);
+  assert.match(route, /did not retry or make another paid image request/);
   assert.match(quality, /containsText/);
   assert.match(quality, /score >= 75/);
   assert.match(quality, /moondream3\.1-9B-A2B/);
@@ -120,7 +121,7 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(refine, /@cf\/black-forest-labs\/flux-2-dev/);
   assert.match(refine, /form\.append\("width", "1024"\)/);
   assert.match(refine, /generationIds/);
-  assert.match(refine, /assessLogoImage/);
+  assert.doesNotMatch(refine, /assessLogoImage/);
   assert.match(studio, /More concept \+1/);
   assert.match(studio, /select up to 2/);
   assert.match(vectorize, /external\.api\.recraft\.ai/);

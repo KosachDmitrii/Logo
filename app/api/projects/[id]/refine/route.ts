@@ -8,7 +8,6 @@ import {
   selectOne,
   updateRows,
 } from "../../../../../lib/supabase";
-import { assessLogoImage } from "../../../../../lib/logo-quality";
 
 type ImageResponse = {
   result?: { image?: string };
@@ -93,30 +92,11 @@ export async function POST(
           payload.errors?.[0]?.message || "FLUX.2 Dev returned no refined image.",
         );
       }
-      const quality = await assessLogoImage(
-        base64,
-        {
-          avoid:
-            typeof brief.avoid === "string"
-              ? brief.avoid
-              : "text, mockups and generic category clichés",
-          direction: row.direction_title,
-          stage: "refine",
-        },
-        runtime,
-      );
-      if (!quality.approved) {
-        throw new Error(
-          `Refinement rejected by quality control (${quality.score}/100): ${quality.reason}`,
-        );
-      }
       console.log({
         event: "logo_refinement_completed",
         generationId: row.id,
         inferenceMs,
-        qualityMs: Date.now() - startedAt - inferenceMs,
         totalMs: Date.now() - startedAt,
-        qualityScore: quality.score,
       });
       const id = crypto.randomUUID();
       const objectKey = `users/assets/${user.email.length}/${projectId}/${id}.png`;
@@ -133,7 +113,7 @@ export async function POST(
         label: `High fidelity ${index + 1}`,
         provider: "cloudflare",
         model: "flux-2-dev",
-        prompt: `${prompt}\n\n[LOOPEN_QC:${quality.score}]`,
+        prompt,
         object_key: objectKey,
         content_type: "image/png",
         created_at: Date.now(),
@@ -148,7 +128,6 @@ export async function POST(
         contentType: "image/png",
         url: `/api/assets/${id}`,
         downloadUrl: `/api/assets/${id}?download=1`,
-        qualityScore: quality.score,
       };
     }),
   );

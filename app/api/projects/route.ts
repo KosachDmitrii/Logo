@@ -14,7 +14,6 @@ import {
   selectRows,
   updateRows,
 } from "../../../lib/supabase";
-import { assessLogoImage } from "../../../lib/logo-quality";
 
 type ProjectRow = {
   id: string;
@@ -37,25 +36,7 @@ type CloudflareTextResponse = {
   errors?: Array<{ code?: number; message?: string }>;
 };
 
-type ImageModel = {
-  id: string;
-  request: "json" | "multipart";
-};
-
-const conceptModels: ImageModel[] = [
-  {
-    id: "@cf/black-forest-labs/flux-2-klein-9b",
-    request: "multipart",
-  },
-  {
-    id: "@cf/black-forest-labs/flux-2-klein-9b",
-    request: "multipart",
-  },
-  {
-    id: "@cf/black-forest-labs/flux-1-schnell",
-    request: "json",
-  },
-];
+const conceptModel = "@cf/black-forest-labs/flux-2-klein-4b";
 
 export const dynamic = "force-dynamic";
 
@@ -364,37 +345,24 @@ export async function POST(request: Request) {
         }];
       })()
     : strategyDirections;
-  async function generateDirection(
-    direction: (typeof batchDirections)[number],
-    attempt = 0,
-  ) {
+  async function generateDirection(direction: (typeof batchDirections)[number]) {
     const startedAt = Date.now();
-    const model = conceptModels[attempt] ?? conceptModels.at(-1)!;
-    const recoveryMode = attempt > 0;
-    const prompt = buildPrompt(enrichedBrief, direction, { recoveryMode });
+    const prompt = buildPrompt(enrichedBrief, direction);
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-    let body: BodyInit;
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}`,
-    };
-    if (model.request === "multipart") {
-      const form = new FormData();
-      form.append("prompt", prompt);
-      form.append("width", "512");
-      form.append("height", "512");
-      form.append("seed", String(seed));
-      body = form;
-    } else {
-      headers["Content-Type"] = "application/json";
-      body = JSON.stringify({ prompt, seed, steps: 4 });
-    }
+    const form = new FormData();
+    form.append("prompt", prompt);
+    form.append("width", "512");
+    form.append("height", "512");
+    form.append("seed", String(seed));
 
     const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/${model.id}`,
+      `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/${conceptModel}`,
       {
         method: "POST",
-        headers,
-        body,
+        headers: {
+          Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}`,
+        },
+        body: form,
       },
     );
     const payload = await parseCloudflareResponse(response);
@@ -410,22 +378,6 @@ export async function POST(request: Request) {
           : `Cloudflare Workers AI returned ${response.status} without an image.`,
       );
     }
-    const quality = await assessLogoImage(
-      base64,
-      {
-        avoid: enrichedBrief.avoid,
-        direction: `${direction.title}: ${direction.thesis}`,
-        stage: "concept",
-      },
-      runtime,
-    );
-    const qualityMs = Date.now() - startedAt - inferenceMs;
-    if (!quality.approved) {
-      throw new Error(
-        `Concept rejected by quality control (${quality.score}/100): ${quality.reason}`,
-      );
-    }
-
     const generationId = crypto.randomUUID();
     const format = imageFormat(base64);
     const objectKey = `users/${userHash}/projects/${projectId}/${generationId}.${format.extension}`;
@@ -437,7 +389,7 @@ export async function POST(request: Request) {
       httpMetadata: { contentType: format.contentType },
       customMetadata: {
         direction: direction.key,
-        model: model.id,
+        model: conceptModel,
         project: projectId,
       },
     });
@@ -448,7 +400,7 @@ export async function POST(request: Request) {
       user_email: user.email,
       direction_key: direction.key,
       direction_title: direction.title,
-      prompt: `${prompt}\n\n[LOOPEN_QC:${quality.score}]`,
+      prompt,
       object_key: objectKey,
       status: "completed",
       created_at: Date.now(),
@@ -457,10 +409,8 @@ export async function POST(request: Request) {
       event: "logo_concept_completed",
       direction: direction.key,
       inferenceMs,
-      qualityMs,
       totalMs: Date.now() - startedAt,
-      qualityScore: quality.score,
-      model: model.id,
+      model: conceptModel,
     });
 
     return {
@@ -470,37 +420,11 @@ export async function POST(request: Request) {
       downloadUrl: `/api/images/${generationId}?download=1`,
       id: generationId,
       imageUrl: `/api/images/${generationId}`,
-      qualityScore: quality.score,
     };
   }
 
-  async function generateWithRetry(direction: (typeof batchDirections)[number]) {
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        return await generateDirection(direction, attempt);
-      } catch (error) {
-        lastError = error;
-        const message = error instanceof Error ? error.message : String(error);
-        const quotaExhausted =
-          message.includes("daily free allocation") || message.includes("(4006)");
-        console.warn({
-          event: "logo_concept_attempt_rejected",
-          direction: direction.key,
-          attempt: attempt + 1,
-          recoveryMode: attempt > 0,
-          model: conceptModels[attempt]?.id,
-          reason: message.replace(/\s*\([0-9a-f-]{20,}\)\s*/gi, " ").slice(0, 280),
-        });
-        if (attempt < 2 && !quotaExhausted) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-      }
-    }
-    throw lastError;
-  }
   const settled = await Promise.allSettled(
-    batchDirections.map(generateWithRetry),
+    batchDirections.map(generateDirection),
   );
 
   const generations = settled.flatMap((result) =>
@@ -545,7 +469,7 @@ export async function POST(request: Request) {
         error: quotaExceeded
           ? "Cloudflare Workers AI daily quota is exhausted. Wait for the daily reset or enable the Workers Paid plan, then try again."
           : safetyBlocked
-            ? "The image safety filter blocked every attempt, including the neutral recovery prompt. No image was saved; try generating again."
+            ? "Cloudflare blocked the generated image. Loopen did not retry or make another paid image request."
           : failures[0] ?? "No concepts were generated.",
         projectId,
       },
