@@ -473,8 +473,9 @@ button {
 
 .field-row label,
 .field-label label {
+  color: rgba(17, 17, 15, 0.45);
   font-family: var(--font-geist-mono), monospace;
-  font-size: 11px;
+  font-size: 9px;
   text-transform: uppercase;
 }
 
