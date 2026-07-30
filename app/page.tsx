@@ -1,7 +1,4 @@
-import {
-  chatGPTSignInPath,
-  getChatGPTUser,
-} from "@/backend/auth/chatgpt-auth";
+import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
 import LoopenStudio from "@/frontend/loopen-studio";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +16,7 @@ export default async function Home() {
             }
           : null
       }
-      signInPath={chatGPTSignInPath("/#brief")}
+      signInPath="/#brief"
     />
   );
 }

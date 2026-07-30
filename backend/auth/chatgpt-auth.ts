@@ -16,10 +16,17 @@ const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
 
+function allowLocalStudio(): boolean {
+  return (
+    process.env.NODE_ENV !== "production" ||
+    process.env.ALLOW_LOCAL_STUDIO === "1"
+  );
+}
+
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
   const email = requestHeaders.get(USER_EMAIL_HEADER);
-  if (!email && process.env.NODE_ENV !== "production") {
+  if (!email && allowLocalStudio()) {
     return {
       displayName: "Local Studio",
       email: "local@loopen.dev",

@@ -57,9 +57,24 @@ sign-in step is required.
 - Build: `npm run build`
 - Start: `npm start`
 - Healthcheck: `/`
-- Variables: same as `.env.example` (no Cloudflare keys)
+- Variables: same as `.env.example`
+- Set `ALLOW_LOCAL_STUDIO=1` so the studio uses the Local Studio identity
+  without ChatGPT sign-in (temporary until regular login lands)
+- Open: https://logo-production-043e.up.railway.app
 
 Config-as-code: [`railway.json`](railway.json).
+
+### Local UI → Railway API (optional)
+
+Only needed if you keep a local Next UI while calling the Railway API.
+Restart `next dev` after changes:
+
+```env
+NEXT_PUBLIC_API_URL=/api
+API_PROXY_TARGET=https://logo-production-043e.up.railway.app
+```
+
+Or use an absolute API base and set `CORS_ALLOWED_ORIGINS` on Railway.
 
 ## Data ownership
 

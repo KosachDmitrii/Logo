@@ -108,7 +108,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await getChatGPTUser();
   if (!user?.email) {
-    return Response.json({ error: "Sign in with ChatGPT to generate." }, { status: 401 });
+    return Response.json({ error: "Sign in to generate." }, { status: 401 });
   }
   const userEmail = user.email;
 

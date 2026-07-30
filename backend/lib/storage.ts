@@ -70,16 +70,38 @@ function asStoredObject(
   };
 }
 
+function isMissingObject(status: number, detail: string) {
+  if (status === 404) return true;
+  try {
+    const payload = JSON.parse(detail) as {
+      statusCode?: string | number;
+      code?: string;
+      error?: string;
+    };
+    return (
+      payload.code === "NoSuchKey" ||
+      payload.error === "not_found" ||
+      String(payload.statusCode) === "404"
+    );
+  } catch {
+    return /not_found|NoSuchKey|Object not found/i.test(detail);
+  }
+}
+
 export async function headObject(key: string): Promise<boolean> {
+  // Supabase Storage rejects HEAD on /object/...; probe with GET.
+  // Missing keys often come back as HTTP 400 + JSON { code: "NoSuchKey" }.
   const response = await fetch(objectUrl(key), {
-    method: "HEAD",
+    method: "GET",
     headers: authHeaders(),
   });
-  if (response.status === 404) return false;
-  if (!response.ok) {
-    throw new Error(`Storage head failed (${response.status}).`);
+  if (response.ok) {
+    await response.arrayBuffer();
+    return true;
   }
-  return true;
+  const detail = await response.text().catch(() => "");
+  if (isMissingObject(response.status, detail)) return false;
+  throw new Error(detail || `Storage head failed (${response.status}).`);
 }
 
 export async function getObject(key: string): Promise<StoredObject | null> {
@@ -87,16 +109,17 @@ export async function getObject(key: string): Promise<StoredObject | null> {
     method: "GET",
     headers: authHeaders(),
   });
-  if (response.status === 404) return null;
-  if (!response.ok) {
-    throw new Error(`Storage get failed (${response.status}).`);
+  if (response.ok) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return asStoredObject(
+      bytes,
+      response.headers.get("content-type") ?? "application/octet-stream",
+      response.headers.get("etag") ?? `"${bytes.byteLength}"`,
+    );
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  return asStoredObject(
-    bytes,
-    response.headers.get("content-type") ?? "application/octet-stream",
-    response.headers.get("etag") ?? `"${bytes.byteLength}"`,
-  );
+  const detail = await response.text().catch(() => "");
+  if (isMissingObject(response.status, detail)) return null;
+  throw new Error(detail || `Storage get failed (${response.status}).`);
 }
 
 export async function putObject(
@@ -125,19 +148,38 @@ export async function removeObjects(keys: string[]): Promise<void> {
   const unique = Array.from(new Set(keys.filter(Boolean)));
   if (!unique.length) return;
   const { url, bucket, key } = storageConfig();
-  const response = await fetch(`${url}/storage/v1/object/${bucket}`, {
-    method: "DELETE",
-    headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(unique),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(
-      detail || `Storage delete failed (${response.status}).`,
-    );
+
+  // Prefer per-object DELETE (reliable across Storage API versions).
+  const failures: string[] = [];
+  await Promise.all(
+    unique.map(async (objectKey) => {
+      const response = await fetch(objectUrl(objectKey), {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (response.ok || response.status === 404) return;
+      const detail = await response.text().catch(() => "");
+      if (isMissingObject(response.status, detail)) return;
+      failures.push(detail || `${objectKey} (${response.status})`);
+    }),
+  );
+
+  if (failures.length) {
+    // Fallback: batch delete with prefixes body (storage-js shape).
+    const batch = await fetch(`${url}/storage/v1/object/${bucket}`, {
+      method: "DELETE",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prefixes: unique }),
+    });
+    if (!batch.ok) {
+      const detail = await batch.text().catch(() => "");
+      throw new Error(
+        detail || failures[0] || `Storage delete failed (${batch.status}).`,
+      );
+    }
   }
 }

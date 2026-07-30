@@ -8,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { apiFetch, apiUrl, resolveMediaUrl } from "./lib/api";
 import { prepareLockupMarkSvg } from "./lib/lockup-svg";
 import {
   clearStudioSession,
@@ -284,7 +285,7 @@ async function fetchProjectList(force = false): Promise<SavedProject[]> {
   if (!force && projectListInflight) return projectListInflight;
 
   const request = (async () => {
-    const response = await fetch("/api/project-list");
+    const response = await apiFetch("/project-list");
     if (!response.ok) return projectListCache ?? [];
     const payload = (await response.json()) as { projects?: SavedProject[] };
     projectListCache = payload.projects ?? [];
@@ -308,14 +309,14 @@ function LockupMark({
   scale: number;
   url: string;
 }) {
-  const [src, setSrc] = useState(url);
+  const [src, setSrc] = useState(() => resolveMediaUrl(url));
 
   useEffect(() => {
     let revoked: string | null = null;
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch(url);
+        const response = await fetch(resolveMediaUrl(url));
         if (!response.ok) throw new Error("Mark fetch failed.");
         const text = await response.text();
         const tinted = prepareLockupMarkSvg(text, color);
@@ -325,7 +326,7 @@ function LockupMark({
         revoked = objectUrl;
         if (!cancelled) setSrc(objectUrl);
       } catch {
-        if (!cancelled) setSrc(url);
+        if (!cancelled) setSrc(resolveMediaUrl(url));
       }
     })();
     return () => {
@@ -680,7 +681,7 @@ function LoopenStudioApp({
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch(`/api/projects/${initialDraft.projectId}`);
+        const response = await apiFetch(`/projects/${initialDraft.projectId}`);
         if (!response.ok || cancelled) return;
         const payload = (await response.json()) as {
           generations?: GeneratedConcept[];
@@ -840,7 +841,7 @@ function LoopenStudioApp({
 
   async function openProject(id: string) {
     setNotice("Loading saved project…");
-    const response = await fetch(`/api/projects/${id}`);
+    const response = await apiFetch(`/projects/${id}`);
     const payload = (await response.json()) as {
       error?: string;
       project?: { brandName: string; brief: PremiumBrief; selectedGenerationId?: string };
@@ -902,7 +903,7 @@ function LoopenStudioApp({
     if (!confirmed) return;
 
     setDeletingProjectId(project.id);
-    const response = await fetch(`/api/projects/${project.id}`, {
+    const response = await apiFetch(`/projects/${project.id}`, {
       method: "DELETE",
     });
     setDeletingProjectId("");
@@ -1048,7 +1049,7 @@ function LoopenStudioApp({
     );
 
     try {
-      const response = await fetch("/api/generate-concepts", {
+      const response = await apiFetch("/generate-concepts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1118,7 +1119,7 @@ function LoopenStudioApp({
     setIsGeneratingMore(true);
     setNotice("Generating exactly one additional graphic mark with Klein 4B…");
     try {
-      const response = await fetch("/api/generate-concepts", {
+      const response = await apiFetch("/generate-concepts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId, actionId: crypto.randomUUID() }),
@@ -1207,7 +1208,7 @@ function LoopenStudioApp({
     );
     document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
-      const response = await fetch(`/api/projects/${projectId}/refine`, {
+      const response = await apiFetch(`/projects/${projectId}/refine`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1281,7 +1282,7 @@ function LoopenStudioApp({
         : "Rebuilding the selected symbol as controlled SVG geometry…",
     );
     try {
-      const response = await fetch(`/api/projects/${projectId}/vectorize`, {
+      const response = await apiFetch(`/projects/${projectId}/vectorize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
@@ -1333,7 +1334,7 @@ function LoopenStudioApp({
     const requestKey = `${format}-${layout}-${rasterSize ?? "master"}`;
     setExportingKey(requestKey);
     try {
-      const response = await fetch(`/api/projects/${projectId}/export`, {
+      const response = await apiFetch(`/projects/${projectId}/export`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1409,7 +1410,9 @@ function LoopenStudioApp({
       return;
     }
     window.open(
-      `/api/projects/${projectId}/brand-guide?assetId=${encodeURIComponent(selectedVector)}&color=${encodeURIComponent(lockupColor)}&descriptor=${encodeURIComponent(descriptor)}&name=${encodeURIComponent(wordmarkName || brandName)}`,
+      apiUrl(
+        `/projects/${projectId}/brand-guide?assetId=${encodeURIComponent(selectedVector)}&color=${encodeURIComponent(lockupColor)}&descriptor=${encodeURIComponent(descriptor)}&name=${encodeURIComponent(wordmarkName || brandName)}`,
+      ),
       "_blank",
       "noopener,noreferrer",
     );
@@ -1426,7 +1429,7 @@ function LoopenStudioApp({
     });
     if (!confirmed) return;
 
-    const response = await fetch(`/api/images/${generation.id}`, {
+    const response = await apiFetch(`/images/${generation.id}`, {
       method: "DELETE",
     });
     if (!response.ok) {
@@ -1461,7 +1464,7 @@ function LoopenStudioApp({
     }
     setSelectedConceptIds([generation.id]);
 
-    const response = await fetch(`/api/projects/${projectId}/select`, {
+    const response = await apiFetch(`/projects/${projectId}/select`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ generationId: generation.id }),
@@ -1482,6 +1485,7 @@ function LoopenStudioApp({
           (item) =>
             new Promise<string>((resolve, reject) => {
               const image = new Image();
+              image.crossOrigin = "anonymous";
               image.onload = () => {
                 const canvas = document.createElement("canvas");
                 canvas.width = 16;
@@ -1503,7 +1507,7 @@ function LoopenStudioApp({
                 resolve(values.map((value) => (value >= average ? "1" : "0")).join(""));
               };
               image.onerror = reject;
-              image.src = item.imageUrl;
+              image.src = resolveMediaUrl(item.imageUrl);
             }),
         ),
       );
@@ -1666,9 +1670,11 @@ function LoopenStudioApp({
             className="project-pill"
             type="button"
             onClick={() =>
-              user ? setIsHistoryOpen((current) => !current) : (window.location.href = signInPath)
+              user
+                ? setIsHistoryOpen((current) => !current)
+                : (window.location.href = signInPath)
             }
-            title={user ? "Open project history" : "Sign in with ChatGPT"}
+            title={user ? "Open project history" : "Sign in to open history"}
           >
             <span className="online-dot" />
             {user ? `${projects.length} projects` : "Sign in"}
@@ -1997,8 +2003,8 @@ function LoopenStudioApp({
           </div>
           {!user && (
             <p className="auth-hint">
-              Sign in with ChatGPT to save briefs, generate images and keep each
-              project private.
+              Sign in to save briefs, generate images and keep each project
+              private.
             </p>
           )}
           {notice && (
@@ -2152,7 +2158,7 @@ function LoopenStudioApp({
                 </div>
                 <div className="concept-mark generated-mark">
                   <img
-                    src={generated.imageUrl}
+                    src={resolveMediaUrl(generated.imageUrl)}
                     alt={`${brandName} — ${generated.directionTitle}`}
                   />
                   <span className="generated-wordmark">{brandName}</span>
@@ -2237,11 +2243,11 @@ function LoopenStudioApp({
             ) ? (
               <a
                 className="download-button"
-                href={
+                href={resolveMediaUrl(
                   generatedConcepts.find(
                     (item) => item.directionKey === selectedConcept,
-                  )!.downloadUrl
-                }
+                  )!.downloadUrl,
+                )}
               >
                 Download PNG ↓
               </a>
@@ -2297,7 +2303,10 @@ function LoopenStudioApp({
                   }
                 }}
               >
-                <img src={asset.url} alt={`${brandName} ${asset.label}`} />
+                <img
+                  src={resolveMediaUrl(asset.url)}
+                  alt={`${brandName} ${asset.label}`}
+                />
                 <span>{asset.label}</span>
                 <small>
                   {asset.model}
@@ -2395,7 +2404,10 @@ function LoopenStudioApp({
                 key={asset.id}
                 onClick={() => setSelectedVector(asset.id)}
               >
-                <img src={asset.url} alt={`${brandName} ${asset.label}`} />
+                <img
+                  src={resolveMediaUrl(asset.url)}
+                  alt={`${brandName} ${asset.label}`}
+                />
                 <span>{asset.label}</span>
                 <small>{asset.model}</small>
               </button>
@@ -2542,7 +2554,7 @@ function LoopenStudioApp({
               <div className="lockup-preview-fit">
                 {selectedVectorAsset ? (
                   <LockupMark
-                    url={selectedVectorAsset.url}
+                    url={resolveMediaUrl(selectedVectorAsset.url)}
                     color={lockupColor}
                     scale={markScale}
                     alt=""
@@ -2571,7 +2583,7 @@ function LoopenStudioApp({
               <div className="size-test">
                 {[16, 24, 32, 64].map((size) => (
                   <figure key={size}>
-                    {selectedVectorAsset ? <img src={selectedVectorAsset.url} alt="" style={{ width: size, height: size }} /> : <i />}
+                    {selectedVectorAsset ? <img src={resolveMediaUrl(selectedVectorAsset.url)} alt="" style={{ width: size, height: size }} /> : <i />}
                     <figcaption>{size}px</figcaption>
                   </figure>
                 ))}
@@ -2580,8 +2592,8 @@ function LoopenStudioApp({
             <article>
               <span>Contrast test</span>
               <div className="contrast-test">
-                <div>{selectedVectorAsset && <img src={selectedVectorAsset.url} alt="" />}</div>
-                <div>{selectedVectorAsset && <img src={selectedVectorAsset.url} alt="" />}</div>
+                <div>{selectedVectorAsset && <img src={resolveMediaUrl(selectedVectorAsset.url)} alt="" />}</div>
+                <div>{selectedVectorAsset && <img src={resolveMediaUrl(selectedVectorAsset.url)} alt="" />}</div>
               </div>
             </article>
             <article>
@@ -2641,7 +2653,7 @@ function LoopenStudioApp({
               style={{ background: strategy?.palette?.[2] ?? "var(--acid)" }}
             >
               <span className="app-label">Drawing title block / 01</span>
-              <img src={selectedVectorAsset.url} alt="" />
+              <img src={resolveMediaUrl(selectedVectorAsset.url)} alt="" />
               <div className="drawing-metadata">
                 <span>PROJECT</span><b>KT / 001</b>
                 <span>STAGE</span><b>CONCEPT</b>
@@ -2662,7 +2674,7 @@ function LoopenStudioApp({
                 {[24, 40, 72].map((size) => (
                   <figure key={size}>
                     <img
-                      src={selectedVectorAsset.url}
+                      src={resolveMediaUrl(selectedVectorAsset.url)}
                       alt=""
                       style={{ width: size, height: size }}
                     />
