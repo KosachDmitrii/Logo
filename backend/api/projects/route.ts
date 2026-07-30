@@ -143,7 +143,13 @@ export async function POST(request: Request) {
       ? input.requestId
       : "";
   const now = Date.now();
-  if (!existingProjectId && process.env.NODE_ENV === "production") {
+  // Cost guard for real users. Skip while Local Studio auth is enabled for
+  // local→Railway iteration (ALLOW_LOCAL_STUDIO=1).
+  if (
+    !existingProjectId &&
+    process.env.NODE_ENV === "production" &&
+    process.env.ALLOW_LOCAL_STUDIO !== "1"
+  ) {
     const recent = await countRows("logo_projects", {
       user_email: `eq.${userEmail}`,
       created_at: `gt.${now - 60 * 60 * 1000}`,

@@ -8,7 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { apiFetch, apiUrl, resolveMediaUrl } from "./lib/api";
+import { apiFetch, apiUrl, readApiJson, resolveMediaUrl } from "./lib/api";
 import { buildLockupSvg } from "./lib/lockup-export";
 import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
 import {
@@ -1128,13 +1128,13 @@ function LoopenStudioApp({
           avoid,
         }),
       });
-      const payload = (await response.json()) as {
+      const payload = await readApiJson<{
         error?: string;
         generations?: GeneratedConcept[];
         failures?: string[];
         projectId?: string;
         strategy?: BrandStrategy;
-      };
+      }>(response);
 
       if (!response.ok || !payload.projectId || !payload.generations?.length) {
         throw new Error(payload.error ?? "Generation could not be completed.");
@@ -1181,11 +1181,11 @@ function LoopenStudioApp({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId, actionId: crypto.randomUUID() }),
       });
-      const payload = (await response.json()) as {
+      const payload = await readApiJson<{
         error?: string;
         generations?: GeneratedConcept[];
         failures?: string[];
-      };
+      }>(response);
       if (!response.ok || !payload.generations?.length) {
         throw new Error(payload.error ?? "More concepts could not be generated.");
       }
@@ -1273,10 +1273,10 @@ function LoopenStudioApp({
           ...(isRetry ? { critiquesByGenerationId } : {}),
         }),
       });
-      const payload = (await response.json()) as {
+      const payload = await readApiJson<{
         assets?: StudioAsset[];
         error?: string;
-      };
+      }>(response);
       if (!response.ok || !payload.assets?.length) {
         setAssets(previousAssets);
         setSelectedRefinement(previousRefinement);
@@ -1348,14 +1348,14 @@ function LoopenStudioApp({
             : { assetId: selectedRefinement },
         ),
       });
-      const payload = (await response.json().catch(() => null)) as {
+      const payload = await readApiJson<{
         assets?: StudioAsset[];
         error?: string;
-      } | null;
-      if (!response.ok || !payload?.assets?.length) {
+      }>(response);
+      if (!response.ok || !payload.assets?.length) {
         showRequestError(
           "SVG reconstruction",
-          payload?.error ?? "Vectorization could not be completed.",
+          payload.error ?? "Vectorization could not be completed.",
         );
         return;
       }

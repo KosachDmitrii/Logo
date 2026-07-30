@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "8mb",
     },
+    // External /api rewrites default to 30s; concept generate/refine often need 1–4 min.
+    proxyTimeout: 300_000,
   },
   async rewrites() {
     if (!apiProxyTarget) return [];

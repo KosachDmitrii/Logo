@@ -60,8 +60,9 @@ NEXT_PUBLIC_API_URL=/api
 API_PROXY_TARGET=https://logo-production-043e.up.railway.app
 ```
 
-Restart `next dev` after changing `API_PROXY_TARGET` (it is read by
-`next.config.ts`). Open http://localhost:3000 — generate/history hit Railway.
+Restart `next dev` after changing `API_PROXY_TARGET` or `next.config.ts`
+(rewrites + `experimental.proxyTimeout` for long generate/refine calls).
+Open http://localhost:3000 — generate/history hit Railway.
 
 Config-as-code: [`railway.json`](railway.json). Build/start on Railway:
 `npm run build` / `npm start`, healthcheck `/`.

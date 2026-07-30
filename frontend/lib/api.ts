@@ -35,3 +35,30 @@ export function resolveMediaUrl(url: string): string {
 export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(apiUrl(path), init);
 }
+
+/** Parse JSON bodies; surface plain-text/HTML proxy failures as readable errors. */
+export async function readApiJson<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  if (!text) {
+    throw new Error(
+      response.ok
+        ? "Empty response from API."
+        : `Request failed (${response.status}).`,
+    );
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const trimmed = text.replace(/\s+/g, " ").trim().slice(0, 160);
+    if (/internal server error/i.test(trimmed)) {
+      throw new Error(
+        "API proxy timed out or the server dropped the connection. Long generations need a higher proxy timeout — restart `next dev` after updating next.config.",
+      );
+    }
+    throw new Error(
+      response.ok
+        ? `Unexpected API response: ${trimmed}`
+        : `Request failed (${response.status}): ${trimmed}`,
+    );
+  }
+}
