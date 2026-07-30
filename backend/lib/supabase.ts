@@ -1,16 +1,12 @@
-import { getRuntimeEnv } from "./mvp-runtime";
-
 type QueryValue = string | number | boolean | undefined;
 
 function config() {
-  const runtime = getRuntimeEnv();
-  if (!runtime.SUPABASE_URL || !runtime.SUPABASE_SERVICE_ROLE_KEY) {
+  const url = process.env.SUPABASE_URL?.replace(/\/$/, "");
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
     throw new Error("Supabase is not configured.");
   }
-  return {
-    key: runtime.SUPABASE_SERVICE_ROLE_KEY,
-    url: runtime.SUPABASE_URL.replace(/\/$/, ""),
-  };
+  return { key, url };
 }
 
 function headers(prefer?: string) {

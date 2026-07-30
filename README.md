@@ -6,8 +6,8 @@ Strategy-first AI logo production pipeline.
 
 ```text
 frontend/          React studio UI, styles, client session helpers
-backend/           API handlers, auth, worker, Supabase, server libs
-app/               Next/Vinext entry points (thin re-exports into FE/BE)
+backend/           API handlers, auth, Supabase, server libs
+app/               Next.js entry points (thin re-exports into FE/BE)
 public/            Static assets
 tests/             Node test suite
 ```
@@ -15,16 +15,14 @@ tests/             Node test suite
 ## Architecture
 
 ```text
-frontend (React / Vinext)
+frontend (React / Next.js)
       │
-backend (Cloudflare Worker API)
-      ├── OpenAI GPT-5.6 Terra — brand strategy and art-direction briefs
-      ├── Gemini 3 Pro Image — four explorations and two refinements
-      ├── Gemini + GPT-5.6 Sol — independent visual jury
-      ├── Recraft — selected raster-to-SVG production
-      ├── Recraft API — legacy raster-to-vector fallback
+backend (Next.js Route Handlers)
+      ├── OpenAI — brand strategy, art-direction, vector refine
+      ├── Gemini — explorations, refinements, visual jury
+      ├── Recraft — legacy raster-to-SVG
       ├── Supabase PostgreSQL — projects and metadata
-      └── Cloudflare R2 — PNG and SVG assets
+      └── Supabase Storage (logo-files) — PNG and SVG assets
 ```
 
 ## Local setup
@@ -39,12 +37,11 @@ RECRAFT_API_KEY=
 GEMINI_API_KEY=
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
-CLOUDFLARE_ACCOUNT_ID=
-CLOUDFLARE_API_TOKEN=
+SUPABASE_STORAGE_BUCKET=logo-files
 ```
 
-Apply `backend/supabase/migrations/20260729190000_loopen_schema.sql` to the
-Supabase project before starting the app.
+Apply migrations in `backend/supabase/migrations/` to the Supabase project
+(schema + private `logo-files` storage bucket) before starting the app.
 
 ```bash
 npm install
@@ -55,11 +52,20 @@ npm run dev
 The local development server uses the private `Local Studio` identity, so no
 sign-in step is required.
 
+## Railway
+
+- Build: `npm run build`
+- Start: `npm start`
+- Healthcheck: `/`
+- Variables: same as `.env.example` (no Cloudflare keys)
+
+Config-as-code: [`railway.json`](railway.json).
+
 ## Data ownership
 
 - Supabase stores project, generation, selection, and asset metadata.
-- R2 stores generated PNG and SVG bytes.
-- API keys stay server-side and must never use a `VITE_` prefix.
+- Supabase Storage stores generated PNG and SVG bytes.
+- API keys stay server-side and must never use a `NEXT_PUBLIC_` prefix for secrets.
 
 # Production quality control
 
@@ -71,7 +77,4 @@ Loopen treats generated concepts as untrusted candidates:
 - Gemini and GPT independently score specification fidelity, idea, distinctiveness,
   craft, small-size clarity and brief fit, then all four scored directions are returned.
 - Paid Gemini refinement stays a separate user-triggered step on the concept you pick.
-- Recraft vectorizes only user-selected, refined artwork.
-
-The older FLUX/Moondream/raster-vectorization path remains only as a compatibility fallback
-for existing raster projects.
+- Recraft vectorizes only user-selected, refined artwork when the source is still raster.

@@ -1,8 +1,5 @@
 import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
-import {
-  buildRefinementPrompt,
-  getRuntimeEnv,
-} from "@/backend/lib/mvp-runtime";
+import { getRuntimeEnv } from "@/backend/lib/mvp-runtime";
 import {
   insertRow,
   selectOne,
@@ -14,11 +11,7 @@ import {
   REFINE_RECOMMENDED_SCORE,
   refineAndReviewWithGemini,
 } from "@/backend/lib/gemini-creative";
-
-type ImageResponse = {
-  result?: { image?: string };
-  errors?: Array<{ message?: string }>;
-};
+import { getObject, putObject } from "@/backend/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +22,11 @@ export async function POST(
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const runtime = getRuntimeEnv();
-  if (
-    !runtime.OPENAI_API_KEY &&
-    (!runtime.CLOUDFLARE_ACCOUNT_ID || !runtime.CLOUDFLARE_API_TOKEN)
-  ) {
-    return Response.json({ error: "Vector refinement is not configured." }, { status: 503 });
+  if (!runtime.OPENAI_API_KEY || !runtime.GEMINI_API_KEY) {
+    return Response.json(
+      { error: "Refinement requires OPENAI_API_KEY and GEMINI_API_KEY." },
+      { status: 503 },
+    );
   }
 
   const { id: projectId } = await context.params;
@@ -93,13 +86,13 @@ export async function POST(
     try {
       const startedAt = Date.now();
       const row = selectedRow!;
-      const source = await runtime.FILES.get(row.object_key);
+      const source = await getObject(row.object_key);
       if (!source) throw new Error("Source image not found.");
       const sourceBytes = await source.arrayBuffer();
       const brief = row.logo_projects.brief_json;
       let value: RefineAsset;
       if (
-        source.httpMetadata?.contentType === "image/svg+xml" ||
+        source.contentType === "image/svg+xml" ||
         row.object_key.endsWith(".svg")
       ) {
         if (!runtime.OPENAI_API_KEY) {
@@ -115,11 +108,9 @@ export async function POST(
         );
         const id = crypto.randomUUID();
         const objectKey = `users/assets/${user.email.length}/${projectId}/${id}.svg`;
-        await runtime.FILES.put(
-          objectKey,
-          new TextEncoder().encode(refined.svg),
-          { httpMetadata: { contentType: "image/svg+xml" } },
-        );
+        await putObject(objectKey, new TextEncoder().encode(refined.svg), {
+          contentType: "image/svg+xml",
+        });
         const prompt = [
           `[LOOPEN_VECTOR_NATIVE]`,
           `[LOOPEN_QC:${refined.score}]`,
@@ -154,8 +145,8 @@ export async function POST(
           url: `/api/assets/${id}`,
           downloadUrl: `/api/assets/${id}?download=1`,
         };
-      } else if (runtime.GEMINI_API_KEY && runtime.OPENAI_API_KEY) {
-        const sourceMime = source.httpMetadata?.contentType ?? "image/png";
+      } else {
+        const sourceMime = source.contentType || "image/png";
         const explorationCritique = decodeURIComponent(
           row.prompt.match(/\[LOOPEN_REASON:([^\]]*)\]/)?.[1] ?? "",
         );
@@ -172,8 +163,8 @@ export async function POST(
         });
         const { refined, finalReview } = await refineAndReviewWithGemini(
           {
-            gemini: runtime.GEMINI_API_KEY,
-            openai: runtime.OPENAI_API_KEY,
+            gemini: runtime.GEMINI_API_KEY!,
+            openai: runtime.OPENAI_API_KEY!,
           },
           brief as Parameters<typeof refineAndReviewWithGemini>[1],
           {
@@ -190,8 +181,8 @@ export async function POST(
         const bytes = Uint8Array.from(atob(refined.data), (character) =>
           character.charCodeAt(0),
         );
-        await runtime.FILES.put(objectKey, bytes, {
-          httpMetadata: { contentType: refined.mimeType },
+        await putObject(objectKey, bytes, {
+          contentType: refined.mimeType,
         });
         await insertRow("logo_assets", {
           id,
@@ -224,82 +215,6 @@ export async function POST(
           qualityScore: finalReview.score,
           reviewReason: finalReview.verdict,
           reviewStatus: recommended,
-          url: `/api/assets/${id}`,
-          downloadUrl: `/api/assets/${id}?download=1`,
-        };
-      } else {
-        const prompt = buildRefinementPrompt(
-          brief as Parameters<typeof buildRefinementPrompt>[0],
-          row.direction_title,
-          index + 1,
-        );
-        console.log({
-          event: "logo_refine_prompt",
-          generationId: row.id,
-          direction: row.direction_title,
-          variant: index + 1,
-          model: "flux-2-dev",
-          prompt,
-        });
-        const form = new FormData();
-        form.append("prompt", prompt);
-        form.append("input_image_0", new Blob([sourceBytes], { type: "image/png" }), "concept.png");
-        form.append("width", "1024");
-        form.append("height", "1024");
-        form.append("steps", "25");
-        form.append("guidance", "3.5");
-        form.append("safety_tolerance", "5");
-
-        const response = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-2-dev`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}` },
-            body: form,
-          },
-        );
-        const payload = (await response.json()) as ImageResponse;
-        const inferenceMs = Date.now() - startedAt;
-        const base64 = payload.result?.image;
-        if (!response.ok || !base64) {
-          throw new Error(
-            payload.errors?.[0]?.message || "FLUX.2 Dev returned no refined image.",
-          );
-        }
-        console.log({
-          event: "logo_refinement_completed",
-          generationId: row.id,
-          inferenceMs,
-          totalMs: Date.now() - startedAt,
-        });
-        const id = crypto.randomUUID();
-        const objectKey = `users/assets/${user.email.length}/${projectId}/${id}.png`;
-        const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
-        await runtime.FILES.put(objectKey, bytes, {
-          httpMetadata: { contentType: "image/png" },
-        });
-        await insertRow("logo_assets", {
-          id,
-          project_id: projectId,
-          user_email: user.email,
-          parent_id: row.id,
-          stage: "refine",
-          label: `High fidelity ${index + 1}`,
-          provider: "cloudflare",
-          model: "flux-2-dev",
-          prompt,
-          object_key: objectKey,
-          content_type: "image/png",
-          created_at: Date.now(),
-        });
-        value = {
-          id,
-          parentId: row.id,
-          stage: "refine",
-          label: `High fidelity ${index + 1}`,
-          provider: "cloudflare",
-          model: "flux-2-dev",
-          contentType: "image/png",
           url: `/api/assets/${id}`,
           downloadUrl: `/api/assets/${id}?download=1`,
         };

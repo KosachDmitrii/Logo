@@ -275,6 +275,28 @@ const DESCRIPTOR_SIZE_OPTIONS = [
   { value: "28", label: "28" },
 ];
 
+/** Survives Strict Mode remounts and session key swaps (fresh → restored). */
+let projectListCache: SavedProject[] | null = null;
+let projectListInflight: Promise<SavedProject[]> | null = null;
+
+async function fetchProjectList(force = false): Promise<SavedProject[]> {
+  if (!force && projectListCache) return projectListCache;
+  if (!force && projectListInflight) return projectListInflight;
+
+  const request = (async () => {
+    const response = await fetch("/api/project-list");
+    if (!response.ok) return projectListCache ?? [];
+    const payload = (await response.json()) as { projects?: SavedProject[] };
+    projectListCache = payload.projects ?? [];
+    return projectListCache;
+  })();
+
+  projectListInflight = request.finally(() => {
+    if (projectListInflight === request) projectListInflight = null;
+  });
+  return projectListInflight;
+}
+
 function LockupMark({
   alt,
   color,
@@ -641,9 +663,15 @@ function LoopenStudioApp({
   );
 
   useEffect(() => {
-    if (!user) return;
-    void loadHistory();
-  }, [user]);
+    if (!user?.email) return;
+    let cancelled = false;
+    void fetchProjectList().then((list) => {
+      if (!cancelled) setProjects(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.email]);
 
   useEffect(() => {
     // While production is locked (Reduce reset), trust local snapshot only —
@@ -805,11 +833,9 @@ function LoopenStudioApp({
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [isMethodOpen]);
 
-  async function loadHistory() {
-    const response = await fetch("/api/project-list");
-    if (!response.ok) return;
-    const payload = (await response.json()) as { projects?: SavedProject[] };
-    setProjects(payload.projects ?? []);
+  async function loadHistory(force = true) {
+    const list = await fetchProjectList(force);
+    setProjects(list);
   }
 
   async function openProject(id: string) {
@@ -891,6 +917,9 @@ function LoopenStudioApp({
       return;
     }
 
+    projectListCache = (projectListCache ?? projects).filter(
+      (item) => item.id !== project.id,
+    );
     setProjects((current) =>
       current.filter((item) => item.id !== project.id),
     );

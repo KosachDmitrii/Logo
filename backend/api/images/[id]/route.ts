@@ -1,11 +1,11 @@
 import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
-import { getRuntimeEnv } from "@/backend/lib/mvp-runtime";
 import {
   deleteRows,
   selectOne,
   selectRows,
   updateRows,
 } from "@/backend/lib/supabase";
+import { getObject, removeObjects } from "@/backend/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,6 @@ export async function GET(
   }
 
   const { id } = await context.params;
-  const runtime = getRuntimeEnv();
   const generation = await selectOne<{
     object_key: string;
     direction_key: string;
@@ -34,16 +33,16 @@ export async function GET(
     return Response.json({ error: "Image not found." }, { status: 404 });
   }
 
-  const object = await runtime.FILES.get(generation.object_key);
-  if (!object?.body) {
+  const object = await getObject(generation.object_key);
+  if (!object) {
     return Response.json({ error: "Image data not found." }, { status: 404 });
   }
 
   const url = new URL(request.url);
   const headers = new Headers({
     "Cache-Control": "private, max-age=3600",
-    "Content-Type": object.httpMetadata?.contentType ?? "image/png",
-    ETag: object.httpEtag,
+    "Content-Type": object.contentType || "image/png",
+    ETag: object.etag,
   });
 
   if (url.searchParams.get("download") === "1") {
@@ -52,14 +51,14 @@ export async function GET(
       .replace(/^-|-$/g, "")
       .slice(0, 60);
     const extension =
-      object.httpMetadata?.contentType === "image/svg+xml" ? "svg" : "png";
+      object.contentType === "image/svg+xml" ? "svg" : "png";
     headers.set(
       "Content-Disposition",
       `attachment; filename="${safeBrand || "loopen"}-${generation.direction_key}.${extension}"`,
     );
   }
 
-  return new Response(object.body, { headers });
+  return new Response(Buffer.from(object.body), { headers });
 }
 
 export async function DELETE(
@@ -107,7 +106,7 @@ export async function DELETE(
     },
     { selected_generation_id: null, updated_at: Date.now() },
   );
-  await getRuntimeEnv().FILES.delete([
+  await removeObjects([
     generation.object_key,
     ...assets.map((asset) => asset.object_key),
   ]);

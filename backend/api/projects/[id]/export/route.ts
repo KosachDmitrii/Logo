@@ -1,11 +1,8 @@
 import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
 import { prepareLockupMarkSvg } from "@/frontend/lib/lockup-svg";
-import {
-  escapeXml,
-  getRuntimeEnv,
-  sanitizeSvg,
-} from "@/backend/lib/mvp-runtime";
+import { escapeXml, sanitizeSvg } from "@/backend/lib/mvp-runtime";
 import { selectOne } from "@/backend/lib/supabase";
+import { getObject } from "@/backend/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +12,6 @@ export async function POST(
 ) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const runtime = getRuntimeEnv();
   const { id: projectId } = await context.params;
   const input = (await request.json()) as {
     assetId?: string;
@@ -42,7 +38,7 @@ export async function POST(
     stage: "eq.vector",
   });
   if (!row) return Response.json({ error: "Vector asset not found." }, { status: 404 });
-  const object = await runtime.FILES.get(row.object_key);
+  const object = await getObject(row.object_key);
   if (!object) return Response.json({ error: "Vector data not found." }, { status: 404 });
   const source = sanitizeSvg(await object.text());
   const color = /^#[0-9a-f]{6}$/i.test(input.color ?? "") ? input.color! : "#201f1e";

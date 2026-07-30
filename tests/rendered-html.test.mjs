@@ -26,12 +26,16 @@ test("ships the finished Loopen product surface", async () => {
   assert.match(css, /--acid:\s*#ffcf68/);
   assert.doesNotMatch(page + studio + layout, /codex-preview|SkeletonPreview/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
+  assert.match(packageJson, /"dev": "next dev"/);
+  assert.match(packageJson, /"build": "next build"/);
+  assert.match(packageJson, /"start": "next start"/);
+  assert.doesNotMatch(packageJson, /vinext|wrangler|@cloudflare/);
 
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
 });
 
 test("keeps generation authenticated, persistent, and server-side", async () => {
-  const [route, imageRoute, selectRoute, runtime, quality, creative, artDirection, hosting, migration, supabase] =
+  const [route, imageRoute, selectRoute, runtime, quality, creative, artDirection, storage, migration, supabase] =
     await Promise.all([
       readFile(new URL("../backend/api/projects/route.ts", import.meta.url), "utf8"),
       readFile(
@@ -46,7 +50,7 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
       readFile(new URL("../backend/lib/logo-quality.ts", import.meta.url), "utf8"),
       readFile(new URL("../backend/lib/gemini-creative.ts", import.meta.url), "utf8"),
       readFile(new URL("../backend/lib/vector-art-direction.ts", import.meta.url), "utf8"),
-      readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
+      readFile(new URL("../backend/lib/storage.ts", import.meta.url), "utf8"),
       readFile(
         new URL(
           "../backend/supabase/migrations/20260729190000_loopen_schema.sql",
@@ -62,7 +66,7 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.match(selectRoute, /getChatGPTUser/);
   assert.match(route, /createCuratedConcepts/);
   assert.match(route, /OPENAI_API_KEY/);
-  assert.match(route, /Promise\.allSettled/);
+  assert.match(route, /putObject/);
   assert.match(route, /gemini-3-pro-image|gemini-3\.1-flash-image/);
   assert.match(creative, /gemini-3\.1-flash-image/);
   assert.match(creative, /gemini-3-pro-image/);
@@ -108,27 +112,29 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.match(route, /temporarily overloaded/);
   assert.match(route, /reviewStatus/);
   assert.match(route, /requestId/);
-  assert.match(quality, /containsText/);
-  assert.match(quality, /score >= 75/);
-  assert.match(quality, /moondream3\.1-9B-A2B/);
+  assert.match(quality, /arrayBufferToBase64/);
+  assert.doesNotMatch(quality, /moondream|CLOUDFLARE|assessLogoImage/);
   assert.match(runtime, /ICON ONLY/);
   assert.match(runtime, /Idea the mark must express/);
   assert.match(runtime, /redactBrandName|the studio/);
   assert.match(runtime, /Trap to avoid/);
   assert.match(runtime, /recoveryMode/);
-  assert.match(route, /logo_concept_text_recovery/);
+  assert.match(runtime, /process\.env\.OPENAI_API_KEY/);
+  assert.doesNotMatch(runtime, /cloudflare:workers|FILES|CLOUDFLARE_/);
   assert.match(runtime, /Continuous Space/);
   assert.match(runtime, /Open Counterform/);
   assert.match(runtime, /Modular Rhythm/);
   assert.match(runtime, /Constructive Tension/);
-  assert.match(hosting, /"d1": null/);
-  assert.match(hosting, /"r2": "FILES"/);
+  assert.match(storage, /logo-files/);
+  assert.match(storage, /storage\/v1\/object/);
+  assert.match(storage, /putObject|getObject|removeObjects|headObject/);
   assert.match(migration, /create table if not exists public\.logo_projects/i);
   assert.match(migration, /create table if not exists public\.logo_generations/i);
   assert.match(supabase, /SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(supabase, /method: "DELETE"/);
   assert.match(supabase, /Authorization: `Bearer \$\{key\}`/);
-  assert.doesNotMatch(route + runtime, /runtime\.DB|D1Database/);
+  assert.doesNotMatch(supabase, /getRuntimeEnv/);
+  assert.doesNotMatch(route + runtime, /runtime\.DB|D1Database|runtime\.FILES/);
   assert.ok(root);
 });
 
@@ -212,13 +218,13 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(studio, /SVG is still unlocked/);
   assert.doesNotMatch(studio, /Transition blocked/);
   assert.doesNotMatch(studio, /intentionally unavailable/);
-  assert.match(refine, /@cf\/black-forest-labs\/flux-2-dev/);
+  assert.doesNotMatch(refine, /flux-2-dev|cloudflare\.com|CLOUDFLARE_/);
   assert.match(refine, /refineVectorConcept/);
   assert.match(refine, /refineAndReviewWithGemini/);
   assert.match(refine, /REFINE_RECOMMENDED_SCORE/);
   assert.match(refine, /LOOPEN_LOGO_REFINEMENT/);
   assert.match(refine, /image\/svg\+xml/);
-  assert.match(refine, /form\.append\("width", "1024"\)/);
+  assert.match(refine, /putObject/);
   assert.match(refine, /generationIds/);
   assert.match(refine, /critiquesByGenerationId/);
   assert.match(refine, /fromFailedRefine/);
@@ -243,7 +249,8 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(vectorize, /native-vector/);
   assert.match(vectorize, /RECRAFT_API_KEY/);
   assert.match(vectorize, /generationId/);
-  assert.match(vectorize, /logo_vector_quality_advisory/);
+  assert.match(vectorize, /putObject|getObject/);
+  assert.doesNotMatch(vectorize, /assessLogoImage|logo_vector_quality_advisory/);
   assert.match(vectorize, /always deliver the SVG/);
   assert.doesNotMatch(vectorize, /rejected by the transition jury/);
   assert.doesNotMatch(vectorize, /master\.score < 90/);

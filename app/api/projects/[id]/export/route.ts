@@ -1,1 +1,2 @@
-export { dynamic, POST } from "@/backend/api/projects/[id]/export/route";
+export const dynamic = "force-dynamic";
+export { POST } from "@/backend/api/projects/[id]/export/route";

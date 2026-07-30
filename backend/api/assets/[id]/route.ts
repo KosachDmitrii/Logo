@@ -1,6 +1,6 @@
 import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
-import { getRuntimeEnv } from "@/backend/lib/mvp-runtime";
 import { selectOne } from "@/backend/lib/supabase";
+import { getObject } from "@/backend/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,6 @@ export async function GET(
   }
 
   const { id } = await context.params;
-  const runtime = getRuntimeEnv();
   const asset = await selectOne<{
     object_key: string;
     content_type: string;
@@ -30,15 +29,15 @@ export async function GET(
     return Response.json({ error: "Asset not found." }, { status: 404 });
   }
 
-  const object = await runtime.FILES.get(asset.object_key);
-  if (!object?.body) {
+  const object = await getObject(asset.object_key);
+  if (!object) {
     return Response.json({ error: "Asset data not found." }, { status: 404 });
   }
 
   const headers = new Headers({
     "Cache-Control": "private, max-age=3600",
     "Content-Type": asset.content_type,
-    ETag: object.httpEtag,
+    ETag: object.etag,
   });
   if (new URL(request.url).searchParams.get("download") === "1") {
     const name = `${asset.logo_projects.brand_name}-${asset.label}`
@@ -50,5 +49,5 @@ export async function GET(
       `attachment; filename="${name || "loopen-asset"}.${asset.content_type.includes("svg") ? "svg" : "png"}"`,
     );
   }
-  return new Response(object.body, { headers });
+  return new Response(Buffer.from(object.body), { headers });
 }

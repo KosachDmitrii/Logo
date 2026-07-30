@@ -2,11 +2,11 @@ import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
 import { prepareLockupMarkSvg } from "@/frontend/lib/lockup-svg";
 import {
   escapeXml,
-  getRuntimeEnv,
   type LogoBrief,
   sanitizeSvg,
 } from "@/backend/lib/mvp-runtime";
 import { selectOne } from "@/backend/lib/supabase";
+import { getObject } from "@/backend/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,7 @@ export async function GET(
     stage: "eq.vector",
   });
   if (!row) return new Response("Vector asset not found.", { status: 404 });
-  const object = await getRuntimeEnv().FILES.get(row.object_key);
+  const object = await getObject(row.object_key);
   if (!object) return new Response("Vector data not found.", { status: 404 });
 
   const brief = row.logo_projects.brief_json;

@@ -8,12 +8,10 @@ import {
   selectOne,
   updateRows,
 } from "@/backend/lib/supabase";
-import {
-  arrayBufferToBase64,
-  assessLogoImage,
-} from "@/backend/lib/logo-quality";
+import { arrayBufferToBase64 } from "@/backend/lib/logo-quality";
 import { reconstructArchitecturalLogoSvg } from "@/backend/lib/vector-art-direction";
 import type { LogoBrief } from "@/backend/lib/mvp-runtime";
+import { getObject, putObject } from "@/backend/lib/storage";
 
 type RecraftResponse = {
   image?: { b64_json?: string; url?: string };
@@ -126,7 +124,7 @@ export async function POST(
       );
     }
 
-    const file = await runtime.FILES.get(source.object_key);
+    const file = await getObject(source.object_key);
     if (!file) {
       return Response.json({ error: "Image data not found." }, { status: 404 });
     }
@@ -144,8 +142,8 @@ export async function POST(
       }
       const id = crypto.randomUUID();
       const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
-      await runtime.FILES.put(objectKey, svg, {
-        httpMetadata: { contentType: "image/svg+xml" },
+      await putObject(objectKey, svg, {
+        contentType: "image/svg+xml",
       });
       await insertRow("logo_assets", {
         id,
@@ -196,8 +194,8 @@ export async function POST(
       const svg = sanitizeSvg(master.svg);
       const id = crypto.randomUUID();
       const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
-      await runtime.FILES.put(objectKey, svg, {
-        httpMetadata: { contentType: "image/svg+xml" },
+      await putObject(objectKey, svg, {
+        contentType: "image/svg+xml",
       });
       await insertRow("logo_assets", {
         id,
@@ -256,37 +254,6 @@ export async function POST(
         { status: 503 },
       );
     }
-    try {
-      const quality = await assessLogoImage(
-        arrayBufferToBase64(bytes),
-        {
-          avoid:
-            source.brief.avoid ??
-            "text, mockups and generic category clichés",
-          direction:
-            source.kind === "exploration"
-              ? "the selected exploration logo symbol"
-              : "the user-approved refined logo symbol",
-          stage: "vector",
-        },
-        runtime,
-      );
-      if (!quality.approved) {
-        console.warn({
-          event: "logo_vector_quality_advisory",
-          sourceId: source.id,
-          score: quality.score,
-          reason: quality.reason,
-        });
-      }
-    } catch (error) {
-      console.warn({
-        event: "logo_vector_review_unavailable",
-        sourceId: source.id,
-        reason: error instanceof Error ? error.message : String(error),
-      });
-    }
-
     const jobs = [
       {
         endpoint: "vectorize",
@@ -323,7 +290,7 @@ export async function POST(
         if (!svg.includes("<svg")) throw new Error(`${job.label} returned an invalid SVG.`);
         const id = crypto.randomUUID();
         const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
-        await runtime.FILES.put(objectKey, svg, { httpMetadata: { contentType: "image/svg+xml" } });
+        await putObject(objectKey, svg, { contentType: "image/svg+xml" });
         await insertRow("logo_assets", {
           id,
           project_id: projectId,

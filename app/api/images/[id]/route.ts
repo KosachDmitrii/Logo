@@ -1,1 +1,2 @@
-export { dynamic, GET, DELETE } from "@/backend/api/images/[id]/route";
+export const dynamic = "force-dynamic";
+export { GET, DELETE } from "@/backend/api/images/[id]/route";

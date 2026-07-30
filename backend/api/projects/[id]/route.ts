@@ -1,7 +1,7 @@
 import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
-import { getRuntimeEnv } from "@/backend/lib/mvp-runtime";
-import { deleteRows, selectOne, selectRows } from "@/backend/lib/supabase";
 import { directions } from "@/backend/lib/mvp-runtime";
+import { deleteRows, selectOne, selectRows } from "@/backend/lib/supabase";
+import { removeObjects } from "@/backend/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -161,9 +161,12 @@ export async function DELETE(
   const objectKeys = [...generations, ...assets].map((item) => item.object_key);
   if (objectKeys.length) {
     try {
-      await getRuntimeEnv().FILES.delete(objectKeys);
+      await removeObjects(objectKeys);
     } catch (error) {
-      console.error("Project metadata was deleted, but R2 cleanup failed:", error);
+      console.error(
+        "Project metadata was deleted, but storage cleanup failed:",
+        error,
+      );
     }
   }
 

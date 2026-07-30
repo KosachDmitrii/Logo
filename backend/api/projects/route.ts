@@ -1,7 +1,6 @@
 import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
 import {
   type BrandStrategy,
-  buildPrompt,
   directions,
   getRuntimeEnv,
   hashIdentity,
@@ -14,11 +13,9 @@ import {
   selectRows,
   updateRows,
 } from "@/backend/lib/supabase";
-import {
-  arrayBufferToBase64,
-  assessLogoImage,
-} from "@/backend/lib/logo-quality";
+import { arrayBufferToBase64 } from "@/backend/lib/logo-quality";
 import { createCuratedConcepts } from "@/backend/lib/gemini-creative";
+import { headObject, putObject } from "@/backend/lib/storage";
 
 type ProjectRow = {
   id: string;
@@ -29,30 +26,7 @@ type ProjectRow = {
   updated_at: number;
 };
 
-type CloudflareImageResponse = {
-  success?: boolean;
-  result?: { image?: string };
-  errors?: Array<{ code?: number; message?: string }>;
-};
-
-const conceptModel = "@cf/black-forest-labs/flux-2-klein-4b";
-
 export const dynamic = "force-dynamic";
-
-function isSafetyBlocked(message: string) {
-  return message.includes("flagged") || message.includes("(3030)");
-}
-
-async function parseCloudflareResponse(response: Response) {
-  const text = await response.text();
-  try {
-    return JSON.parse(text) as CloudflareImageResponse;
-  } catch {
-    throw new Error(
-      `Cloudflare Workers AI returned ${response.status} with an invalid response.`,
-    );
-  }
-}
 
 function imageFormat(base64: string) {
   if (base64.startsWith("/9j/")) {
@@ -271,14 +245,14 @@ export async function POST(request: Request) {
       : "";
   if (existingProjectId && actionId) {
     const actionKey = `users/${userHash}/projects/${projectId}/actions/${actionId}`;
-    if (await runtime.FILES.head(actionKey)) {
+    if (await headObject(actionKey)) {
       return Response.json(
         { error: "This action was already accepted. No duplicate inference was started." },
         { status: 409 },
       );
     }
-    await runtime.FILES.put(actionKey, new Uint8Array(), {
-      customMetadata: { type: "generation-action" },
+    await putObject(actionKey, new Uint8Array(), {
+      contentType: "application/octet-stream",
     });
   }
 
@@ -353,14 +327,8 @@ export async function POST(request: Request) {
         const bytes = Uint8Array.from(atob(concept.base64), (character) =>
           character.charCodeAt(0),
         );
-        await runtime.FILES.put(objectKey, bytes, {
-          httpMetadata: { contentType: concept.mimeType || format.contentType },
-          customMetadata: {
-            direction: concept.key,
-            model: "gemini-3.1-flash-image",
-            project: projectId,
-            score: String(concept.score),
-          },
+        await putObject(objectKey, bytes, {
+          contentType: concept.mimeType || format.contentType,
         });
         const prompt = [
           `[LOOPEN_FLAT_LOGO_CONCEPT]`,
@@ -450,248 +418,4 @@ export async function POST(request: Request) {
       { status: highDemand ? 503 : 502 },
     );
   }
-
-  /*
-   * Legacy FLUX concept path retained below temporarily for migration history.
-   * It is unreachable while the vector-native pipeline above is active.
-   */
-  const strategyDirections =
-    enrichedBrief.strategy.creativeDirections?.length === 4
-      ? enrichedBrief.strategy.creativeDirections
-      : directions;
-  const batchDirections = existingProjectId
-    ? (() => {
-        const direction =
-          strategyDirections[existingConceptCount % strategyDirections.length];
-        const alternateNumber =
-          Math.floor(existingConceptCount / strategyDirections.length) + 1;
-        return [{
-          ...direction,
-          key: `${direction.key}-${existingConceptCount + 1}`,
-          title: `${direction.title} — Alternate ${alternateNumber}`,
-          thesis: `${direction.thesis} Explore a clearly different construction and silhouette.`,
-        }];
-      })()
-    : strategyDirections;
-  async function requestConceptImage(
-    direction: (typeof batchDirections)[number],
-    recoveryMode: boolean,
-  ) {
-    const startedAt = Date.now();
-    const prompt = buildPrompt(enrichedBrief, direction, { recoveryMode });
-    console.log({
-      event: "logo_concept_prompt",
-      direction: direction.key,
-      recoveryMode,
-      model: conceptModel,
-      prompt,
-    });
-    const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-    const form = new FormData();
-    form.append("prompt", prompt);
-    form.append("width", "512");
-    form.append("height", "512");
-    form.append("seed", String(seed));
-    form.append("guidance", "4.5");
-    // BFL moderation: 0 = strictest, 5 = most permissive (default 2).
-    // Undocumented on CF Klein docs, but accepted by the Workers AI multipart API
-    // and required for abstract logo prompts that otherwise false-positive as 3030.
-    form.append("safety_tolerance", "5");
-
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/${conceptModel}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}`,
-        },
-        body: form,
-      },
-    );
-    const payload = await parseCloudflareResponse(response);
-    const inferenceMs = Date.now() - startedAt;
-    const base64 = payload.result?.image;
-    if (!response.ok || !base64) {
-      const cloudflareError = payload.errors?.[0];
-      throw new Error(
-        cloudflareError?.message
-          ? `Cloudflare Workers AI [HTTP ${response.status}]: ${cloudflareError.message}${
-              cloudflareError.code ? ` (${cloudflareError.code})` : ""
-            }`
-          : `Cloudflare Workers AI returned ${response.status} without an image.`,
-      );
-    }
-    return { base64, inferenceMs, prompt, recoveryMode };
-  }
-
-  async function generateDirection(direction: (typeof batchDirections)[number]) {
-    const startedAt = Date.now();
-    async function requestWithSafetyRecovery(recoveryMode: boolean) {
-      try {
-        return await requestConceptImage(direction, recoveryMode);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (recoveryMode || !isSafetyBlocked(message)) throw error;
-        console.warn({
-          event: "logo_concept_safety_recovery",
-          direction: direction.key,
-          reason: message.replace(/\s*\([0-9a-f-]{20,}\)\s*/gi, " ").slice(0, 280),
-        });
-        return requestConceptImage(direction, true);
-      }
-    }
-
-    let image = await requestWithSafetyRecovery(false);
-    let qualityScore: number | undefined;
-    let reviewStatus = "Review";
-    let reviewReason = "Automated review unavailable; inspect before refinement.";
-    try {
-      let quality = await assessLogoImage(
-        image.base64,
-        {
-          avoid: enrichedBrief.avoid,
-          direction: `${direction.title}: ${direction.thesis}`,
-          stage: "concept",
-        },
-        runtime,
-      );
-      if (quality.containsText && !image.recoveryMode) {
-        console.warn({
-          event: "logo_concept_text_recovery",
-          direction: direction.key,
-          reason: quality.reason,
-        });
-        image = await requestWithSafetyRecovery(true);
-        quality = await assessLogoImage(
-          image.base64,
-          {
-            avoid: enrichedBrief.avoid,
-            direction: `${direction.title}: ${direction.thesis}`,
-            stage: "concept",
-          },
-          runtime,
-        );
-      }
-      qualityScore = quality.score;
-      reviewStatus = quality.approved
-        ? "Recommended"
-        : quality.containsText
-          ? "Rejected · text detected"
-          : "Review";
-      reviewReason = quality.reason;
-    } catch (error) {
-      console.warn({
-        event: "logo_review_unavailable",
-        direction: direction.key,
-        reason: error instanceof Error ? error.message : String(error),
-      });
-    }
-
-    const { base64, inferenceMs, prompt, recoveryMode } = image;
-    const generationId =
-      existingProjectId && actionId ? actionId : crypto.randomUUID();
-    const format = imageFormat(base64);
-    const objectKey = `users/${userHash}/projects/${projectId}/${generationId}.${format.extension}`;
-    const bytes = Uint8Array.from(atob(base64), (character) =>
-      character.charCodeAt(0),
-    );
-
-    await runtime.FILES.put(objectKey, bytes, {
-      httpMetadata: { contentType: format.contentType },
-      customMetadata: {
-        direction: direction.key,
-        model: conceptModel,
-        project: projectId,
-        recovery: recoveryMode ? "1" : "0",
-      },
-    });
-
-    await insertRow("logo_generations", {
-      id: generationId,
-      project_id: projectId,
-      user_email: userEmail,
-      direction_key: direction.key,
-      direction_title: direction.title,
-      prompt: `${prompt}\n\n[LOOPEN_QC:${qualityScore ?? 0}][LOOPEN_STATUS:${reviewStatus}][LOOPEN_REASON:${encodeURIComponent(reviewReason)}]`,
-      object_key: objectKey,
-      status: "completed",
-      created_at: Date.now(),
-    });
-    console.log({
-      event: "logo_concept_completed",
-      direction: direction.key,
-      inferenceMs,
-      totalMs: Date.now() - startedAt,
-      model: conceptModel,
-      recoveryMode,
-      reviewStatus,
-    });
-
-    return {
-      directionKey: direction.key,
-      directionTitle: direction.title,
-      rationale: direction.thesis,
-      downloadUrl: `/api/images/${generationId}?download=1`,
-      id: generationId,
-      imageUrl: `/api/images/${generationId}`,
-      qualityScore,
-      reviewReason,
-      reviewStatus,
-    };
-  }
-
-  const settled = await Promise.allSettled(
-    batchDirections.map(generateDirection),
-  );
-
-  const generations = settled.flatMap((result) =>
-    result.status === "fulfilled" ? [result.value] : [],
-  );
-  const failures = settled.flatMap((result) =>
-    result.status === "rejected"
-      ? [
-          result.reason instanceof Error
-            ? result.reason.message
-            : "Image generation failed.",
-        ]
-      : [],
-  );
-  if (failures.length) {
-    console.error("Cloudflare Workers AI concept failures:", failures);
-  }
-
-  await updateRows(
-    "logo_projects",
-    { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
-    {
-      status: generations.length ? "completed" : "failed",
-      updated_at: Date.now(),
-    },
-  );
-
-  if (!generations.length) {
-    const quotaExceeded = failures.some(
-      (failure) =>
-        failure.includes("HTTP 429") ||
-        failure.includes("daily free allocation") ||
-        failure.includes("(4006)"),
-    );
-    const safetyBlocked = failures.some((failure) => isSafetyBlocked(failure));
-    return Response.json(
-      {
-        error: quotaExceeded
-          ? "Cloudflare Workers AI daily quota is exhausted. Wait for the daily reset or enable the Workers Paid plan, then try again."
-          : safetyBlocked
-            ? "Cloudflare blocked the generated image even after one neutral recovery attempt. Try More concept +1 again."
-          : failures[0] ?? "No concepts were generated.",
-        projectId,
-      },
-      { status: quotaExceeded ? 429 : safetyBlocked ? 422 : 502 },
-    );
-  }
-
-  return Response.json(
-    { failures, generations, projectId, strategy },
-    { status: 201 },
-  );
 }

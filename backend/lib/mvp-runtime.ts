@@ -1,5 +1,3 @@
-import { env } from "cloudflare:workers";
-
 export type LogoBrief = {
   audience: string;
   avoid: string;
@@ -36,14 +34,11 @@ export type Direction = {
 };
 
 type RuntimeEnv = {
-  FILES?: R2Bucket;
   OPENAI_API_KEY?: string;
   RECRAFT_API_KEY?: string;
   GEMINI_API_KEY?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
-  CLOUDFLARE_ACCOUNT_ID?: string;
-  CLOUDFLARE_API_TOKEN?: string;
 };
 
 export const directions: Direction[] = [
@@ -117,33 +112,20 @@ function directionIdea(direction: Direction): DirectionIdea {
   };
 }
 
-export function getRuntimeEnv(): Required<
-  Pick<RuntimeEnv, "FILES">
-> &
-  Pick<
-    RuntimeEnv,
-    | "OPENAI_API_KEY"
-    | "RECRAFT_API_KEY"
-    | "GEMINI_API_KEY"
-    | "SUPABASE_URL"
-    | "SUPABASE_SERVICE_ROLE_KEY"
-    | "CLOUDFLARE_ACCOUNT_ID"
-    | "CLOUDFLARE_API_TOKEN"
-  > {
-  const runtime = env as unknown as RuntimeEnv;
-  if (!runtime.FILES) {
-    throw new Error("Project storage is not configured.");
-  }
-
+export function getRuntimeEnv(): Pick<
+  RuntimeEnv,
+  | "OPENAI_API_KEY"
+  | "RECRAFT_API_KEY"
+  | "GEMINI_API_KEY"
+  | "SUPABASE_URL"
+  | "SUPABASE_SERVICE_ROLE_KEY"
+> {
   return {
-    FILES: runtime.FILES,
-    OPENAI_API_KEY: runtime.OPENAI_API_KEY,
-    RECRAFT_API_KEY: runtime.RECRAFT_API_KEY,
-    GEMINI_API_KEY: runtime.GEMINI_API_KEY,
-    SUPABASE_URL: runtime.SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY: runtime.SUPABASE_SERVICE_ROLE_KEY,
-    CLOUDFLARE_ACCOUNT_ID: runtime.CLOUDFLARE_ACCOUNT_ID,
-    CLOUDFLARE_API_TOKEN: runtime.CLOUDFLARE_API_TOKEN,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    RECRAFT_API_KEY: process.env.RECRAFT_API_KEY,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   };
 }
 
