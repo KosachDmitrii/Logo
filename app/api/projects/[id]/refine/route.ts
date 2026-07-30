@@ -70,12 +70,21 @@ export async function POST(
         row.direction_title,
         index + 1,
       );
+      console.log({
+        event: "logo_refine_prompt",
+        generationId: row.id,
+        direction: row.direction_title,
+        variant: index + 1,
+        model: "flux-2-dev",
+        prompt,
+      });
       const form = new FormData();
       form.append("prompt", prompt);
       form.append("input_image_0", new Blob([sourceBytes], { type: "image/png" }), "concept.png");
       form.append("width", "1024");
       form.append("height", "1024");
-      form.append("steps", "20");
+      form.append("steps", "25");
+      form.append("guidance", "3.5");
       form.append("safety_tolerance", "5");
 
       const response = await fetch(

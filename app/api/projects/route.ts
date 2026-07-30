@@ -284,12 +284,20 @@ export async function POST(request: Request) {
   ) {
     const startedAt = Date.now();
     const prompt = buildPrompt(enrichedBrief, direction, { recoveryMode });
+    console.log({
+      event: "logo_concept_prompt",
+      direction: direction.key,
+      recoveryMode,
+      model: conceptModel,
+      prompt,
+    });
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
     const form = new FormData();
     form.append("prompt", prompt);
     form.append("width", "512");
     form.append("height", "512");
     form.append("seed", String(seed));
+    form.append("guidance", "4.5");
     // BFL moderation: 0 = strictest, 5 = most permissive (default 2).
     // Undocumented on CF Klein docs, but accepted by the Workers AI multipart API
     // and required for abstract logo prompts that otherwise false-positive as 3030.
@@ -323,19 +331,67 @@ export async function POST(request: Request) {
 
   async function generateDirection(direction: (typeof batchDirections)[number]) {
     const startedAt = Date.now();
-    let image;
-    try {
-      image = await requestConceptImage(direction, false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!isSafetyBlocked(message)) throw error;
-      console.warn({
-        event: "logo_concept_safety_recovery",
-        direction: direction.key,
-        reason: message.replace(/\s*\([0-9a-f-]{20,}\)\s*/gi, " ").slice(0, 280),
-      });
-      image = await requestConceptImage(direction, true);
+    async function requestWithSafetyRecovery(recoveryMode: boolean) {
+      try {
+        return await requestConceptImage(direction, recoveryMode);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (recoveryMode || !isSafetyBlocked(message)) throw error;
+        console.warn({
+          event: "logo_concept_safety_recovery",
+          direction: direction.key,
+          reason: message.replace(/\s*\([0-9a-f-]{20,}\)\s*/gi, " ").slice(0, 280),
+        });
+        return requestConceptImage(direction, true);
+      }
     }
+
+    let image = await requestWithSafetyRecovery(false);
+    let qualityScore: number | undefined;
+    let reviewStatus = "Review";
+    let reviewReason = "Automated review unavailable; inspect before refinement.";
+    try {
+      let quality = await assessLogoImage(
+        image.base64,
+        {
+          avoid: enrichedBrief.avoid,
+          direction: `${direction.title}: ${direction.thesis}`,
+          stage: "concept",
+        },
+        runtime,
+      );
+      if (quality.containsText && !image.recoveryMode) {
+        console.warn({
+          event: "logo_concept_text_recovery",
+          direction: direction.key,
+          reason: quality.reason,
+        });
+        image = await requestWithSafetyRecovery(true);
+        quality = await assessLogoImage(
+          image.base64,
+          {
+            avoid: enrichedBrief.avoid,
+            direction: `${direction.title}: ${direction.thesis}`,
+            stage: "concept",
+          },
+          runtime,
+        );
+      }
+      qualityScore = quality.score;
+      reviewStatus = quality.approved
+        ? "Recommended"
+        : quality.containsText
+          ? "Rejected · text detected"
+          : "Review";
+      reviewReason = quality.reason;
+    } catch (error) {
+      console.warn({
+        event: "logo_review_unavailable",
+        direction: direction.key,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     const { base64, inferenceMs, prompt, recoveryMode } = image;
     const generationId =
       existingProjectId && actionId ? actionId : crypto.randomUUID();
@@ -361,45 +417,11 @@ export async function POST(request: Request) {
       user_email: userEmail,
       direction_key: direction.key,
       direction_title: direction.title,
-      prompt: `${prompt}\n\n[LOOPEN_QC:0][LOOPEN_STATUS:Review][LOOPEN_REASON:${encodeURIComponent("Automated review pending; inspect before refinement.")}]`,
+      prompt: `${prompt}\n\n[LOOPEN_QC:${qualityScore ?? 0}][LOOPEN_STATUS:${reviewStatus}][LOOPEN_REASON:${encodeURIComponent(reviewReason)}]`,
       object_key: objectKey,
       status: "completed",
       created_at: Date.now(),
     });
-    let qualityScore: number | undefined;
-    let reviewStatus = "Review";
-    let reviewReason = "Automated review unavailable; inspect before refinement.";
-    try {
-      const quality = await assessLogoImage(
-        base64,
-        {
-          avoid: enrichedBrief.avoid,
-          direction: `${direction.title}: ${direction.thesis}`,
-          stage: "concept",
-        },
-        runtime,
-      );
-      qualityScore = quality.score;
-      reviewStatus = quality.approved
-        ? "Recommended"
-        : quality.containsText
-          ? "Rejected · text detected"
-          : "Review";
-      reviewReason = quality.reason;
-      await updateRows(
-        "logo_generations",
-        { id: `eq.${generationId}`, user_email: `eq.${userEmail}` },
-        {
-          prompt: `${prompt}\n\n[LOOPEN_QC:${qualityScore}][LOOPEN_STATUS:${reviewStatus}][LOOPEN_REASON:${encodeURIComponent(reviewReason)}]`,
-        },
-      );
-    } catch (error) {
-      console.warn({
-        event: "logo_review_unavailable",
-        direction: direction.key,
-        reason: error instanceof Error ? error.message : String(error),
-      });
-    }
     console.log({
       event: "logo_concept_completed",
       direction: direction.key,
@@ -407,6 +429,7 @@ export async function POST(request: Request) {
       totalMs: Date.now() - startedAt,
       model: conceptModel,
       recoveryMode,
+      reviewStatus,
     });
 
     return {

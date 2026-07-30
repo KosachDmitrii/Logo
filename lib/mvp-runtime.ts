@@ -32,12 +32,6 @@ export type Direction = {
   thesis: string;
 };
 
-type DirectionRecipe = {
-  composition: string;
-  geometry: string;
-  signature: string;
-};
-
 type RuntimeEnv = {
   FILES?: R2Bucket;
   OPENAI_API_KEY?: string;
@@ -53,62 +47,69 @@ export const directions: Direction[] = [
     key: "continuous",
     title: "Continuous Space",
     thesis:
-      "One uninterrupted form turns spatial continuity into a memorable abstract silhouette.",
+      "Constraint becomes flow: one decisive continuous move turns ordinary space into energy.",
   },
   {
     key: "portal",
     title: "Open Counterform",
     thesis:
-      "A surprising internal void creates openness without drawing a literal doorway.",
+      "A precise opening turns solid mass into invitation — clarity you want to enter.",
   },
   {
     key: "signal",
     title: "Modular Rhythm",
     thesis:
-      "Three unequal modules create a precise rhythm through spacing, not architectural illustration.",
+      "Unequal parts compose a site-specific rhythm — spacing carries the character.",
   },
   {
     key: "fold",
     title: "Constructive Tension",
     thesis:
-      "Two opposing masses meet at one controlled interruption, balancing rigor and play.",
+      "Rigor meets play at one controlled collision — intelligent, never cute.",
   },
 ];
 
-function directionRecipe(direction: Direction): DirectionRecipe {
-  const recipes: Record<string, DirectionRecipe> = {
+type DirectionIdea = {
+  invent: string;
+  feel: string;
+  trap: string;
+};
+
+function directionIdea(direction: Direction): DirectionIdea {
+  const ideas: Record<string, DirectionIdea> = {
     continuous: {
-      composition: "one continuous asymmetric form with a clear visual flow",
-      geometry:
-        "a broad bent band with one controlled change of direction and generous internal space",
-      signature:
-        "the uninterrupted path and deliberately off-center balance",
+      invent:
+        "one decisive continuous gesture that turns a constraint into spatial energy",
+      feel: "activated, precise, memorable — architecture as catalyst, not decoration",
+      trap:
+        "do not draw a ribbon, ring, loop, stadium O, infinity path or soft blob",
     },
     portal: {
-      composition:
-        "one compact mass transformed by a single asymmetric internal counterform",
-      geometry:
-        "a curved outer silhouette with one precisely cut oblique void, never a rectangular opening",
-      signature: "the unexpected negative-space cut",
+      invent:
+        "solidity transformed by one intentional opening that feels designed, not punched out",
+      feel: "open, human, intelligent — a threshold with attitude",
+      trap:
+        "do not draw a random inkblot with a cut, a circle with a bite, or a literal doorway",
     },
     signal: {
-      composition:
-        "three separate unequal modules arranged in a horizontal rhythmic sequence",
-      geometry:
-        "one circle-derived module, one short bar and one angled module with deliberate spacing",
-      signature: "the cadence between three non-touching parts",
+      invent:
+        "a composed rhythm of unequal parts where the gaps matter as much as the masses",
+      feel: "modular, deliberate, contemporary — specific, not a kit of parts",
+      trap:
+        "do not arrange three default rectangles, dots or bars like a UI icon",
     },
     fold: {
-      composition: "two interlocking masses under visible constructive tension",
-      geometry:
-        "one rounded mass and one sharp oblique mass meeting at a narrow controlled joint",
-      signature: "the contrast between soft and precise geometry",
+      invent:
+        "two contrasting characters meeting at one joint that creates tension and wit",
+      feel: "bold but controlled — precise geometry with one playful counter-move",
+      trap:
+        "do not place a circle next to a rectangle like a school exercise",
     },
   };
-  return recipes[direction.key.split("-")[0]] ?? {
-    composition: "one compact asymmetric abstract composition",
-    geometry: "two or three simple non-literal geometric masses",
-    signature: "one unusual relationship between forms",
+  return ideas[direction.key.split("-")[0]] ?? {
+    invent: "one surprising abstract idea that could only belong to this brand",
+    feel: "distinctive, calm, ownable",
+    trap: "do not invent a generic geometric exercise",
   };
 }
 
@@ -146,23 +147,25 @@ export function buildRefinementPrompt(
   variant: number,
 ) {
   return `
-Refine the supplied image into one production-ready abstract logo symbol.
+Refine the supplied image into one production-ready brand logo symbol.
 
-Brand idea: ${brief.coreIdea}
+Brand: ${brief.brandName}
+Core idea: ${brief.coreIdea}
 Industry: ${brief.industry}
 What the company does: ${brief.companyDescription}
-Positioning: ${brief.positioning}
+Positioning: ${brief.positioning || "premium, differentiated, contemporary"}
 Personality: ${brief.personalities.join(", ") || "intelligent, clear, memorable"}
 Selected direction: ${directionTitle}
 Variant: ${variant === 1 ? "optically balanced and restrained" : "slightly bolder and more distinctive"}
-Logo type: ${brief.logoType}
-Visual direction: ${brief.visualDirection}
-Competitors to remain visually distinct from: ${brief.competitors || "none supplied"}
+Visual direction: ${brief.visualDirection || "minimal, distinctive, ownable"}
+Competitors to remain visually distinct from: ${brief.competitors || "common category leaders"}
+Avoid: ${brief.avoid || "literal industry icons and stock-logo clichés"}
 
 Image 0 is the approved source symbol. Preserve its central visual idea,
 recognizable silhouette and overall geometry. Do not reinterpret it as a new concept.
-Improve optical balance, spacing, negative space, consistency, small-size clarity
-and professional vector-readiness. Remove accidental details and generic styling.
+Raise it to identity-system quality: optical balance, crisp edges, intentional
+negative space, consistent stroke/mass logic, 24px clarity and vector-readiness.
+Remove accidental blobs, soft AI edges, symmetry-by-default and generic styling.
 
 Return one isolated flat near-black symbol centered on a plain white background.
 ABSOLUTELY NO letters, words, brand name, pseudo-text, typography, numbers or captions.
@@ -241,50 +244,78 @@ export function validateBrief(value: unknown): LogoBrief {
   };
 }
 
+function redactBrandName(value: string, brandName: string) {
+  const name = brandName.trim();
+  if (!name) return value;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value.replace(new RegExp(escaped, "gi"), "the studio");
+}
+
 export function buildPrompt(
   brief: LogoBrief,
   direction: Direction,
   options: { recoveryMode?: boolean } = {},
 ) {
+  const idea = directionIdea(direction);
+  // Never put the real brand name in an image prompt — Flux will try to
+  // typeset it (often as garbled pseudo-text). Keep only semantic context.
+  const company = redactBrandName(brief.companyDescription, brief.brandName);
+  const coreIdea = redactBrandName(brief.coreIdea, brief.brandName);
+  const positioning = redactBrandName(
+    brief.positioning || "premium, differentiated, contemporary",
+    brief.brandName,
+  );
+  const brandBlock = `
+Studio type: ${brief.industry}
+What they do: ${company}
+Idea the mark must express: ${coreIdea}
+Personality: ${brief.personalities.join(", ") || "intelligent, precise, memorable"}
+Positioning: ${positioning}
+Stay distinct from: ${brief.competitors || "common category leaders"}
+Avoid: ${brief.avoid || "literal industry icons and stock-logo clichés"}
+  `.trim();
+
   if (options.recoveryMode) {
     return `
-Create exactly one clean abstract geometric logo symbol.
+ICON ONLY. One abstract graphic mark. Zero typography.
 
-Creative direction: ${direction.title}
-Visual thesis: ${direction.thesis}
+${brandBlock}
 
-Use one simple near-black shape with balanced negative space, centered on a
-plain white background. Make it distinctive, calm, professional, flat,
-single-color and recognizable at 24 pixels.
+Territory: ${direction.title} — ${direction.thesis}
+Invent from: ${idea.invent}
+Feel: ${idea.feel}
+Trap: ${idea.trap}
 
-The image must contain only the symbol. No text, letters, words, initials,
-numbers, typography, captions, borders, mockups, people, products, scenery,
-gradients, shadows, texture, lighting effects, 3D or photographic elements.
-Do not use literal industry icons or familiar stock-logo constructions.
+Flat near-black symbol on plain white. Few parts. Strong at 24px.
+ABSOLUTELY NO letters, words, brand names, initials, numbers or fake text.
+No buildings, food, mockups, gradients, shadows or 3D.
     `.trim();
   }
 
-  const recipe = directionRecipe(direction);
   return `
-Create exactly one original graphic logo mark, not a brand-name treatment.
-The brand name is intentionally absent and will be typeset separately.
+ICON ONLY — a pure graphic symbol with ZERO text.
+Do not write any brand name, word, letter, initial, number or fake typography.
+The wordmark will be added later outside this image.
 
-Creative route: ${direction.title}
-Idea: ${direction.thesis}
-Composition: ${recipe.composition}.
-Construction: ${recipe.geometry}.
-Distinctive device: recognition comes from ${recipe.signature}.
-Character: ${brief.personalities.join(", ") || "intelligent, precise, playful"}.
+${brandBlock}
 
-Render a single isolated near-black vector-like mark, centered on a plain
-off-white square. Use flat solid shapes, a strong silhouette, balanced negative
-space and very few components. It must remain recognizable at 24 pixels.
+Concept territory: ${direction.title}
+Thesis: ${direction.thesis}
+Invent from this metaphor: ${idea.invent}
+It should feel: ${idea.feel}
+Trap to avoid: ${idea.trap}
 
-The canvas contains the mark only: no letters, words, initials, numbers,
-pseudo-text, captions, borders, presentation layout, products, people or
-scenery. Keep the idea abstract and non-literal. No building, roof, house,
-doorway, skyline or floor-plan pictogram. No gradient, shadow, texture, lighting
-effect, outline clutter, 3D or photographic treatment.
+Critical instruction:
+Invent a strong visual idea first. Geometry is only the consequence of that idea.
+Do not execute a generic abstract exercise. Do not literally assemble the metaphor
+into stock shapes. Make a mark that could become a recognizable identity for this
+studio — specific, memorable, and hard to confuse with default AI geometry.
+
+Craft: flat near-black solid shapes on plain off-white; optically balanced; few parts;
+sharp silhouette; recognizable at 24px.
+Forbidden: letters, words, initials, numbers, pseudo-text, captions, signatures,
+mockups, borders, people, products, buildings, roofs, doorways, floor plans, skylines,
+food imagery, gradients, shadows, texture, 3D or photographic treatment.
   `.trim();
 }
 

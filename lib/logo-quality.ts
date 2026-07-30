@@ -15,8 +15,9 @@ type QualityRuntime = {
 };
 
 type VisionResponse = {
-  result?: { answer?: string };
+  result?: unknown;
   errors?: Array<{ message?: string }>;
+  success?: boolean;
 };
 
 export function arrayBufferToBase64(buffer: ArrayBuffer) {
@@ -60,6 +61,46 @@ function parseReport(value: string): LogoQualityReport {
   return report;
 }
 
+function collectStrings(value: unknown, into: string[], depth = 0) {
+  if (depth > 4 || value == null) return;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed) into.push(trimmed);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectStrings(item, into, depth + 1);
+    return;
+  }
+  if (typeof value === "object") {
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      if (
+        key === "answer" ||
+        key === "response" ||
+        key === "caption" ||
+        key === "text" ||
+        key === "content" ||
+        key === "output"
+      ) {
+        collectStrings(nested, into, depth + 1);
+      }
+    }
+    // Prefer named fields; fall back to shallow scan if nothing found.
+    if (!into.length) {
+      for (const nested of Object.values(value as Record<string, unknown>)) {
+        collectStrings(nested, into, depth + 1);
+      }
+    }
+  }
+}
+
+function extractAnswer(payload: VisionResponse) {
+  const candidates: string[] = [];
+  collectStrings(payload.result, candidates);
+  const withJson = candidates.find((item) => item.includes("{") && item.includes("}"));
+  return withJson ?? candidates[0] ?? "";
+}
+
 export async function assessLogoImage(
   base64: string,
   context: {
@@ -88,30 +129,46 @@ export async function assessLogoImage(
       body: JSON.stringify({
         task: "query",
         image: `data:${contentType};base64,${base64}`,
-        question: `Act as a strict senior identity-design production reviewer.
-Review this ${context.stage} image as a production logo symbol.
-Expected direction: ${context.direction}
-Forbidden ideas and forms: ${context.avoid || "generic stock-logo clichés"}
+        question: `Review this ${context.stage} logo mark.
+Direction: ${context.direction}
+Forbidden: ${context.avoid || "generic stock-logo clichés"}
 
-Reject it if it contains any letters, words, numbers, captions or pseudo-text; a mockup, border, presentation board or multiple options; gradients, shadows, texture or 3D; a forbidden or generic category cliché; excessive detail; an unclear silhouette; or weak correspondence to the direction.
+Reject letters/text, mockups, gradients/shadows/3D, literal industry clichés, or generic shapeless blobs with no ownable idea.
 
-Return exactly:
+Return ONLY this JSON:
 {"approved":boolean,"containsText":boolean,"containsMockup":boolean,"forbiddenCliche":boolean,"simpleSilhouette":boolean,"directionMatch":boolean,"score":number,"reason":"short sentence"}
-Set approved=true only for a clean, isolated, flat, single-color symbol on a plain background with score 75 or higher.
-Return only compact valid JSON, without markdown.`,
+approved=true only if score>=75 and the mark is a clean flat symbol on a plain background.`,
         reasoning: false,
-        max_tokens: 260,
+        max_tokens: 220,
         temperature: 0,
         stream: false,
       }),
     },
   );
-  const payload = (await response.json()) as VisionResponse;
-  const text = payload.result?.answer;
+  const raw = await response.text();
+  let payload: VisionResponse;
+  try {
+    payload = JSON.parse(raw) as VisionResponse;
+  } catch {
+    throw new Error(
+      `Logo quality control returned a non-JSON response (HTTP ${response.status}).`,
+    );
+  }
+  const text = extractAnswer(payload);
   if (!response.ok || !text) {
+    const resultKeys =
+      payload.result && typeof payload.result === "object"
+        ? Object.keys(payload.result as object).join(",")
+        : typeof payload.result;
+    console.warn({
+      event: "logo_review_empty_response",
+      status: response.status,
+      resultKeys,
+      rawPreview: raw.slice(0, 500),
+    });
     throw new Error(
       payload.errors?.[0]?.message ??
-        "Logo quality control is unavailable.",
+        `Logo quality control is unavailable (HTTP ${response.status}).`,
     );
   }
   return parseReport(text);

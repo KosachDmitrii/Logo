@@ -70,8 +70,12 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.match(quality, /containsText/);
   assert.match(quality, /score >= 75/);
   assert.match(quality, /moondream3\.1-9B-A2B/);
-  assert.match(runtime, /no letters, words, initials/);
+  assert.match(runtime, /ICON ONLY/);
+  assert.match(runtime, /Idea the mark must express/);
+  assert.match(runtime, /redactBrandName|the studio/);
+  assert.match(runtime, /Trap to avoid/);
   assert.match(runtime, /recoveryMode/);
+  assert.match(route, /logo_concept_text_recovery/);
   assert.match(runtime, /Continuous Space/);
   assert.match(runtime, /Open Counterform/);
   assert.match(runtime, /Modular Rhythm/);
