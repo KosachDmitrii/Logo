@@ -321,6 +321,18 @@ export default function LoopenStudio({
     });
   }
 
+  function showJuryReview(concept: GeneratedConcept) {
+    confirmResolver.current?.(false);
+    confirmResolver.current = null;
+    setConfirmDialog({
+      kicker: `Dual jury / ${concept.reviewStatus ?? "Review"}`,
+      title: concept.directionTitle,
+      body: concept.reviewReason ?? "The jury has not returned a written critique for this direction.",
+      confirmLabel: "Return to concepts",
+      dismissOnly: true,
+    });
+  }
+
   const selected = useMemo(
     () =>
       concepts.find((concept) => concept.id === selectedConcept) ??
@@ -1442,9 +1454,14 @@ export default function LoopenStudio({
                 <div className="concept-copy">
                   <h3>{generated.directionTitle}</h3>
                   <p>{generated.rationale ?? concept.thesis}</p>
-                  <small className="review-reason">
-                    {generated.reviewReason ?? "Inspect before refinement."}
-                  </small>
+                  <button
+                    className="review-trigger"
+                    type="button"
+                    onClick={() => showJuryReview(generated)}
+                  >
+                    <span>Read jury critique</span>
+                    <b>{generated.qualityScore ? `${generated.qualityScore}/100` : "↗"}</b>
+                  </button>
                 </div>
                 <button
                   className="select-indicator"
