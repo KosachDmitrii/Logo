@@ -21,6 +21,14 @@ type RecraftResponse = {
   detail?: string;
 };
 
+type VectorSource = {
+  id: string;
+  object_key: string;
+  content_type: string;
+  brief: LogoBrief;
+  kind: "refine" | "exploration";
+};
+
 export const dynamic = "force-dynamic";
 
 async function readRecraftSvg(payload: RecraftResponse) {
@@ -46,52 +54,91 @@ export async function POST(
     const runtime = getRuntimeEnv();
     const { id: projectId } = await context.params;
     let assetId = "";
+    let generationId = "";
     try {
-      const body = (await request.json()) as { assetId?: string };
+      const body = (await request.json()) as {
+        assetId?: string;
+        generationId?: string;
+      };
       assetId = typeof body.assetId === "string" ? body.assetId : "";
+      generationId =
+        typeof body.generationId === "string" ? body.generationId : "";
     } catch {
       return Response.json({ error: "Invalid vectorize request." }, { status: 400 });
     }
-    const asset = await selectOne<{
-      id: string;
-      object_key: string;
-      content_type: string;
-      prompt: string;
-      logo_projects: { brief_json: LogoBrief };
-    }>(
-      "logo_assets",
-      {
-        select: "id,object_key,content_type,prompt,logo_projects!inner(brief_json)",
+    if (!assetId && !generationId) {
+      return Response.json(
+        { error: "Select a concept or refinement to vectorize." },
+        { status: 400 },
+      );
+    }
+
+    let source: VectorSource | null = null;
+    if (assetId) {
+      const asset = await selectOne<{
+        id: string;
+        object_key: string;
+        content_type: string;
+        logo_projects: { brief_json: LogoBrief };
+      }>("logo_assets", {
+        select: "id,object_key,content_type,logo_projects!inner(brief_json)",
         id: `eq.${assetId}`,
         project_id: `eq.${projectId}`,
         user_email: `eq.${userEmail}`,
         stage: "eq.refine",
-      },
-    );
-    if (!asset) return Response.json({ error: "Refined asset not found." }, { status: 404 });
-    const finalScore = Number(asset.prompt.match(/\[LOOPEN_QC:(\d+)\]/)?.[1] ?? 0);
-    const finalStatus =
-      asset.prompt.match(/\[LOOPEN_STATUS:([^\]]+)\]/)?.[1] ?? "Review";
-    if (finalScore < 90 || finalStatus !== "Recommended") {
+      });
+      if (asset) {
+        source = {
+          id: asset.id,
+          object_key: asset.object_key,
+          content_type: asset.content_type,
+          brief: asset.logo_projects.brief_json,
+          kind: "refine",
+        };
+      }
+    } else if (generationId) {
+      const generation = await selectOne<{
+        id: string;
+        object_key: string;
+        logo_projects: { brief_json: LogoBrief };
+      }>("logo_generations", {
+        select: "id,object_key,logo_projects!inner(brief_json)",
+        id: `eq.${generationId}`,
+        project_id: `eq.${projectId}`,
+        user_email: `eq.${userEmail}`,
+      });
+      if (generation) {
+        source = {
+          id: generation.id,
+          object_key: generation.object_key,
+          content_type: generation.object_key.endsWith(".svg")
+            ? "image/svg+xml"
+            : "image/png",
+          brief: generation.logo_projects.brief_json,
+          kind: "exploration",
+        };
+      }
+    }
+    if (!source) {
       return Response.json(
-        {
-          error:
-            "This reduction was rejected by the transition jury. Select or generate a flat approved reduction before SVG reconstruction.",
-        },
-        { status: 422 },
+        { error: "Selected image was not found." },
+        { status: 404 },
       );
     }
-    const source = await runtime.FILES.get(asset.object_key);
-    if (!source) return Response.json({ error: "Refined image data not found." }, { status: 404 });
-    const bytes = await source.arrayBuffer();
+
+    const file = await runtime.FILES.get(source.object_key);
+    if (!file) {
+      return Response.json({ error: "Image data not found." }, { status: 404 });
+    }
+    const bytes = await file.arrayBuffer();
     if (
-      asset.content_type === "image/svg+xml" ||
-      asset.object_key.endsWith(".svg")
+      source.content_type === "image/svg+xml" ||
+      source.object_key.endsWith(".svg")
     ) {
       const svg = sanitizeSvg(new TextDecoder().decode(bytes));
       if (!svg.includes("<svg") || /<text\b|<image\b|<foreignObject\b/i.test(svg)) {
         return Response.json(
-          { error: "The refined vector failed structural safety checks." },
+          { error: "The selected vector failed structural safety checks." },
           { status: 422 },
         );
       }
@@ -104,7 +151,7 @@ export async function POST(
         id,
         project_id: projectId,
         user_email: userEmail,
-        parent_id: asset.id,
+        parent_id: source.id,
         stage: "vector",
         label: "Production SVG",
         provider: "loopen",
@@ -123,7 +170,7 @@ export async function POST(
         {
           assets: [{
             id,
-            parentId: asset.id,
+            parentId: source.id,
             stage: "vector",
             label: "Production SVG",
             provider: "loopen",
@@ -138,21 +185,14 @@ export async function POST(
     }
     if (runtime.OPENAI_API_KEY) {
       const master = await reconstructArchitecturalLogoSvg(
-        asset.logo_projects.brief_json,
+        source.brief,
         runtime.OPENAI_API_KEY,
         {
           base64: arrayBufferToBase64(bytes),
-          mimeType: asset.content_type || "image/png",
+          mimeType: source.content_type || "image/png",
         },
       );
-      if (master.score < 90) {
-        return Response.json(
-          {
-            error: `The geometric reconstruction did not reach production quality (${master.score}/100): ${master.verdict}`,
-          },
-          { status: 422 },
-        );
-      }
+      // Jury/QC is advisory — always deliver the SVG the client paid to build.
       const svg = sanitizeSvg(master.svg);
       const id = crypto.randomUUID();
       const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
@@ -163,14 +203,18 @@ export async function POST(
         id,
         project_id: projectId,
         user_email: userEmail,
-        parent_id: asset.id,
+        parent_id: source.id,
         stage: "vector",
-        label: "Geometrically reconstructed SVG master",
+        label:
+          source.kind === "exploration"
+            ? "SVG from original concept"
+            : "Geometrically reconstructed SVG master",
         provider: "openai",
         model: "gpt-5.6-terra",
         prompt: [
           `[LOOPEN_GEOMETRIC_RECONSTRUCTION]`,
           `[LOOPEN_QC:${master.score}]`,
+          `[LOOPEN_STATUS:${master.score >= 75 ? "Recommended" : "Review"}]`,
           `[LOOPEN_REASON:${encodeURIComponent(master.verdict)}]`,
           master.rationale,
         ].join(""),
@@ -187,14 +231,18 @@ export async function POST(
         {
           assets: [{
             id,
-            parentId: asset.id,
+            parentId: source.id,
             stage: "vector",
-            label: "Geometrically reconstructed SVG master",
+            label:
+              source.kind === "exploration"
+                ? "SVG from original concept"
+                : "Geometrically reconstructed SVG master",
             provider: "openai",
             model: "gpt-5.6-terra",
             contentType: "image/svg+xml",
             qualityScore: master.score,
             reviewReason: master.verdict,
+            reviewStatus: master.score >= 75 ? "Recommended" : "Review",
             url: `/api/assets/${id}`,
             downloadUrl: `/api/assets/${id}?download=1`,
           }],
@@ -213,27 +261,28 @@ export async function POST(
         arrayBufferToBase64(bytes),
         {
           avoid:
-            asset.logo_projects.brief_json.avoid ??
+            source.brief.avoid ??
             "text, mockups and generic category clichés",
-          direction: "the user-approved refined logo symbol",
+          direction:
+            source.kind === "exploration"
+              ? "the selected exploration logo symbol"
+              : "the user-approved refined logo symbol",
           stage: "vector",
         },
         runtime,
       );
       if (!quality.approved) {
-        return Response.json(
-          {
-            error: `This refinement is not safe to vectorize (${quality.score}/100): ${quality.reason}`,
-          },
-          { status: 422 },
-        );
+        console.warn({
+          event: "logo_vector_quality_advisory",
+          sourceId: source.id,
+          score: quality.score,
+          reason: quality.reason,
+        });
       }
     } catch (error) {
-      // Moondream preflight is best-effort: when CF vision is down, do not 500
-      // an empty body — the user already approved this refinement visually.
       console.warn({
         event: "logo_vector_review_unavailable",
-        assetId: asset.id,
+        sourceId: source.id,
         reason: error instanceof Error ? error.message : String(error),
       });
     }
@@ -256,7 +305,7 @@ export async function POST(
     const settled = await Promise.allSettled(
       jobs.map(async (job) => {
         const form = new FormData();
-        form.append(job.fileField, new Blob([bytes], { type: "image/png" }), "refined.png");
+        form.append(job.fileField, new Blob([bytes], { type: "image/png" }), "source.png");
         Object.entries(job.fields).forEach(([key, value]) => form.append(key, value));
         const response = await fetch(`https://external.api.recraft.ai/v1/images/${job.endpoint}`, {
           method: "POST",
@@ -279,7 +328,7 @@ export async function POST(
           id,
           project_id: projectId,
           user_email: userEmail,
-          parent_id: asset.id,
+          parent_id: source.id,
           stage: "vector",
           label: job.label,
           provider: "recraft",
@@ -294,7 +343,7 @@ export async function POST(
         });
         return {
           id,
-          parentId: asset.id,
+          parentId: source.id,
           stage: "vector",
           label: job.label,
           provider: "recraft",

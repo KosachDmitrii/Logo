@@ -11,8 +11,8 @@ import {
 import { refineVectorConcept } from "../../../../../lib/vector-art-direction";
 import { arrayBufferToBase64 } from "../../../../../lib/logo-quality";
 import {
-  evaluateReducedLogo,
-  refineWithGemini,
+  REFINE_RECOMMENDED_SCORE,
+  refineAndReviewWithGemini,
 } from "../../../../../lib/gemini-creative";
 
 type ImageResponse = {
@@ -40,15 +40,18 @@ export async function POST(
   const body = (await request.json()) as {
     generationId?: string;
     generationIds?: string[];
+    /** Failed-refine jury text keyed by exploration generation id — used on retry. */
+    critiquesByGenerationId?: Record<string, string>;
   };
   const generationIds = Array.from(
     new Set(
       (body.generationIds ?? (body.generationId ? [body.generationId] : []))
         .filter((id): id is string => typeof id === "string" && Boolean(id)),
     ),
-  ).slice(0, 2);
+  ).slice(0, 1);
+  const critiquesByGenerationId = body.critiquesByGenerationId ?? {};
   if (!generationIds.length) {
-    return Response.json({ error: "Select one or two concepts." }, { status: 400 });
+    return Response.json({ error: "Select one concept." }, { status: 400 });
   }
   const rows = await Promise.all(generationIds.map((generationId) => selectOne<{
     id: string;
@@ -67,14 +70,34 @@ export async function POST(
     return Response.json({ error: "A selected concept was not found." }, { status: 404 });
   }
 
-  const results = await Promise.allSettled(
-    rows.map(async (selectedRow, index) => {
+  // Sequential Pro 2K refine — parallel calls hit high-demand and AbortSignal timeouts.
+  type RefineAsset = {
+    id: string;
+    parentId: string;
+    stage: "refine";
+    label: string;
+    provider: string;
+    model: string;
+    contentType: string;
+    qualityScore?: number;
+    reviewReason?: string;
+    reviewStatus?: string;
+    url: string;
+    downloadUrl: string;
+  };
+  const results: Array<PromiseSettledResult<RefineAsset>> = [];
+  for (const [index, selectedRow] of rows.entries()) {
+    if (index > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+    try {
       const startedAt = Date.now();
       const row = selectedRow!;
       const source = await runtime.FILES.get(row.object_key);
       if (!source) throw new Error("Source image not found.");
       const sourceBytes = await source.arrayBuffer();
       const brief = row.logo_projects.brief_json;
+      let value: RefineAsset;
       if (
         source.httpMetadata?.contentType === "image/svg+xml" ||
         row.object_key.endsWith(".svg")
@@ -117,7 +140,7 @@ export async function POST(
           content_type: "image/svg+xml",
           created_at: Date.now(),
         });
-        return {
+        value = {
           id,
           parentId: row.id,
           stage: "refine",
@@ -126,37 +149,41 @@ export async function POST(
           model: "gpt-5.6-terra",
           contentType: "image/svg+xml",
           qualityScore: refined.score,
+          reviewReason: refined.verdict,
+          reviewStatus: "Review",
           url: `/api/assets/${id}`,
           downloadUrl: `/api/assets/${id}?download=1`,
         };
-      }
-      if (runtime.GEMINI_API_KEY && runtime.OPENAI_API_KEY) {
+      } else if (runtime.GEMINI_API_KEY && runtime.OPENAI_API_KEY) {
         const sourceMime = source.httpMetadata?.contentType ?? "image/png";
-        const critique = decodeURIComponent(
-          row.prompt.match(/\[LOOPEN_REASON:([^\]]*)\]/)?.[1] ??
-            "Improve optical balance and small-size clarity.",
+        const explorationCritique = decodeURIComponent(
+          row.prompt.match(/\[LOOPEN_REASON:([^\]]*)\]/)?.[1] ?? "",
         );
-        const refined = await refineWithGemini(
-          runtime.GEMINI_API_KEY,
-          brief as Parameters<typeof refineWithGemini>[1],
+        const retryCritique = critiquesByGenerationId[row.id]?.trim() ?? "";
+        const critique =
+          retryCritique ||
+          explorationCritique ||
+          "Improve optical balance and small-size clarity.";
+        console.log({
+          event: "logo_refine_critique_source",
+          generationId: row.id,
+          fromFailedRefine: Boolean(retryCritique),
+          critiquePreview: critique.slice(0, 240),
+        });
+        const { refined, finalReview } = await refineAndReviewWithGemini(
+          {
+            gemini: runtime.GEMINI_API_KEY,
+            openai: runtime.OPENAI_API_KEY,
+          },
+          brief as Parameters<typeof refineAndReviewWithGemini>[1],
           {
             base64: arrayBufferToBase64(sourceBytes),
             mimeType: sourceMime,
           },
           critique,
         );
-        const finalReview = await evaluateReducedLogo(
-          {
-            gemini: runtime.GEMINI_API_KEY,
-            openai: runtime.OPENAI_API_KEY,
-          },
-          brief as Parameters<typeof refineWithGemini>[1],
-          { base64: refined.data, mimeType: refined.mimeType },
-          {
-            base64: arrayBufferToBase64(sourceBytes),
-            mimeType: sourceMime,
-          },
-        );
+        const recommended =
+          finalReview.score >= REFINE_RECOMMENDED_SCORE ? "Recommended" : "Review";
         const id = crypto.randomUUID();
         const extension = refined.mimeType.includes("jpeg") ? "jpg" : "png";
         const objectKey = `users/assets/${user.email.length}/${projectId}/${id}.${extension}`;
@@ -172,13 +199,13 @@ export async function POST(
           user_email: user.email,
           parent_id: row.id,
           stage: "refine",
-          label: `Architectural reduction ${index + 1}`,
+          label: `Logo refinement ${index + 1}`,
           provider: "google",
           model: "gemini-3-pro-image",
           prompt: [
-            `[LOOPEN_ARCHITECTURE_REDUCTION]`,
+            `[LOOPEN_LOGO_REFINEMENT]`,
             `[LOOPEN_QC:${finalReview.score}]`,
-            `[LOOPEN_STATUS:${finalReview.score >= 90 ? "Recommended" : "Review"}]`,
+            `[LOOPEN_STATUS:${recommended}]`,
             `[LOOPEN_REASON:${encodeURIComponent(finalReview.verdict)}]`,
             critique,
           ].join(""),
@@ -186,104 +213,125 @@ export async function POST(
           content_type: refined.mimeType,
           created_at: Date.now(),
         });
-        return {
+        value = {
           id,
           parentId: row.id,
           stage: "refine",
-          label: `Architectural reduction ${index + 1}`,
+          label: `Logo refinement ${index + 1}`,
           provider: "google",
           model: "gemini-3-pro-image",
           contentType: refined.mimeType,
           qualityScore: finalReview.score,
           reviewReason: finalReview.verdict,
-          reviewStatus: finalReview.score >= 90 ? "Recommended" : "Review",
+          reviewStatus: recommended,
+          url: `/api/assets/${id}`,
+          downloadUrl: `/api/assets/${id}?download=1`,
+        };
+      } else {
+        const prompt = buildRefinementPrompt(
+          brief as Parameters<typeof buildRefinementPrompt>[0],
+          row.direction_title,
+          index + 1,
+        );
+        console.log({
+          event: "logo_refine_prompt",
+          generationId: row.id,
+          direction: row.direction_title,
+          variant: index + 1,
+          model: "flux-2-dev",
+          prompt,
+        });
+        const form = new FormData();
+        form.append("prompt", prompt);
+        form.append("input_image_0", new Blob([sourceBytes], { type: "image/png" }), "concept.png");
+        form.append("width", "1024");
+        form.append("height", "1024");
+        form.append("steps", "25");
+        form.append("guidance", "3.5");
+        form.append("safety_tolerance", "5");
+
+        const response = await fetch(
+          `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-2-dev`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}` },
+            body: form,
+          },
+        );
+        const payload = (await response.json()) as ImageResponse;
+        const inferenceMs = Date.now() - startedAt;
+        const base64 = payload.result?.image;
+        if (!response.ok || !base64) {
+          throw new Error(
+            payload.errors?.[0]?.message || "FLUX.2 Dev returned no refined image.",
+          );
+        }
+        console.log({
+          event: "logo_refinement_completed",
+          generationId: row.id,
+          inferenceMs,
+          totalMs: Date.now() - startedAt,
+        });
+        const id = crypto.randomUUID();
+        const objectKey = `users/assets/${user.email.length}/${projectId}/${id}.png`;
+        const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+        await runtime.FILES.put(objectKey, bytes, {
+          httpMetadata: { contentType: "image/png" },
+        });
+        await insertRow("logo_assets", {
+          id,
+          project_id: projectId,
+          user_email: user.email,
+          parent_id: row.id,
+          stage: "refine",
+          label: `High fidelity ${index + 1}`,
+          provider: "cloudflare",
+          model: "flux-2-dev",
+          prompt,
+          object_key: objectKey,
+          content_type: "image/png",
+          created_at: Date.now(),
+        });
+        value = {
+          id,
+          parentId: row.id,
+          stage: "refine",
+          label: `High fidelity ${index + 1}`,
+          provider: "cloudflare",
+          model: "flux-2-dev",
+          contentType: "image/png",
           url: `/api/assets/${id}`,
           downloadUrl: `/api/assets/${id}?download=1`,
         };
       }
-      const prompt = buildRefinementPrompt(
-        brief as Parameters<typeof buildRefinementPrompt>[0],
-        row.direction_title,
-        index + 1,
-      );
-      console.log({
-        event: "logo_refine_prompt",
-        generationId: row.id,
-        direction: row.direction_title,
-        variant: index + 1,
-        model: "flux-2-dev",
-        prompt,
+      results.push({ status: "fulfilled", value });
+    } catch (error) {
+      results.push({
+        status: "rejected",
+        reason: error instanceof Error ? error : new Error(String(error)),
       });
-      const form = new FormData();
-      form.append("prompt", prompt);
-      form.append("input_image_0", new Blob([sourceBytes], { type: "image/png" }), "concept.png");
-      form.append("width", "1024");
-      form.append("height", "1024");
-      form.append("steps", "25");
-      form.append("guidance", "3.5");
-      form.append("safety_tolerance", "5");
-
-      const response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${runtime.CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-2-dev`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${runtime.CLOUDFLARE_API_TOKEN}` },
-        body: form,
-      });
-      const payload = (await response.json()) as ImageResponse;
-      const inferenceMs = Date.now() - startedAt;
-      const base64 = payload.result?.image;
-      if (!response.ok || !base64) {
-        throw new Error(
-          payload.errors?.[0]?.message || "FLUX.2 Dev returned no refined image.",
-        );
-      }
-      console.log({
-        event: "logo_refinement_completed",
-        generationId: row.id,
-        inferenceMs,
-        totalMs: Date.now() - startedAt,
-      });
-      const id = crypto.randomUUID();
-      const objectKey = `users/assets/${user.email.length}/${projectId}/${id}.png`;
-      const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
-      await runtime.FILES.put(objectKey, bytes, {
-        httpMetadata: { contentType: "image/png" },
-      });
-      await insertRow("logo_assets", {
-        id,
-        project_id: projectId,
-        user_email: user.email,
-        parent_id: row.id,
-        stage: "refine",
-        label: `High fidelity ${index + 1}`,
-        provider: "cloudflare",
-        model: "flux-2-dev",
-        prompt,
-        object_key: objectKey,
-        content_type: "image/png",
-        created_at: Date.now(),
-      });
-      return {
-        id,
-        parentId: row.id,
-        stage: "refine",
-        label: `High fidelity ${index + 1}`,
-        provider: "cloudflare",
-        model: "flux-2-dev",
-        contentType: "image/png",
-        url: `/api/assets/${id}`,
-        downloadUrl: `/api/assets/${id}?download=1`,
-      };
-    }),
-  );
+    }
+  }
 
   const assets = results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
   const failure = results.find((result) => result.status === "rejected");
   if (!assets.length) {
+    const reason =
+      failure && failure.status === "rejected"
+        ? String(
+            failure.reason instanceof Error
+              ? failure.reason.message
+              : failure.reason,
+          )
+        : "Refinement failed.";
+    const timedOut = /timeout|timed out|aborted/i.test(reason);
     return Response.json(
-      { error: failure && failure.status === "rejected" ? String(failure.reason?.message ?? failure.reason) : "Refinement failed." },
-      { status: 502 },
+      {
+        error: timedOut
+          ? "Gemini refinement timed out (high demand). Wait a moment and try again — preferably one concept at a time."
+          : reason,
+      },
+      { status: timedOut ? 503 : 502 },
     );
   }
   await updateRows(

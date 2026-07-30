@@ -10,18 +10,16 @@ export type VectorConcept = {
   verdict: string;
 };
 
+/** Structured image prompt assembled from the full studio brief. */
 export type ArtDirectionPlan = {
   key: string;
   title: string;
   thesis: string;
   rationale: string;
-  silhouette: string;
-  componentCount: number;
-  construction: string;
-  proportions: string;
-  counterspace: string;
-  signatureMove: string;
-  forbiddenDrift: string;
+  subject: string;
+  symbolDetails: string;
+  avoidBlock: string;
+  stylePresentation: string;
 };
 
 type OpenAIResponse = {
@@ -314,92 +312,136 @@ async function executeWithRecraft(apiKey: string, prompt: string) {
     .replace(/\s(?:href|xlink:href)\s*=\s*(?:"https?:[^"]*"|'https?:[^']*')/gi, "");
 }
 
+const creativeBriefSchema = {
+  type: "object",
+  properties: {
+    concepts: {
+      type: "array",
+      minItems: 1,
+      maxItems: 4,
+      items: {
+        type: "object",
+        properties: {
+          key: { type: "string" },
+          title: { type: "string" },
+          thesis: { type: "string" },
+          rationale: { type: "string" },
+          subject: { type: "string" },
+          symbolDetails: { type: "string" },
+          avoidBlock: { type: "string" },
+          stylePresentation: { type: "string" },
+        },
+        required: [
+          "key",
+          "title",
+          "thesis",
+          "rationale",
+          "subject",
+          "symbolDetails",
+          "avoidBlock",
+          "stylePresentation",
+        ],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["concepts"],
+  additionalProperties: false,
+} as const;
+
 export async function createArtDirectionPlans(
   brief: LogoBrief,
   openAIApiKey: string,
   count: 1 | 4,
   excludeTitles: string[] = [],
 ): Promise<ArtDirectionPlan[]> {
-  const strategy = await structuredResponse<{
-    territories: Array<{
-      key: string;
-      title: string;
-      thesis: string;
-      visualMechanism: string;
-      ownableDetail: string;
-      rejectionTrap: string;
-    }>;
+  // Analyse the full studio form and emit Imagen-style 4-block prompts.
+  const production = await structuredResponse<{
+    concepts: ArtDirectionPlan[];
   }>(
     openAIApiKey,
-    "brand_concept_territories",
-    territorySchema,
-    `You are the strategy partner to a world-class architect and brand identity studio.
-Develop six genuinely different, brand-specific territories for an original imagined
-architectural object. Think first in inhabitable volume, threshold, structure,
-circulation, light, public/private tension and negative space—not logo shapes.
-Each territory needs one ownable spatial mechanism and an explicit rejection trap.
-Avoid conventional houses, property-development imagery, arbitrary sculpture,
-fashionable sameness, generic stacked blocks and anything named in the brief.
-Titles describe spatial ideas, not shapes.`,
-    `Create six territories from this brief:\n${briefText(brief)}
-Already used titles to avoid: ${excludeTitles.join(", ") || "none"}`,
-    "medium",
-  );
-  const plan = await structuredResponse<{ concepts: ArtDirectionPlan[] }>(
-    openAIApiKey,
-    "visual_exploration_plan",
+    "structured_logo_prompts",
     {
-      ...executionPlanSchema,
+      ...creativeBriefSchema,
       properties: {
         concepts: {
-          ...executionPlanSchema.properties.concepts,
+          ...creativeBriefSchema.properties.concepts,
           minItems: count,
           maxItems: count,
         },
       },
     },
-    `You are a world-class architect working with a senior identity creative director.
-Select ${count} strongest territories and convert each into a deterministic architectural
-maquette specification, not a logo recipe or inspirational image prompt. The specification
-must be precise enough that two architects would build recognizably the same study model.
+    `You are a senior prompt engineer. Read EVERY field of the studio brief and write
+exactly ${count} image prompts. Voice and density must match this gold-standard
+example (same register, short vivid English — NOT bureaucratic specs):
 
-Define:
-- one unmistakable three-dimensional massing silhouette;
-- an exact count of 1–4 primary architectural volumes;
-- attachment, support, cantilever, subtraction and circulation logic;
-- dominant proportions using percentages or simple ratios;
-- one inhabitable counterspace: courtyard, passage, threshold or room;
-- one ownable spatial move that carries the brand idea;
-- forbidden drift: the specific building clichés, impossible structure and generic
-  forms that invalidate the concept.
+--- GOLD STANDARD ---
+A minimal, bold, flat black modern logo for an architecture studio named "KETCHUP ARCHITECTS".
+The logo features a strong, abstract architectural symbol. The symbol is a solid,
+precise black silhouette combining structure, frame, and spatial passage with a
+subtle controlled asymmetry. Clean geometry, no generic roof/house shapes, no
+ketchup or food motifs.
+The image is a high-resolution, centered vector logo design, presented on a light
+warm neutral paper/off-white background. Flat 2D vector, minimalist design,
+professional branding aesthetic.
+--- END ---
 
-The object must be original, believable, structurally legible and interesting from a
-single three-quarter view. It must offer strong later reduction potential, but do not
-flatten it into a logo, letter, monogram, arrow, app icon or stock symbol at this stage.
-A metaphor is not a construction specification. Score fields are planning confidence
-only and are never visual QC.`,
-    `BRAND BRIEF:\n${briefText(brief)}
+Keep the FOUR-BLOCK architecture below. Fill each block with that same prose style.
+Each concept differs mainly in block 2 (Symbol details).
 
-CANDIDATE TERRITORIES:
-${JSON.stringify(strategy.territories, null, 2)}
+1. Subject — one or two sentences: minimal, bold, flat black modern logo for
+   [industry] named "[BRAND]". Pull industry/positioning from the brief.
+2. Symbol details — one or two sentences: strong abstract symbol idea for THIS
+   territory only (silhouette, asymmetry, structure/space behaviour). No component
+   counts, bar rhythms or path geometry.
+3. AVOID — from the client's Avoid field only (binding). Clarify wording if needed;
+   do not invent extra bans the client did not write. If the gold-standard mentions
+   roof/food, include those ONLY when the client's Avoid says so.
+4. Style and presentation — high-resolution centered vector mark on light warm
+   neutral paper/off-white; flat 2D vector; no 3D, shadows or gradients; professional
+   branding aesthetic. The application typesets the wordmark later, so ask for the
+   symbol alone (no typography in the image), still in the gold-standard voice.
 
-Return exactly ${count} structurally different plans. Avoid previous titles:
+Also return for the UI:
+- title: short territory name
+- thesis: ONE sharp sentence
+- rationale: TWO TO THREE sentences for the concept card
+
+Titles describe brand ideas, not shapes.`,
+    `FULL STUDIO BRIEF (analyse all fields):\n${briefText(brief)}
+
+Return exactly ${count} structured prompts. Exclude previous titles:
 ${excludeTitles.join(", ") || "none"}.`,
-    "high",
+    "medium",
   );
-  return plan.concepts.map((concept) => ({
-    key: concept.key,
-    title: concept.title,
-    thesis: concept.thesis,
-    rationale: concept.rationale,
-    silhouette: concept.silhouette,
-    componentCount: concept.componentCount,
-    construction: concept.construction,
-    proportions: concept.proportions,
-    counterspace: concept.counterspace,
-    signatureMove: concept.signatureMove,
-    forbiddenDrift: concept.forbiddenDrift,
-  }));
+
+  if (production.concepts.length !== count) {
+    throw new Error(
+      `The art-direction model returned ${production.concepts.length} concepts; expected ${count}.`,
+    );
+  }
+  return production.concepts;
+}
+
+/** Assemble the four-block image prompt — gold-standard voice, fixed architecture. */
+export function buildStructuredLogoPrompt(
+  plan: ArtDirectionPlan,
+  clientAvoid = "",
+) {
+  const avoid = (clientAvoid.trim() || plan.avoidBlock.trim()).replace(
+    /\s+/g,
+    " ",
+  );
+  const subject = plan.subject.trim().replace(/\s+/g, " ");
+  const symbolDetails = plan.symbolDetails.trim().replace(/\s+/g, " ");
+  const style = plan.stylePresentation.trim().replace(/\s+/g, " ");
+  return `1. Subject: ${subject}
+
+2. Symbol details: ${symbolDetails}
+
+3. AVOID: ${avoid}
+
+4. Style and presentation: ${style}`;
 }
 
 export async function createVectorConcepts(
@@ -666,7 +708,7 @@ export async function reconstructArchitecturalLogoSvg(
   }
 
   const instructions = `You are the senior vector designer completing a master logo.
-Do not trace pixels. Study the approved flat architectural reduction, infer its intended
+Do not trace pixels. Study the approved refined logo, infer its intended
 construction, and redraw it geometrically on a 512×512 grid. Preserve the defining
 massing relationship and signature negative space while correcting alignment, visual
 weight, joins and optical balance. Use 1–5 closed filled paths only, coordinates within
@@ -686,7 +728,7 @@ Return harsh scores; portfolio-grade means at least 90.`;
       content: [
         {
           type: "input_text",
-          text: `BRAND BRIEF:\n${briefText(brief)}\nReconstruct the attached approved reduction.`,
+          text: `BRAND BRIEF:\n${briefText(brief)}\nReconstruct the attached approved logo.`,
         },
         {
           type: "input_image",

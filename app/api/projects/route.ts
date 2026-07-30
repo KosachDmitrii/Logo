@@ -14,7 +14,10 @@ import {
   selectRows,
   updateRows,
 } from "../../../lib/supabase";
-import { assessLogoImage } from "../../../lib/logo-quality";
+import {
+  arrayBufferToBase64,
+  assessLogoImage,
+} from "../../../lib/logo-quality";
 import { createCuratedConcepts } from "../../../lib/gemini-creative";
 
 type ProjectRow = {
@@ -293,6 +296,33 @@ export async function POST(request: Request) {
         })
       : [];
     const conceptCount: 1 | 4 = existingProjectId ? 1 : 4;
+    let styleReference:
+      | { base64: string; mimeType: string }
+      | undefined;
+    if (enrichedBrief.brandName.trim().toLowerCase() === "ketchup") {
+      try {
+        const referenceResponse = await fetch(
+          new URL("/ketchup-logo-reference.png", request.url),
+        );
+        if (referenceResponse.ok) {
+          styleReference = {
+            base64: arrayBufferToBase64(
+              await referenceResponse.arrayBuffer(),
+            ),
+            mimeType:
+              referenceResponse.headers.get("content-type") ?? "image/png",
+          };
+        }
+      } catch (referenceError) {
+        console.warn({
+          event: "logo_style_reference_unavailable",
+          reason:
+            referenceError instanceof Error
+              ? referenceError.message
+              : String(referenceError),
+        });
+      }
+    }
     const curatedConcepts = await createCuratedConcepts(
       enrichedBrief,
       {
@@ -301,6 +331,7 @@ export async function POST(request: Request) {
       },
       conceptCount,
       previousRows.map((row) => row.direction_title),
+      styleReference,
     );
     const recommendedIndex = curatedConcepts.reduce(
       (best, concept, index, all) =>
@@ -332,7 +363,7 @@ export async function POST(request: Request) {
           },
         });
         const prompt = [
-          `[LOOPEN_ARCHITECTURE_STUDY]`,
+          `[LOOPEN_FLAT_LOGO_CONCEPT]`,
           `[LOOPEN_DUAL_JURY]`,
           `[LOOPEN_QC:${concept.score}]`,
           `[LOOPEN_STATUS:${reviewStatus}]`,
@@ -353,7 +384,7 @@ export async function POST(request: Request) {
         return {
           directionKey: concept.key,
           directionTitle: concept.title,
-          rationale: concept.thesis,
+          rationale: concept.rationale || concept.thesis,
           downloadUrl: `/api/images/${generationId}?download=1`,
           id: generationId,
           imageUrl: `/api/images/${generationId}`,
@@ -385,10 +416,10 @@ export async function POST(request: Request) {
       },
     );
     console.log({
-      event: "architectural_study_batch_completed",
+      event: "flat_logo_batch_completed",
       projectId,
       count: generations.length,
-      model: "gemini-3.1-flash-image→gemini-3-pro-image",
+      model: "gemini-3.1-flash-image→gemini-3-pro-image(refine)",
       scores: curatedConcepts.map((concept) => concept.score),
     });
     return Response.json(

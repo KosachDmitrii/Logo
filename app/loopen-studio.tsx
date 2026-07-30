@@ -137,7 +137,129 @@ const personalityOptions = [
   "Warm",
   "Experimental",
   "Bold",
+  "Calm",
+  "Technical",
+  "Editorial",
 ];
+
+type BriefTemplate = {
+  id: string;
+  label: string;
+  industryLabel: string;
+  brandName: string;
+  coreIdea: string;
+  industry: string;
+  companyDescription: string;
+  audience: string;
+  positioning: string;
+  competitors: string;
+  colorApproach: NonNullable<PremiumBrief["colorApproach"]>;
+  brandColors: string;
+  colorMood: string;
+  visualDirection: string;
+  usage: string;
+  avoid: string;
+  personalities: string[];
+  descriptor: string;
+};
+
+const BRIEF_TEMPLATES: BriefTemplate[] = [
+  {
+    id: "ketchup",
+    label: "Ketchup",
+    industryLabel: "Architecture",
+    brandName: "Ketchup",
+    coreIdea:
+      "Ketchup is an architecture and spatial-design studio that turns constraints into distinctive, generous places. The identity should communicate intelligent transformation, confident authorship and an unexpected human quality. Create a memorable symbol that feels specific to Ketchup rather than to architecture in general.",
+    industry: "Contemporary architecture, interiors and spatial design",
+    companyDescription:
+      "Ketchup is an independent architecture and spatial-design studio working across residential, hospitality, retail and cultural projects. The studio treats budgets, sites, regulations and existing structures as creative material. Its work combines rigorous planning, clear construction and generous public or shared space with one surprising intervention that makes each project recognisable, useful and emotionally engaging.",
+    audience:
+      "Design-literate private clients, progressive developers, hospitality and retail brands, cultural institutions and entrepreneurs. They value original thinking and strong authorship, but also expect buildability, commercial intelligence, clarity, reliability and lasting cultural relevance.",
+    positioning:
+      "A sharp, independent architecture practice positioned between corporate predictability and self-indulgent experimentation. Ketchup is conceptually bold but practical, playful without becoming childish, and precise without feeling sterile. The identity should feel confident in an architecture biennale, on construction drawings and on a building façade.",
+    competitors:
+      "Reference landscape: OMA, MVRDV, Snøhetta, Assemble, Space10, Schemata Architects, Studio Muoto and contemporary independent architecture practices. Do not imitate their identities, projects or signature buildings; use them only as a benchmark for conceptual clarity, cultural confidence and professional execution.",
+    colorApproach: "propose",
+    brandColors: "",
+    colorMood:
+      "Warm architectural neutrals with one cultured, energetic accent; contemporary, tactile and confident rather than corporate or fashionable.",
+    visualDirection:
+      "Create a bold, flat black symbol with the cultural confidence of an independent contemporary architecture studio. It may abstractly suggest a shelter, passage, structure, spatial frame or constructed landscape, but it should remain a concise identity mark rather than an illustration. Prioritise an original silhouette, strong gestalt, controlled asymmetry and one memorable visual idea. The symbol must work independently at 16–24 px; the application will pair it with a restrained Ketchup wordmark.",
+    usage:
+      "Primary: website header, social avatar, proposals, architectural drawings, title blocks, competition boards and client presentations. Secondary: construction signage, hoarding, building graphics, wayfinding, publications, stamps, merchandise and favicon. Required variants: symbol only, horizontal and vertical lockups, positive and reversed monochrome. The mark must remain recognisable at 16 and 24 pixels and retain authority at environmental scale.",
+    avoid:
+      "Avoid generic house and roof icons, property-development branding, food or ketchup imagery, obvious stock-logo geometry and close resemblance to an existing identity. No 3D rendering, perspective, mockup, gradients, shadows, textures, fine illustrative detail, text, letters or pseudo-text inside the generated symbol.",
+    personalities: [
+      "Architectural",
+      "Intelligent",
+      "Playful",
+      "Precise",
+      "Experimental",
+    ],
+    descriptor: "Architecture with an unexpected opening",
+  },
+  {
+    id: "northline",
+    label: "Northline",
+    industryLabel: "Specialty coffee",
+    brandName: "Northline",
+    coreIdea:
+      "Northline is a specialty coffee roastery and café brand built around clarity, craft and a quiet sense of northern light. The identity should feel precise and hospitable — a mark that suggests route, roast and ritual without becoming a coffee-cup cliché.",
+    industry: "Specialty coffee roasting, cafés and hospitality",
+    companyDescription:
+      "Northline roasts single-origin and blend coffees for cafés, offices and home brewing. The brand runs a flagship café, supplies wholesale partners and publishes tasting notes with the same care as its roasting logs. Northline values transparency of origin, consistent extraction and a calm, design-led guest experience.",
+    audience:
+      "Urban coffee drinkers, independent café owners, design-conscious offices and home baristas who care about origin, freshness and a refined everyday ritual rather than loud lifestyle marketing.",
+    positioning:
+      "A modern roasting brand between industrial commodity coffee and precious third-wave theatre. Northline is warm but exact, hospitable without being cute, and serious about taste without sounding academic.",
+    competitors:
+      "Reference landscape: Blue Bottle, Tim Wendelboe, April Coffee, La Cabra, Square Mile and strong independent local roasters. Do not imitate their marks; use them only as a benchmark for craft credibility and café-ready systems.",
+    colorApproach: "propose",
+    brandColors: "",
+    colorMood:
+      "Soft paper neutrals with deep roast brown and one cool northern accent; calm, tactile and morning-ready.",
+    visualDirection:
+      "Create a bold, flat black symbol for a specialty coffee brand. Suggest route, horizon, roast craft or a precise hospitality gesture without drawing a cup, bean, steam cloud or barista tool. Prioritise a compact silhouette, strong gestalt and one memorable idea that works as a stamp, sleeve mark and favicon.",
+    usage:
+      "Primary: café fascia, cups, bags, website header, social avatar and wholesale packaging. Secondary: menus, loyalty stamps, merch, delivery stickers and favicon. Required variants: symbol only, horizontal lockup, positive and reversed monochrome.",
+    avoid:
+      "Avoid coffee cups, beans, steam swirls, mountains-as-cliché, leaf badges and generic café script. No 3D rendering, perspective, mockup, gradients, shadows, textures, fine illustrative detail, text, letters or pseudo-text inside the generated symbol.",
+    personalities: ["Warm", "Precise", "Calm", "Bold", "Editorial"],
+    descriptor: "Coffee with a clear route",
+  },
+  {
+    id: "voltara",
+    label: "Voltara",
+    industryLabel: "Clean energy",
+    brandName: "Voltara",
+    coreIdea:
+      "Voltara is a clean-energy and home-electrification company helping households and small businesses switch to smarter power. The identity should communicate reliable modern infrastructure with a human, optimistic charge — not a generic lightning bolt utility brand.",
+    industry: "Clean energy, home electrification and energy services",
+    companyDescription:
+      "Voltara designs and installs solar, battery storage and electrification upgrades for homes and light commercial sites. The company combines engineering clarity with a consumer-friendly service model: site assessment, financing options, installation and ongoing monitoring. Voltara wants to feel like the trusted operator of a cleaner everyday grid.",
+    audience:
+      "Homeowners, property managers and small-business operators who want lower energy costs, resilience and a credible green transition without dealing with opaque contractors.",
+    positioning:
+      "A practical clean-energy brand between corporate utilities and lifestyle eco startups. Voltara is technical but approachable, optimistic without greenwashing, and precise enough for engineering docs while remaining friendly on a van or app icon.",
+    competitors:
+      "Reference landscape: Tesla Energy, Sunrun, Octopus Energy, Enphase and strong regional installers. Do not imitate their identities; use them only as a benchmark for trust, modernity and service clarity.",
+    colorApproach: "propose",
+    brandColors: "",
+    colorMood:
+      "Cool daylight neutrals with one charged electric accent; clean, trustworthy and future-facing without neon sci-fi.",
+    visualDirection:
+      "Create a bold, flat black symbol for a clean-energy company. Suggest flow, storage, connection or a controlled release of power without a literal lightning bolt, sun disk, leaf or plug. Prioritise an original compact silhouette and one memorable idea that works on vans, app icons and technical reports.",
+    usage:
+      "Primary: website, app icon, vans, installer uniforms, proposals and monitoring dashboards. Secondary: yard signs, packaging for hardware kits, presentations and favicon. Required variants: symbol only, horizontal and vertical lockups, positive and reversed monochrome.",
+    avoid:
+      "Avoid lightning bolts, suns, leaves, plugs, batteries-as-icons and generic tech hexagons. No 3D rendering, perspective, mockup, gradients, shadows, textures, fine illustrative detail, text, letters or pseudo-text inside the generated symbol.",
+    personalities: ["Technical", "Intelligent", "Bold", "Precise", "Calm"],
+    descriptor: "Power made practical",
+  },
+];
+
+const DEFAULT_BRIEF = BRIEF_TEMPLATES[0];
 
 function CreativeSelect({
   label,
@@ -221,51 +343,25 @@ export default function LoopenStudio({
     GeneratedConcept[]
   >([]);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [brandName, setBrandName] = useState("Ketchup");
-  const [coreIdea, setCoreIdea] = useState(
-    "Architecture turns constraints into opportunity. Create an original inhabitable structure in which two or three precise masses form one memorable shared void. A daring but believable cantilever, shift or cut should transform weight into openness and rigor into an unexpected human moment. The final identity must preserve this spatial idea rather than merely depict a building.",
-  );
-  const [industry, setIndustry] = useState(
-    "Contemporary architecture, interiors and spatial design",
-  );
-  const [companyDescription, setCompanyDescription] = useState(
-    "Ketchup is an independent architecture and spatial-design studio working across residential, hospitality, retail and cultural projects. The studio treats budgets, sites, regulations and existing structures as creative material. Its work combines rigorous planning, clear construction and generous public or shared space with one surprising intervention that makes each project recognisable, useful and emotionally engaging.",
-  );
-  const [audience, setAudience] = useState(
-    "Design-literate private clients, progressive developers, hospitality and retail brands, cultural institutions and entrepreneurs. They value original thinking and strong authorship, but also expect buildability, commercial intelligence, clarity, reliability and lasting cultural relevance.",
-  );
-  const [positioning, setPositioning] = useState(
-    "A sharp, independent architecture practice positioned between corporate predictability and self-indulgent experimentation. Ketchup is conceptually bold but practical, playful without becoming childish, and precise without feeling sterile. The identity should feel confident in an architecture biennale, on construction drawings and on a building façade.",
-  );
-  const [competitors, setCompetitors] = useState(
-    "Reference landscape: OMA, MVRDV, Snøhetta, Assemble, Space10, Schemata Architects, Studio Muoto and contemporary independent architecture practices. Do not imitate their identities, projects or signature buildings; use them only as a benchmark for conceptual clarity, cultural confidence and professional execution.",
-  );
+  const [activeTemplateId, setActiveTemplateId] = useState("");
+  const [brandName, setBrandName] = useState("");
+  const [coreIdea, setCoreIdea] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [companyDescription, setCompanyDescription] = useState("");
+  const [audience, setAudience] = useState("");
+  const [positioning, setPositioning] = useState("");
+  const [competitors, setCompetitors] = useState("");
   const [colorApproach, setColorApproach] =
     useState<NonNullable<PremiumBrief["colorApproach"]>>("propose");
   const [brandColors, setBrandColors] = useState("");
-  const [colorMood, setColorMood] = useState(
-    "Warm architectural neutrals with one cultured, energetic accent; contemporary, tactile and confident rather than corporate or fashionable.",
-  );
-  const [logoType, setLogoType] =
-    useState<PremiumBrief["logoType"]>("combination");
-  const [visualDirection, setVisualDirection] = useState(
-    "Stage 1 — architectural discovery: invent a compact, believable contemporary pavilion or small civic structure, shown as a precise monochrome study model. It should use two or three primary volumes, controlled asymmetry, legible support and circulation, and one inhabitable negative space such as a passage, courtyard or sheltered threshold. Its signature move should be a surprising but structurally credible cantilever, displacement or deep subtraction. Stage 2 — identity reduction: preserve the exact massing relationship, structural tension and signature void while removing perspective, material, windows, stairs and incidental detail. Rebuild it as a flat near-black symbol made from two to four closed shapes, with a distinctive silhouette and excellent 16–24 px recognition. Pair it with a restrained custom Ketchup wordmark; the symbol must also work alone.",
-  );
-  const [usage, setUsage] = useState(
-    "Primary: website header, social avatar, proposals, architectural drawings, title blocks, competition boards and client presentations. Secondary: construction signage, hoarding, building graphics, wayfinding, publications, stamps, merchandise and favicon. Required variants: symbol only, horizontal and vertical lockups, positive and reversed monochrome. The mark must remain recognisable at 16 and 24 pixels and retain authority at environmental scale.",
-  );
-  const [avoid, setAvoid] = useState(
-    "No conventional house outline, pitched roof, doorway pictogram, skyline, skyscraper, generic office block, temple façade, isolated column, floor-plan maze, drafting tool or property-development aesthetic. No hidden K, monogram, arrow, infinity loop, chain, cube, container, app icon, random rectangles or fashionable abstract blob. No tomato, bottle, sauce, red splatter or other food reference. During architectural discovery, avoid fantasy physics, decorative sculpture, people, trees and photorealistic scenery. During logo reduction, allow no perspective, windows, stairs, thin lines, gradients, shadows, textures, pseudo-text or unnecessary detail. Do not copy or closely resemble an existing building or logo.",
-  );
+  const [colorMood, setColorMood] = useState("");
+  const logoType: PremiumBrief["logoType"] = "combination";
+  const [visualDirection, setVisualDirection] = useState("");
+  const [usage, setUsage] = useState("");
+  const [avoid, setAvoid] = useState("");
   const [strategy, setStrategy] = useState<BrandStrategy | null>(null);
   const [isStrategyOpen, setIsStrategyOpen] = useState(false);
-  const [personalities, setPersonalities] = useState([
-    "Architectural",
-    "Intelligent",
-    "Playful",
-    "Precise",
-    "Experimental",
-  ]);
+  const [personalities, setPersonalities] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
   const [notice, setNotice] = useState("");
@@ -280,11 +376,14 @@ export default function LoopenStudio({
   const [isMethodOpen, setIsMethodOpen] = useState(false);
   const [selectedRefinement, setSelectedRefinement] = useState("");
   const [selectedVector, setSelectedVector] = useState("");
+  const [vectorSourceMode, setVectorSourceMode] = useState<"refine" | "original">(
+    "refine",
+  );
   const [lockupLayout, setLockupLayout] = useState<"horizontal" | "vertical" | "icon">(
     "horizontal",
   );
   const [lockupColor, setLockupColor] = useState("#201f1e");
-  const [descriptor, setDescriptor] = useState("Architecture with an unexpected opening");
+  const [descriptor, setDescriptor] = useState("");
   const [wordmarkStyle, setWordmarkStyle] = useState("modern");
   const [wordmarkCase, setWordmarkCase] = useState<"original" | "upper" | "lower">("original");
   const [wordmarkWeight, setWordmarkWeight] = useState(600);
@@ -292,6 +391,25 @@ export default function LoopenStudio({
   const [markScale, setMarkScale] = useState(100);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
   const confirmResolver = useRef<((confirmed: boolean) => void) | null>(null);
+  const historyListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isHistoryOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isHistoryOpen]);
+
+  function scrollProjectHistory(direction: -1 | 1) {
+    historyListRef.current?.scrollBy({
+      behavior: "smooth",
+      top: direction * Math.max(240, historyListRef.current.clientHeight * 0.72),
+    });
+  }
 
   function requestConfirmation(dialog: ConfirmDialog) {
     return new Promise<boolean>((resolve) => {
@@ -352,10 +470,20 @@ export default function LoopenStudio({
   const selectedReduction = refinements.find(
     (asset) => asset.id === selectedRefinement,
   );
+  const vectorSourceGeneration =
+    generatedConcepts.find((item) => item.id === selectedConceptIds[0]) ??
+    generatedConcepts.find((item) => item.id === selectedReduction?.parentId) ??
+    generatedConcepts.find((item) => item.directionKey === selectedConcept) ??
+    null;
+  const preferOriginal =
+    vectorSourceMode === "original" ||
+    (!selectedReduction && Boolean(vectorSourceGeneration));
   const canReconstruct = Boolean(
-    selectedReduction?.reviewStatus === "Recommended" &&
-      (selectedReduction.qualityScore ?? 0) >= 90,
+    preferOriginal ? vectorSourceGeneration : selectedReduction,
   );
+  const juryRecommends =
+    selectedReduction?.reviewStatus === "Recommended" ||
+    (selectedReduction?.qualityScore ?? 0) >= 75;
   const selectedVectorAsset = vectors.find(
     (asset) => asset.id === selectedVector,
   );
@@ -399,6 +527,45 @@ export default function LoopenStudio({
     setProjects(payload.projects ?? []);
   }
 
+  /** Reload assets from the server without wiping SVG / lockup selection. */
+  async function syncProjectAssets(options?: {
+    preferRefinementId?: string;
+    preferVectorId?: string;
+  }) {
+    if (!projectId) return;
+    const response = await fetch(`/api/projects/${projectId}`);
+    if (!response.ok) return;
+    const payload = (await response.json()) as {
+      assets?: StudioAsset[];
+      generations?: GeneratedConcept[];
+    };
+    const loadedAssets = payload.assets ?? [];
+    setAssets(loadedAssets);
+    if (payload.generations?.length) {
+      setGeneratedConcepts(payload.generations);
+    }
+    const refineIds = new Set(
+      loadedAssets.filter((asset) => asset.stage === "refine").map((asset) => asset.id),
+    );
+    const vectorIds = new Set(
+      loadedAssets.filter((asset) => asset.stage === "vector").map((asset) => asset.id),
+    );
+    setSelectedRefinement((current) => {
+      if (options?.preferRefinementId && refineIds.has(options.preferRefinementId)) {
+        return options.preferRefinementId;
+      }
+      if (current && refineIds.has(current)) return current;
+      return loadedAssets.filter((asset) => asset.stage === "refine").at(-1)?.id ?? "";
+    });
+    setSelectedVector((current) => {
+      if (options?.preferVectorId && vectorIds.has(options.preferVectorId)) {
+        return options.preferVectorId;
+      }
+      if (current && vectorIds.has(current)) return current;
+      return loadedAssets.filter((asset) => asset.stage === "vector").at(-1)?.id ?? "";
+    });
+  }
+
   async function openProject(id: string) {
     setNotice("Loading saved project…");
     const response = await fetch(`/api/projects/${id}`);
@@ -428,7 +595,6 @@ export default function LoopenStudio({
     setColorApproach(payload.project.brief.colorApproach ?? "propose");
     setBrandColors(payload.project.brief.brandColors ?? "");
     setColorMood(payload.project.brief.colorMood ?? "");
-    setLogoType(payload.project.brief.logoType ?? "abstract");
     setVisualDirection(payload.project.brief.visualDirection ?? "");
     setUsage(payload.project.brief.usage ?? "");
     setAvoid(payload.project.brief.avoid ?? "");
@@ -455,7 +621,7 @@ export default function LoopenStudio({
     const confirmed = await requestConfirmation({
       kicker: "Permanent action / Project",
       title: `Erase ${project.brandName}?`,
-      body: "The brief, architectural studies, reductions and production assets will be permanently removed. This cannot be undone.",
+      body: "The brief, logo concepts, refinements and production assets will be permanently removed. This cannot be undone.",
       confirmLabel: "Delete project",
       tone: "danger",
     });
@@ -493,11 +659,34 @@ export default function LoopenStudio({
   }
 
   function togglePersonality(item: string) {
+    setActiveTemplateId("");
     setPersonalities((current) =>
       current.includes(item)
         ? current.filter((value) => value !== item)
         : [...current, item],
     );
+  }
+
+  function applyBriefTemplate(template: BriefTemplate) {
+    setActiveTemplateId(template.id);
+    setBrandName(template.brandName);
+    setCoreIdea(template.coreIdea);
+    setIndustry(template.industry);
+    setCompanyDescription(template.companyDescription);
+    setAudience(template.audience);
+    setPositioning(template.positioning);
+    setCompetitors(template.competitors);
+    setColorApproach(template.colorApproach);
+    setBrandColors(template.brandColors);
+    setColorMood(template.colorMood);
+    setVisualDirection(template.visualDirection);
+    setUsage(template.usage);
+    setAvoid(template.avoid);
+    setPersonalities(template.personalities);
+    setDescriptor(template.descriptor);
+    setStrategy(null);
+    setNotice(`${template.label} brief loaded — review or generate.`);
+    document.getElementById("brief")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function generate() {
@@ -508,7 +697,7 @@ export default function LoopenStudio({
 
     setIsGenerating(true);
     setNotice(
-      "Building four original directions. This can take up to two minutes…",
+      "Designing four original flat logo directions. This can take up to two minutes…",
     );
 
     try {
@@ -553,12 +742,12 @@ export default function LoopenStudio({
       setSelectedRefinement("");
       setSelectedVector("");
       setSelectedConcept(payload.generations[0].directionKey);
-      setSelectedConceptIds([payload.generations[0].id]);
+      setSelectedConceptIds([]);
       setIsGenerating(false);
       setNotice(
-        payload.failures?.length
-          ? `${payload.generations.length} of 4 directions generated. ${payload.failures.length} still failed after one safety recovery.`
-          : "All 4 architectural studies generated, reviewed and saved.",
+        payload.failures?.length || payload.generations.length < 4
+          ? `${payload.generations.length} of 4 directions passed the professional jury. Weak concepts were withheld.`
+          : "All 4 logo concepts generated, reviewed and saved.",
       );
       void auditDiversity(payload.generations);
       void loadHistory();
@@ -568,7 +757,7 @@ export default function LoopenStudio({
     } catch (error) {
       setIsGenerating(false);
       showRequestError(
-        "Architectural studies",
+        "Logo concepts",
         error instanceof Error
           ? error.message
           : "Generation could not be completed.",
@@ -615,44 +804,85 @@ export default function LoopenStudio({
 
   async function refineSelected() {
     if (!projectId || !selectedConceptIds.length) {
-      setNotice("Select one or two concepts before refinement.");
+      setNotice("Select one concept before refinement.");
       return;
     }
+    const critiquesByGenerationId: Record<string, string> = {};
+    for (const generationId of selectedConceptIds) {
+      const failed = [...refinements]
+        .reverse()
+        .find(
+          (asset) =>
+            asset.parentId === generationId &&
+            Boolean(asset.reviewReason) &&
+            (asset.reviewStatus !== "Recommended" ||
+              (asset.qualityScore ?? 0) < 75),
+        );
+      if (failed?.reviewReason) {
+        critiquesByGenerationId[generationId] = failed.reviewReason;
+      }
+    }
+    const isRetry = Object.keys(critiquesByGenerationId).length > 0;
     if (!(await requestConfirmation({
       kicker: "Stage 02 / Paid generation",
-      title: "Architecture becomes identity.",
-      body: `Nano Banana Pro will reduce ${selectedConceptIds.length} selected architectural stud${selectedConceptIds.length > 1 ? "ies" : "y"} into flat identity symbols. The source massing and signature void will remain visible.`,
-      confirmLabel: `Create ${selectedConceptIds.length} reduction${selectedConceptIds.length > 1 ? "s" : ""}`,
+      title: isRetry ? "Retry refinement with jury notes." : "Architecture becomes identity.",
+      body: isRetry
+        ? `Nano Banana Pro will refine again using the last dual-jury critique. Production stages 04–05 will clear and stay locked until this pass finishes.`
+        : `Nano Banana Pro will refine the selected concept. Stages 04–05 (refinement, SVG, lockup and brand system) will clear and lock for this new pass.`,
+      confirmLabel: isRetry
+        ? "Retry refinement"
+        : `Refine ${selectedConceptIds.length} concept${selectedConceptIds.length > 1 ? "s" : ""}`,
     }))) return;
+    const previousAssets = assets;
+    const previousRefinement = selectedRefinement;
+    const previousVector = selectedVector;
+    // Reset production pipeline — SVG / lockup / system stay closed until rebuilt.
+    setAssets([]);
+    setSelectedRefinement("");
+    setSelectedVector("");
     setIsRefining(true);
-    setNotice(`Reducing ${selectedConceptIds.length} architectural stud${selectedConceptIds.length > 1 ? "ies" : "y"} into flat identity symbols…`);
+    setNotice(
+      isRetry
+        ? `Retrying refinement with previous jury critique…`
+        : `Refining selected logo concept…`,
+    );
+    document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
       const response = await fetch(`/api/projects/${projectId}/refine`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ generationIds: selectedConceptIds }),
+        body: JSON.stringify({
+          generationIds: selectedConceptIds,
+          ...(isRetry ? { critiquesByGenerationId } : {}),
+        }),
       });
       const payload = (await response.json()) as {
         assets?: StudioAsset[];
         error?: string;
       };
       if (!response.ok || !payload.assets?.length) {
+        setAssets(previousAssets);
+        setSelectedRefinement(previousRefinement);
+        setSelectedVector(previousVector);
         showRequestError(
-          "Logo reduction",
+          "Logo refinement",
           payload.error ?? "Refinement could not be completed.",
         );
         return;
       }
-      setAssets((current) => [
-        ...current.filter((asset) => asset.stage !== "refine"),
-        ...payload.assets!,
-      ]);
+      setAssets(payload.assets);
       setSelectedRefinement(payload.assets[0].id);
-      setNotice(`${payload.assets.length} architectural reduction${payload.assets.length > 1 ? "s are" : " is"} ready. Choose one for geometric SVG reconstruction.`);
+      setSelectedVector("");
+      setNotice(
+        `${payload.assets.length} refined logo${payload.assets.length > 1 ? "s are" : " is"} ready. Reconstruct SVG when you want to unlock the brand system.`,
+      );
       void loadHistory();
     } catch (error) {
+      setAssets(previousAssets);
+      setSelectedRefinement(previousRefinement);
+      setSelectedVector(previousVector);
       showRequestError(
-        "Logo reduction",
+        "Logo refinement",
         error instanceof Error
           ? error.message
           : "Refinement could not be completed.",
@@ -663,33 +893,39 @@ export default function LoopenStudio({
   }
 
   async function vectorizeSelected() {
-    if (!projectId || !selectedRefinement) {
-      setNotice("Choose a refined symbol before vectorization.");
+    if (!projectId || !canReconstruct) {
+      setNotice("Select a concept or refinement before vectorization.");
       return;
     }
-    if (
-      !selectedReduction ||
-      selectedReduction.reviewStatus !== "Recommended" ||
-      (selectedReduction.qualityScore ?? 0) < 90
-    ) {
-      setNotice(
-        "This reduction did not pass both final juries. Choose a Recommended flat reduction before SVG reconstruction.",
-      );
-      return;
-    }
+    const useOriginal = preferOriginal && Boolean(vectorSourceGeneration);
+    const sourceLabel = useOriginal
+      ? vectorSourceGeneration!.directionTitle
+      : selectedReduction!.label;
     if (!(await requestConfirmation({
       kicker: "Stage 03 / Production master",
-      title: "Commit to the geometry.",
-      body: "The approved reduction will be rebuilt as a controlled set of closed SVG paths and tested for monochrome and small-size use.",
+      title: useOriginal
+        ? "Build SVG from the original concept."
+        : "Commit to the geometry.",
+      body: useOriginal
+        ? `"${sourceLabel}" will be rebuilt as controlled SVG paths from the exploration image. Refine remains optional — jury notes are recommendations only.`
+        : `"${sourceLabel}" will be rebuilt as a controlled set of closed SVG paths. Jury status is advisory and will not block this step.`,
       confirmLabel: "Build SVG master",
     }))) return;
     setIsVectorizing(true);
-    setNotice("Rebuilding the selected symbol as controlled SVG geometry…");
+    setNotice(
+      useOriginal
+        ? "Rebuilding the original concept as controlled SVG geometry…"
+        : "Rebuilding the selected symbol as controlled SVG geometry…",
+    );
     try {
       const response = await fetch(`/api/projects/${projectId}/vectorize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assetId: selectedRefinement }),
+        body: JSON.stringify(
+          useOriginal
+            ? { generationId: vectorSourceGeneration!.id }
+            : { assetId: selectedRefinement },
+        ),
       });
       const payload = (await response.json().catch(() => null)) as {
         assets?: StudioAsset[];
@@ -707,6 +943,7 @@ export default function LoopenStudio({
         ...payload.assets!,
       ]);
       setSelectedVector(payload.assets[0].id);
+      await syncProjectAssets({ preferVectorId: payload.assets[0].id });
       setNotice("Production SVGs are ready. Adjust and export your lockup.");
       void loadHistory();
     } catch (error) {
@@ -813,26 +1050,17 @@ export default function LoopenStudio({
     setNotice("Brand guide opened. Choose Print → Save as PDF.");
   }
 
-  async function selectGeneratedConcept(directionKey: string) {
-    setSelectedConcept(directionKey);
-    const generation = generatedConcepts.find(
-      (item) => item.directionKey === directionKey,
-    );
+  async function selectGeneratedConcept(generationId: string) {
+    const generation = generatedConcepts.find((item) => item.id === generationId);
     if (!generation || !projectId) return;
+    setSelectedConcept(generation.directionKey);
     const alreadySelected = selectedConceptIds.includes(generation.id);
-    if (!alreadySelected && selectedConceptIds.length >= 2) {
-      setNotice("You can select up to two concepts. Deselect one to continue.");
-      return;
-    }
-    setSelectedConceptIds((current) =>
-      alreadySelected
-        ? current.filter((id) => id !== generation.id)
-        : [...current, generation.id],
-    );
     if (alreadySelected) {
+      setSelectedConceptIds([]);
       setNotice(`${generation.directionTitle} removed from the refinement shortlist.`);
       return;
     }
+    setSelectedConceptIds([generation.id]);
 
     const response = await fetch(`/api/projects/${projectId}/select`, {
       method: "POST",
@@ -842,33 +1070,9 @@ export default function LoopenStudio({
 
     setNotice(
       response.ok
-        ? `${generation.directionTitle} added to the refinement shortlist (${selectedConceptIds.length + 1}/2).`
+        ? `${generation.directionTitle} selected for refinement.`
         : "The direction is selected locally, but could not be saved.",
     );
-  }
-
-  async function deleteConcept(generation: GeneratedConcept) {
-    if (!(await requestConfirmation({
-      kicker: "Permanent action / Direction",
-      title: `Remove ${generation.directionTitle}?`,
-      body: "This architectural study and its place in the current shortlist will be permanently removed.",
-      confirmLabel: "Delete direction",
-      tone: "danger",
-    }))) return;
-    const response = await fetch(`/api/images/${generation.id}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) {
-      showRequestError("Delete direction", "Concept could not be deleted.");
-      return;
-    }
-    setGeneratedConcepts((current) =>
-      current.filter((item) => item.id !== generation.id),
-    );
-    setSelectedConceptIds((current) =>
-      current.filter((id) => id !== generation.id),
-    );
-    setNotice("Concept deleted. No replacement was generated.");
   }
 
   async function auditDiversity(items: GeneratedConcept[]) {
@@ -963,9 +1167,9 @@ export default function LoopenStudio({
               {[
                 ["01", "Brand signal", "The client defines meaning, audience, position, constraints and color intent before form exists.", "Human + GPT"],
                 ["02", "Category refusal", "The system identifies repeated category codes, competitor ownership and the visual territory the brand should avoid.", "GPT strategy"],
-                ["03", "Distinct territories", "Gemini creates genuinely different architectural studies from separate spatial ideas—not multiple seeds of one symbol.", "Gemini image"],
-                ["04", "Reduction + jury", "Selected architecture is reduced to a flat mark. Gemini and GPT judge fidelity, distinction, craft and 24 px clarity independently.", "Dual jury"],
-                ["05", "Production master", "Only an approved reduction is rebuilt as controlled SVG geometry, paired with a separate wordmark and tested across contexts.", "GPT + human"],
+                ["03", "Distinct territories", "Gemini creates four genuinely different flat logo concepts from separate brand ideas—not multiple seeds of one shape.", "Gemini image"],
+                ["04", "Refinement + jury", "Selected concepts receive a focused craft pass. Gemini and GPT judge idea, distinction, optical quality and 24 px clarity independently.", "Dual jury"],
+                ["05", "Production master", "Only an approved logo is rebuilt as controlled SVG geometry, paired with a separate wordmark and tested across contexts.", "GPT + human"],
               ].map(([number, title, body, owner]) => (
                 <section key={number}>
                   <span>{number}</span>
@@ -1070,7 +1274,7 @@ export default function LoopenStudio({
             </div>
             <button type="button" onClick={() => setIsHistoryOpen(false)} aria-label="Close history">×</button>
           </div>
-          <div className="history-list">
+          <div className="history-list" ref={historyListRef}>
             {projects.length ? projects.map((project) => (
               <div className="history-project" key={project.id}>
                 <button
@@ -1097,6 +1301,25 @@ export default function LoopenStudio({
               </div>
             )) : <p>No saved projects yet.</p>}
           </div>
+          {projects.length > 3 && (
+            <div className="history-scroll-controls" aria-label="Scroll project history">
+              <button
+                type="button"
+                onClick={() => scrollProjectHistory(-1)}
+                aria-label="Scroll projects up"
+              >
+                ↑
+              </button>
+              <span>Browse projects</span>
+              <button
+                type="button"
+                onClick={() => scrollProjectHistory(1)}
+                aria-label="Scroll projects down"
+              >
+                ↓
+              </button>
+            </div>
+          )}
           <span className="local-session-note">Local private session</span>
         </aside>
       )}
@@ -1153,13 +1376,38 @@ export default function LoopenStudio({
         </div>
 
         <div className="brief-panel">
+          <div className="premium-fields brief-template-select">
+            <CreativeSelect
+              label="Brief template"
+              value={activeTemplateId || "custom"}
+              onChange={(value) => {
+                if (value === "custom") {
+                  setActiveTemplateId("");
+                  return;
+                }
+                const template = BRIEF_TEMPLATES.find((item) => item.id === value);
+                if (template) applyBriefTemplate(template);
+              }}
+              options={[
+                { value: "custom", label: "Blank / custom brief" },
+                ...BRIEF_TEMPLATES.map((template) => ({
+                  value: template.id,
+                  label: `${template.label} — ${template.industryLabel}`,
+                })),
+              ]}
+            />
+          </div>
           <div className="field-row">
             <label htmlFor="brand-name">Brand name *</label>
             <span>01</span>
             <input
               id="brand-name"
               value={brandName}
-              onChange={(event) => setBrandName(event.target.value)}
+              placeholder="e.g. Acme"
+              onChange={(event) => {
+                setActiveTemplateId("");
+                setBrandName(event.target.value);
+              }}
               required
             />
           </div>
@@ -1170,6 +1418,7 @@ export default function LoopenStudio({
               id="brand-idea"
               rows={2}
               value={coreIdea}
+              placeholder="What the brand stands for in one or two sentences"
               onChange={(event) => setCoreIdea(event.target.value)}
               required
             />
@@ -1177,19 +1426,40 @@ export default function LoopenStudio({
           <div className="premium-fields">
             <label>
               <span className="mini-label">Industry *</span>
-              <input value={industry} onChange={(event) => setIndustry(event.target.value)} required />
+              <input
+                value={industry}
+                placeholder="e.g. Architecture, coffee, clean energy"
+                onChange={(event) => setIndustry(event.target.value)}
+                required
+              />
             </label>
             <label>
               <span className="mini-label">What the company does *</span>
-              <textarea value={companyDescription} onChange={(event) => setCompanyDescription(event.target.value)} rows={3} required />
+              <textarea
+                value={companyDescription}
+                placeholder="Short description of products, services and markets"
+                onChange={(event) => setCompanyDescription(event.target.value)}
+                rows={3}
+                required
+              />
             </label>
             <label>
               <span className="mini-label">Positioning</span>
-              <textarea value={positioning} onChange={(event) => setPositioning(event.target.value)} rows={2} />
+              <textarea
+                value={positioning}
+                placeholder="How the brand sits vs competitors"
+                onChange={(event) => setPositioning(event.target.value)}
+                rows={2}
+              />
             </label>
             <label>
               <span className="mini-label">Competitors</span>
-              <textarea value={competitors} onChange={(event) => setCompetitors(event.target.value)} rows={2} placeholder="Names or URLs, separated by commas" />
+              <textarea
+                value={competitors}
+                placeholder="Names or URLs, separated by commas"
+                onChange={(event) => setCompetitors(event.target.value)}
+                rows={2}
+              />
             </label>
           </div>
           <div className="personality-row">
@@ -1216,27 +1486,23 @@ export default function LoopenStudio({
             </div>
           </div>
           <div className="premium-fields production-brief">
-            <CreativeSelect
-              label="Final identity type"
-              value={logoType ?? "combination"}
-              onChange={(value) =>
-                setLogoType(value as PremiumBrief["logoType"])
-              }
-              options={[
-                { value: "abstract", label: "Abstract symbol" },
-                { value: "monogram", label: "Monogram" },
-                { value: "wordmark", label: "Wordmark" },
-                { value: "emblem", label: "Emblem" },
-                { value: "combination", label: "Symbol + wordmark" },
-              ]}
-            />
             <label>
               <span className="mini-label">Visual direction</span>
-              <textarea value={visualDirection} onChange={(event) => setVisualDirection(event.target.value)} rows={3} />
+              <textarea
+                value={visualDirection}
+                placeholder="Mood, form language, what the mark should feel like"
+                onChange={(event) => setVisualDirection(event.target.value)}
+                rows={3}
+              />
             </label>
             <label>
               <span className="mini-label">Audience</span>
-              <textarea value={audience} onChange={(event) => setAudience(event.target.value)} rows={2} />
+              <textarea
+                value={audience}
+                placeholder="Who the brand is for"
+                onChange={(event) => setAudience(event.target.value)}
+                rows={2}
+              />
             </label>
             <CreativeSelect
               label="Color strategy"
@@ -1268,6 +1534,7 @@ export default function LoopenStudio({
                 <span className="mini-label">Desired color mood</span>
                 <textarea
                   value={colorMood}
+                  placeholder="e.g. Warm neutrals with one sharp accent"
                   onChange={(event) => setColorMood(event.target.value)}
                   rows={2}
                 />
@@ -1275,16 +1542,26 @@ export default function LoopenStudio({
             )}
             <label>
               <span className="mini-label">Primary usage</span>
-              <textarea value={usage} onChange={(event) => setUsage(event.target.value)} rows={2} />
+              <textarea
+                value={usage}
+                placeholder="Website, app, packaging, signage…"
+                onChange={(event) => setUsage(event.target.value)}
+                rows={2}
+              />
             </label>
             <label className="wide-field">
               <span className="mini-label">Avoid</span>
-              <textarea value={avoid} onChange={(event) => setAvoid(event.target.value)} rows={3} />
+              <textarea
+                value={avoid}
+                placeholder="Clichés, motifs or styles to stay away from"
+                onChange={(event) => setAvoid(event.target.value)}
+                rows={3}
+              />
             </label>
           </div>
           <div className="generate-row">
             <p>
-              <span>4</span> directed explorations · Nano Banana Pro · dual independent jury
+              <span>4</span> creative explorations · Flash Image · idea jury · Pro refine later
             </p>
             <button
               className="primary-button"
@@ -1293,12 +1570,12 @@ export default function LoopenStudio({
               disabled={isGenerating}
             >
               {isGenerating
-                ? "Generating architectural studies…"
+                ? "Generating logo concepts…"
                 : user
-                  ? "Generate 4 architectural studies"
+                  ? "Generate 4 logo concepts"
                   : "Sign in to generate"}
               {isGenerating ? (
-                <RequestDrop label="Generating architectural studies" />
+                <RequestDrop label="Generating logo concepts" />
               ) : (
                 <span>↗</span>
               )}
@@ -1408,8 +1685,8 @@ export default function LoopenStudio({
             <h2>Different ideas. Not different seeds.</h2>
           </div>
           <p>
-            Each route begins as a real architectural idea. Only the selected
-            structures are later reduced and tested as identity symbols.
+            Each route begins with a different brand idea and arrives as a flat,
+            usable logo concept ready for professional selection and refinement.
           </p>
         </div>
         {diversityWarning && (
@@ -1429,12 +1706,26 @@ export default function LoopenStudio({
                 ) ??
                 concepts[conceptIndex] ??
                 concepts[0];
-              const conceptKey = generated.directionKey;
               const isActive = selectedConceptIds.includes(generated.id);
               return (
               <article
                 className={`concept-card ${isActive ? "selected" : ""}`}
                 key={generated.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isActive}
+                aria-label={
+                  isActive
+                    ? `Deselect ${generated.directionTitle}`
+                    : `Select ${generated.directionTitle}`
+                }
+                onClick={() => selectGeneratedConcept(generated.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    selectGeneratedConcept(generated.id);
+                  }
+                }}
               >
                 <div className="concept-meta">
                   <span>{String(conceptIndex + 1).padStart(2, "0")}</span>
@@ -1450,6 +1741,7 @@ export default function LoopenStudio({
                     src={generated.imageUrl}
                     alt={`${brandName} — ${generated.directionTitle}`}
                   />
+                  <span className="generated-wordmark">{brandName}</span>
                 </div>
                 <div className="concept-copy">
                   <h3>{generated.directionTitle}</h3>
@@ -1457,29 +1749,20 @@ export default function LoopenStudio({
                   <button
                     className="review-trigger"
                     type="button"
-                    onClick={() => showJuryReview(generated)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      showJuryReview(generated);
+                    }}
                   >
                     <span>Read jury critique</span>
                     <b>{generated.qualityScore ? `${generated.qualityScore}/100` : "↗"}</b>
                   </button>
                 </div>
-                <button
-                  className="select-indicator"
-                  type="button"
-                  onClick={() => selectGeneratedConcept(conceptKey)}
-                  aria-pressed={isActive}
-                >
-                  {isActive ? `Selected ${selectedConceptIds.indexOf(generated.id) + 1}/2` : "Select"}{" "}
-                  <b>{isActive ? "●" : "+"}</b>
-                </button>
-                <button
-                  className="delete-concept"
-                  type="button"
-                  onClick={() => deleteConcept(generated)}
-                  aria-label={`Delete ${generated.directionTitle}`}
-                >
-                  Delete
-                </button>
+                <div className="select-indicator" aria-hidden="true">
+                  {isActive
+                    ? "Selected"
+                    : "Select"}
+                </div>
               </article>
               );
             })}
@@ -1489,8 +1772,8 @@ export default function LoopenStudio({
             <span>Awaiting a real brief</span>
             <strong>No sample logos. No invented scores.</strong>
             <p>
-              Complete the brief and generate four architectural studies.
-              Only real generated maquettes will appear here.
+              Complete the brief and generate four original flat logo concepts.
+              Only real generated identity work will appear here.
             </p>
             <a href="#brief">Complete the brief ↑</a>
           </div>
@@ -1519,7 +1802,7 @@ export default function LoopenStudio({
           <div>
             <span>Architecture shortlist</span>
             <strong>
-              {selectedConceptIds.length}/2 selected
+              {selectedConceptIds.length ? "1 selected" : "0 selected"}
               {focusedGeneration ? ` · ${focusedGeneration.directionTitle}` : ""}
             </strong>
           </div>
@@ -1568,7 +1851,7 @@ export default function LoopenStudio({
         </div>
 
         <div className="workflow-stage">
-          <div className="stage-index"><span>01</span><strong>Logo reduction</strong></div>
+          <div className="stage-index"><span>01</span><strong>Logo refinement</strong></div>
           <div className="asset-grid">
             {refinements.length ? refinements.map((asset) => (
               <button
@@ -1585,48 +1868,67 @@ export default function LoopenStudio({
                 </small>
                 <b
                   className={`asset-verdict ${
-                    asset.reviewStatus === "Recommended" ? "approved" : "rejected"
+                    asset.reviewStatus === "Recommended" ? "approved" : "advisory"
                   }`}
                 >
-                  {asset.reviewStatus ?? "Review required"}
+                  {asset.reviewStatus === "Recommended"
+                    ? "Recommended"
+                    : "Review notes"}
                 </b>
               </button>
             )) : (
               <div className="empty-stage">
-                <strong>Architecture-to-symbol reduction</strong>
-                <p>Choose one or two architectural studies. Nano Banana preserves their massing and signature void while removing perspective and detail.</p>
+                <strong>Professional craft pass</strong>
+                <p>Choose one logo concept. Nano Banana preserves the idea and silhouette while improving proportions, counterspace and small-size clarity.</p>
                 <button type="button" onClick={refineSelected} disabled={isRefining}>
-                  {isRefining ? "Reducing…" : "Create logo reductions →"}
-                  {isRefining && <RequestDrop label="Creating logo reductions" />}
+                  {isRefining ? "Refining…" : "Refine selected logos →"}
+                  {isRefining && <RequestDrop label="Refining selected logos" />}
                 </button>
               </div>
             )}
           </div>
-          {refinements.length > 0 && (
-            <button
-              className="stage-action"
-              type="button"
-              onClick={vectorizeSelected}
-              disabled={
-                isVectorizing ||
-                !canReconstruct
-              }
-            >
-            {isVectorizing ? "Creating SVG…" : "Reconstruct selected"}
-            {isVectorizing ? <RequestDrop label="Creating SVG master" /> : <span>→</span>}
-            </button>
+          {(refinements.length > 0 || selectedConceptIds.length > 0) && (
+            <div className="vector-source-bar">
+              {refinements.length > 0 && vectorSourceGeneration && (
+                <div className="segmented vector-source-toggle">
+                  <button
+                    type="button"
+                    className={vectorSourceMode === "original" ? "active" : ""}
+                    onClick={() => setVectorSourceMode("original")}
+                  >
+                    Original concept
+                  </button>
+                  <button
+                    type="button"
+                    className={vectorSourceMode === "refine" ? "active" : ""}
+                    onClick={() => setVectorSourceMode("refine")}
+                  >
+                    Refinement
+                  </button>
+                </div>
+              )}
+              <button
+                className="stage-action"
+                type="button"
+                onClick={vectorizeSelected}
+                disabled={isVectorizing || !canReconstruct}
+              >
+              {isVectorizing ? "Creating SVG…" : "Reconstruct selected"}
+              {isVectorizing ? <RequestDrop label="Creating SVG master" /> : <span>→</span>}
+              </button>
+            </div>
           )}
-          {selectedReduction && !canReconstruct && (
-            <div className="transition-blocked" role="status">
-              <span>Transition blocked</span>
-              <strong>This image is still an architectural render, not an approved flat mark.</strong>
+          {selectedReduction && !juryRecommends && (
+            <div className="transition-advisory" role="status">
+              <span>Jury recommendation</span>
+              <strong>Craft notes available — SVG is still unlocked.</strong>
               <p>
                 {selectedReduction.reviewReason ??
-                  "The reduction did not pass both final juries at 90/100. SVG reconstruction is intentionally unavailable."}
+                  "The dual jury left review notes. You can refine again or build SVG from this mark or the original concept."}
               </p>
               <button type="button" onClick={refineSelected} disabled={isRefining}>
-                {isRefining ? "Reducing again…" : "Try a new reduction"}
-                {isRefining ? <RequestDrop label="Retrying logo reduction" /> : <span>↗</span>}
+                {isRefining ? "Refining again…" : "Optional: try another refinement"}
+                {isRefining ? <RequestDrop label="Retrying logo refinement" /> : <span>↗</span>}
               </button>
             </div>
           )}
@@ -1649,7 +1951,7 @@ export default function LoopenStudio({
             )) : (
               <div className="empty-stage">
                 <strong>Geometric SVG master</strong>
-                <p>GPT redraws the approved symbol as a small set of controlled paths and specifies the Ketchup wordmark separately.</p>
+                <p>Rebuild from the original concept or a refinement — jury notes recommend, they never block.</p>
               </div>
             )}
           </div>
@@ -1662,8 +1964,8 @@ export default function LoopenStudio({
               <p>Identity workspace / Locked</p>
               <h3>The controls appear<br />when the mark is real.</h3>
               <div>
-                <span>Required state</span>
-                <strong>Recommended reduction → Geometric SVG master</strong>
+                <span>Next step</span>
+                <strong>Concept or refine → Geometric SVG master</strong>
               </div>
               <i aria-hidden="true">↘</i>
             </div>
@@ -1679,7 +1981,11 @@ export default function LoopenStudio({
             </div>
             <label>
               <span className="mini-label">Descriptor</span>
-              <input value={descriptor} onChange={(event) => setDescriptor(event.target.value)} />
+              <input
+                value={descriptor}
+                placeholder="Short line under the wordmark"
+                onChange={(event) => setDescriptor(event.target.value)}
+              />
             </label>
             <div className="editor-color-control">
               <span className="mini-label">Color</span>
@@ -1791,9 +2097,6 @@ export default function LoopenStudio({
           <div className="export-row">
             <div><span>03</span><strong>Export system</strong></div>
             <div>
-              {refinements.find((asset) => asset.id === selectedRefinement) && (
-                <a href={refinements.find((asset) => asset.id === selectedRefinement)!.downloadUrl}>Download PNG</a>
-              )}
               <button type="button" onClick={() => void exportLockup("svg")} disabled={!selectedVector || Boolean(exportingKey)}>
                 SVG {exportingKey === `svg-${lockupLayout}-master` ? <RequestDrop label="Exporting SVG" /> : "↓"}
               </button>
@@ -1875,7 +2178,7 @@ export default function LoopenStudio({
             <span>05 / Waiting for a master</span>
             <strong>No placeholder brand system.</strong>
             <p>
-              Approve a flat reduction and create its geometric SVG. Real
+              Approve a refined logo and create its geometric SVG. Real
               applications will then be composed from the actual Ketchup mark,
               wordmark and selected palette.
             </p>
@@ -1887,8 +2190,9 @@ export default function LoopenStudio({
       <section className="manifesto" id="manifesto">
         <p className="eyebrow">Our point of view</p>
         <blockquote>
-          AI should multiply
-          <span>directions,</span> not multiply noise.
+          AI should multiply <span>directions,</span>
+          <br />
+          not multiply noise.
         </blockquote>
         <div className="manifesto-footer">
           <p>
