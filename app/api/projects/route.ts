@@ -15,6 +15,7 @@ import {
   updateRows,
 } from "../../../lib/supabase";
 import { assessLogoImage } from "../../../lib/logo-quality";
+import { createVectorConcepts } from "../../../lib/vector-art-direction";
 
 type ProjectRow = {
   id: string;
@@ -118,11 +119,11 @@ export async function POST(request: Request) {
   const userEmail = user.email;
 
   const runtime = getRuntimeEnv();
-  if (!runtime.CLOUDFLARE_ACCOUNT_ID || !runtime.CLOUDFLARE_API_TOKEN) {
+  if (!runtime.OPENAI_API_KEY || !runtime.RECRAFT_API_KEY) {
     return Response.json(
       {
         error:
-          "Concept generation is not configured. Add the Cloudflare account ID and Workers AI token.",
+          "Professional concept generation is not configured. Add OPENAI_API_KEY and RECRAFT_API_KEY.",
       },
       { status: 503 },
     );
@@ -260,6 +261,145 @@ export async function POST(request: Request) {
       customMetadata: { type: "generation-action" },
     });
   }
+
+  // Concept creation is vector-native. A reasoning model first develops
+  // brand-specific territories, then a separate design-director pass selects
+  // and turns the strongest ideas into execution briefs for Recraft V4.1
+  // Vector. Returned SVG is structurally validated before storage. This
+  // eliminates pseudo-text, raster artifacts and literal prompt illustration
+  // by construction instead of hoping a vision classifier catches them later.
+  try {
+    const previousRows = existingProjectId
+      ? await selectRows<{ direction_title: string }>("logo_generations", {
+          select: "direction_title",
+          project_id: `eq.${projectId}`,
+          user_email: `eq.${userEmail}`,
+          order: "created_at.asc",
+        })
+      : [];
+    const conceptCount: 1 | 4 = existingProjectId ? 1 : 4;
+    const vectorConcepts = await createVectorConcepts(
+      enrichedBrief,
+      runtime.OPENAI_API_KEY,
+      runtime.RECRAFT_API_KEY,
+      conceptCount,
+      previousRows.map((row) => row.direction_title),
+    );
+    const recommendedIndex = vectorConcepts.reduce(
+      (best, concept, index, all) =>
+        concept.score > all[best].score ? index : best,
+      0,
+    );
+    const generations = await Promise.all(
+      vectorConcepts.map(async (concept, index) => {
+        const generationId =
+          existingProjectId && actionId ? actionId : crypto.randomUUID();
+        const objectKey = `users/${userHash}/projects/${projectId}/${generationId}.svg`;
+        const reviewStatus =
+          index === recommendedIndex && concept.score >= 90
+            ? "Recommended"
+            : concept.score >= 88
+              ? "Curated"
+              : "Review";
+        await runtime.FILES.put(objectKey, new TextEncoder().encode(concept.svg), {
+          httpMetadata: { contentType: "image/svg+xml" },
+          customMetadata: {
+            direction: concept.key,
+            model: "gpt-5.6-terra-vector",
+            project: projectId,
+            score: String(concept.score),
+          },
+        });
+        const prompt = [
+          `[LOOPEN_VECTOR_NATIVE]`,
+          `[LOOPEN_QC:${concept.score}]`,
+          `[LOOPEN_STATUS:${reviewStatus}]`,
+          `[LOOPEN_REASON:${encodeURIComponent(concept.verdict)}]`,
+          concept.rationale,
+        ].join("");
+        await insertRow("logo_generations", {
+          id: generationId,
+          project_id: projectId,
+          user_email: userEmail,
+          direction_key: concept.key,
+          direction_title: concept.title,
+          prompt,
+          object_key: objectKey,
+          status: "completed",
+          created_at: Date.now() + index,
+        });
+        return {
+          directionKey: concept.key,
+          directionTitle: concept.title,
+          rationale: concept.thesis,
+          downloadUrl: `/api/images/${generationId}?download=1`,
+          id: generationId,
+          imageUrl: `/api/images/${generationId}`,
+          qualityScore: concept.score,
+          reviewReason: concept.verdict,
+          reviewStatus,
+        };
+      }),
+    );
+    const creativeDirections = vectorConcepts.map((concept) => ({
+      key: concept.key,
+      title: concept.title,
+      thesis: concept.thesis,
+    }));
+    const updatedStrategy = {
+      ...strategy,
+      creativeDirections:
+        existingProjectId
+          ? [...(strategy.creativeDirections ?? []), ...creativeDirections]
+          : creativeDirections,
+    };
+    await updateRows(
+      "logo_projects",
+      { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
+      {
+        brief_json: { ...enrichedBrief, strategy: updatedStrategy },
+        status: "completed",
+        updated_at: Date.now(),
+      },
+    );
+    console.log({
+      event: "vector_logo_batch_completed",
+      projectId,
+      count: generations.length,
+      model: "gpt-5.6-terra",
+      scores: vectorConcepts.map((concept) => concept.score),
+    });
+    return Response.json(
+      { failures: [], generations, projectId, strategy: updatedStrategy },
+      { status: 201 },
+    );
+  } catch (error) {
+    console.error({
+      event: "vector_logo_batch_failed",
+      projectId,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+    await updateRows(
+      "logo_projects",
+      { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
+      { status: "failed", updated_at: Date.now() },
+    );
+    return Response.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Professional vector concept generation failed.",
+        projectId,
+      },
+      { status: 502 },
+    );
+  }
+
+  /*
+   * Legacy FLUX concept path retained below temporarily for migration history.
+   * It is unreachable while the vector-native pipeline above is active.
+   */
   const strategyDirections =
     enrichedBrief.strategy.creativeDirections?.length === 4
       ? enrichedBrief.strategy.creativeDirections

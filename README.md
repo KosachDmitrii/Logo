@@ -8,9 +8,10 @@ Strategy-first AI logo production pipeline.
 React / Vinext
       │
 Cloudflare Worker API
-      ├── Cloudflare Workers AI / FLUX.2 Dev — concept exploration
-      ├── OpenAI GPT Image 2 — selected-concept refinement
-      ├── Recraft API — final SVG
+      ├── OpenAI GPT-5.6 Terra — brand strategy and concept territories
+      ├── OpenAI GPT-5.6 Terra — design-director briefs and vector refinement
+      ├── Recraft V4.1 Vector — editable SVG execution
+      ├── Recraft API — legacy raster-to-vector fallback
       ├── Supabase PostgreSQL — projects and metadata
       └── Cloudflare R2 — PNG and SVG assets
 ```
@@ -49,15 +50,14 @@ sign-in step is required.
 - API keys stay server-side and must never use a `VITE_` prefix.
 # Production quality control
 
-Loopen treats generated images as untrusted candidates:
+Loopen treats generated concepts as untrusted candidates:
 
-- FLUX creates symbol-only artwork; the brand name is composed separately.
-- Moondream 3.1 rejects text, mockups, forbidden clichés, weak silhouettes,
-  and off-strategy candidates before they are saved.
-- A failed candidate is regenerated up to three times.
-- Refined artwork is checked again before Recraft vectorization.
+- A strategy pass creates six brand-specific territories from the complete brief.
+- A separate design-director pass selects and resolves only the strongest routes.
+- Recraft V4.1 Vector executes the selected art-direction briefs as editable SVG.
+- Application validation rejects text, external assets and unsafe SVG markup.
+- Concepts are scored on idea, distinctiveness, craft, small-size clarity and brief fit.
+- Selected concepts remain editable vectors throughout refinement and delivery.
 
-Quality control uses `@cf/moondream/moondream3.1-9B-A2B`, which accepts the
-generated image as a base64 data URI and does not require the separate Meta
-model-agreement request. Quality control fails closed if the vision model is
-not available.
+The older FLUX/Moondream/raster-vectorization path remains only as a compatibility fallback
+for existing raster projects.

@@ -8,6 +8,7 @@ import {
   selectOne,
   updateRows,
 } from "../../../../../lib/supabase";
+import { refineVectorConcept } from "../../../../../lib/vector-art-direction";
 
 type ImageResponse = {
   result?: { image?: string };
@@ -23,8 +24,11 @@ export async function POST(
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const runtime = getRuntimeEnv();
-  if (!runtime.CLOUDFLARE_ACCOUNT_ID || !runtime.CLOUDFLARE_API_TOKEN) {
-    return Response.json({ error: "Cloudflare refinement is not configured." }, { status: 503 });
+  if (
+    !runtime.OPENAI_API_KEY &&
+    (!runtime.CLOUDFLARE_ACCOUNT_ID || !runtime.CLOUDFLARE_API_TOKEN)
+  ) {
+    return Response.json({ error: "Vector refinement is not configured." }, { status: 503 });
   }
 
   const { id: projectId } = await context.params;
@@ -65,6 +69,61 @@ export async function POST(
       if (!source) throw new Error("Source image not found.");
       const sourceBytes = await source.arrayBuffer();
       const brief = row.logo_projects.brief_json;
+      if (
+        source.httpMetadata?.contentType === "image/svg+xml" ||
+        row.object_key.endsWith(".svg")
+      ) {
+        if (!runtime.OPENAI_API_KEY) {
+          throw new Error("OPENAI_API_KEY is required for vector refinement.");
+        }
+        const sourceSvg = new TextDecoder().decode(sourceBytes);
+        const refined = await refineVectorConcept(
+          brief as Parameters<typeof refineVectorConcept>[0],
+          runtime.OPENAI_API_KEY,
+          sourceSvg,
+          row.direction_title,
+          index + 1,
+        );
+        const id = crypto.randomUUID();
+        const objectKey = `users/assets/${user.email.length}/${projectId}/${id}.svg`;
+        await runtime.FILES.put(
+          objectKey,
+          new TextEncoder().encode(refined.svg),
+          { httpMetadata: { contentType: "image/svg+xml" } },
+        );
+        const prompt = [
+          `[LOOPEN_VECTOR_NATIVE]`,
+          `[LOOPEN_QC:${refined.score}]`,
+          `[LOOPEN_REASON:${encodeURIComponent(refined.verdict)}]`,
+          refined.rationale,
+        ].join("");
+        await insertRow("logo_assets", {
+          id,
+          project_id: projectId,
+          user_email: user.email,
+          parent_id: row.id,
+          stage: "refine",
+          label: `Vector refinement ${index + 1}`,
+          provider: "openai",
+          model: "gpt-5.6-terra",
+          prompt,
+          object_key: objectKey,
+          content_type: "image/svg+xml",
+          created_at: Date.now(),
+        });
+        return {
+          id,
+          parentId: row.id,
+          stage: "refine",
+          label: `Vector refinement ${index + 1}`,
+          provider: "openai",
+          model: "gpt-5.6-terra",
+          contentType: "image/svg+xml",
+          qualityScore: refined.score,
+          url: `/api/assets/${id}`,
+          downloadUrl: `/api/assets/${id}?download=1`,
+        };
+      }
       const prompt = buildRefinementPrompt(
         brief as Parameters<typeof buildRefinementPrompt>[0],
         row.direction_title,

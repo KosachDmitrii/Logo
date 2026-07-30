@@ -51,9 +51,11 @@ export async function GET(
       .replace(/[^a-zA-Z0-9_-]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 60);
+    const extension =
+      object.httpMetadata?.contentType === "image/svg+xml" ? "svg" : "png";
     headers.set(
       "Content-Disposition",
-      `attachment; filename="${safeBrand || "loopen"}-${generation.direction_key}.png"`,
+      `attachment; filename="${safeBrand || "loopen"}-${generation.direction_key}.${extension}"`,
     );
   }
 

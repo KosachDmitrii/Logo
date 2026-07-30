@@ -42,13 +42,6 @@ export async function POST(
     }
     const userEmail = user.email;
     const runtime = getRuntimeEnv();
-    if (!runtime.RECRAFT_API_KEY) {
-      return Response.json(
-        { error: "Add RECRAFT_API_KEY to the production environment to create SVG files." },
-        { status: 503 },
-      );
-    }
-
     const { id: projectId } = await context.params;
     let assetId = "";
     try {
@@ -60,11 +53,12 @@ export async function POST(
     const asset = await selectOne<{
       id: string;
       object_key: string;
+      content_type: string;
       logo_projects: { brief_json: { avoid?: string } };
     }>(
       "logo_assets",
       {
-        select: "id,object_key,logo_projects!inner(brief_json)",
+        select: "id,object_key,content_type,logo_projects!inner(brief_json)",
         id: `eq.${assetId}`,
         project_id: `eq.${projectId}`,
         user_email: `eq.${userEmail}`,
@@ -75,6 +69,64 @@ export async function POST(
     const source = await runtime.FILES.get(asset.object_key);
     if (!source) return Response.json({ error: "Refined image data not found." }, { status: 404 });
     const bytes = await source.arrayBuffer();
+    if (
+      asset.content_type === "image/svg+xml" ||
+      asset.object_key.endsWith(".svg")
+    ) {
+      const svg = sanitizeSvg(new TextDecoder().decode(bytes));
+      if (!svg.includes("<svg") || /<text\b|<image\b|<foreignObject\b/i.test(svg)) {
+        return Response.json(
+          { error: "The refined vector failed structural safety checks." },
+          { status: 422 },
+        );
+      }
+      const id = crypto.randomUUID();
+      const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
+      await runtime.FILES.put(objectKey, svg, {
+        httpMetadata: { contentType: "image/svg+xml" },
+      });
+      await insertRow("logo_assets", {
+        id,
+        project_id: projectId,
+        user_email: userEmail,
+        parent_id: asset.id,
+        stage: "vector",
+        label: "Production SVG",
+        provider: "loopen",
+        model: "native-vector",
+        prompt: "Validated native-vector master",
+        object_key: objectKey,
+        content_type: "image/svg+xml",
+        created_at: Date.now(),
+      });
+      await updateRows(
+        "logo_projects",
+        { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
+        { status: "vectorized", updated_at: Date.now() },
+      );
+      return Response.json(
+        {
+          assets: [{
+            id,
+            parentId: asset.id,
+            stage: "vector",
+            label: "Production SVG",
+            provider: "loopen",
+            model: "native-vector",
+            contentType: "image/svg+xml",
+            url: `/api/assets/${id}`,
+            downloadUrl: `/api/assets/${id}?download=1`,
+          }],
+        },
+        { status: 201 },
+      );
+    }
+    if (!runtime.RECRAFT_API_KEY) {
+      return Response.json(
+        { error: "Add RECRAFT_API_KEY to vectorize legacy raster refinements." },
+        { status: 503 },
+      );
+    }
     try {
       const quality = await assessLogoImage(
         arrayBufferToBase64(bytes),
