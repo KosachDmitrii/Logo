@@ -6,6 +6,17 @@ import { getObject } from "@/backend/lib/storage";
 
 export const dynamic = "force-dynamic";
 
+function estimateTextWidth(
+  text: string,
+  fontSize: number,
+  trackingEm: number,
+) {
+  if (!text) return 0;
+  // Approximate grotesk advance width; good enough for canvas sizing.
+  const advance = fontSize * (0.56 + trackingEm);
+  return Math.max(fontSize, text.length * advance);
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -53,8 +64,6 @@ export async function POST(
       : "horizontal";
   const horizontal = layout === "horizontal";
   const iconOnly = layout === "icon";
-  const width = iconOnly ? 512 : horizontal ? 1400 : 900;
-  const height = iconOnly ? 512 : horizontal ? 420 : 900;
   const nameSource = (input.brandName ?? "").trim() || row.logo_projects.brand_name;
   const displayBrand =
     input.wordmarkCase === "upper"
@@ -63,58 +72,119 @@ export async function POST(
         ? nameSource.toLowerCase()
         : nameSource;
   const brand = escapeXml(displayBrand);
-  const descriptor = escapeXml((input.descriptor ?? "").trim().slice(0, 80));
-  const scale = Math.min(2, Math.max(0.7, Number(input.markScale ?? 100) / 100));
+  const descriptorRaw = (input.descriptor ?? "").trim().slice(0, 80);
+  const descriptorUpper = escapeXml(descriptorRaw.toUpperCase());
+
+  // Mirror preview formulas in frontend/loopen-studio.tsx + globals.css
+  const markScaleFactor = Math.min(4, Math.max(0.7, Number(input.markScale ?? 100) / 100));
+  const titleSize = Math.min(192, Math.max(24, Math.round(Number(input.wordmarkSize ?? 112))));
+  const lineSize = Math.min(36, Math.max(6, Math.round(Number(input.descriptorSize ?? 24))));
+  const markSize = Math.round(
+    (layout === "vertical" ? titleSize * 2 : titleSize * 2.2) * markScaleFactor,
+  );
   const typography = {
     editorial: {
       family: "Georgia, Times New Roman, serif",
       weight: "500",
-      spacing: "-3",
+      spacing: -0.03,
     },
     geometric: {
       family: "Futura, Avenir Next, Arial, sans-serif",
       weight: "600",
-      spacing: "-4",
+      spacing: -0.04,
     },
     humanist: {
       family: "Avenir Next, Segoe UI, Arial, sans-serif",
       weight: "500",
-      spacing: "-2",
+      spacing: -0.02,
     },
     modern: {
       family: "Arial, Helvetica, sans-serif",
       weight: "600",
-      spacing: "-5",
+      spacing: -0.05,
     },
   }[input.wordmarkStyle ?? "modern"] ?? {
     family: "Arial, Helvetica, sans-serif",
     weight: "600",
-    spacing: "-5",
+    spacing: -0.05,
   };
-  const scaled = (size: number) => Math.round(size * scale);
   const wordmarkWeight = Math.min(
     800,
     Math.max(400, Math.round(Number(input.wordmarkWeight ?? typography.weight) / 100) * 100),
   );
-  const wordmarkTracking = Math.min(
-    8,
-    Math.max(-8, Number(input.wordmarkTracking ?? typography.spacing)),
-  );
-  const titleSize = Math.min(192, Math.max(24, Math.round(Number(input.wordmarkSize ?? 112))));
-  const lineSize = Math.min(36, Math.max(6, Math.round(Number(input.descriptorSize ?? 24))));
-  const mark = iconOnly
-    ? `<svg x="${(512 - scaled(448)) / 2}" y="${(512 - scaled(448)) / 2}" width="${scaled(448)}" height="${scaled(448)}" viewBox="${escapeXml(viewBox)}">${inner}</svg>`
-    : horizontal
-    ? `<svg x="${210 - scaled(340) / 2}" y="${210 - scaled(340) / 2}" width="${scaled(340)}" height="${scaled(340)}" viewBox="${escapeXml(viewBox)}">${inner}</svg>`
-    : `<svg x="${450 - scaled(440) / 2}" y="${290 - scaled(440) / 2}" width="${scaled(440)}" height="${scaled(440)}" viewBox="${escapeXml(viewBox)}">${inner}</svg>`;
+  const trackingInput = Number(input.wordmarkTracking);
+  const trackingEm = Number.isFinite(trackingInput)
+    ? Math.min(0.08, Math.max(-0.08, trackingInput / 100))
+    : typography.spacing;
+  const brandLetterSpacing = titleSize * trackingEm;
+  const descriptorLetterSpacing = lineSize * 0.28;
+  const markGap = Math.round(titleSize * (horizontal ? 0.28 : 0.32));
+  const descriptorGap = Math.round(titleSize * 0.16);
+  const typeHeight =
+    titleSize * 0.92 + (descriptorRaw ? descriptorGap + lineSize : 0);
+  const brandWidth = estimateTextWidth(displayBrand, titleSize, trackingEm);
+  const descriptorWidth = descriptorRaw
+    ? estimateTextWidth(descriptorRaw.toUpperCase(), lineSize, 0.28)
+    : 0;
+  const typeWidth = Math.max(brandWidth, descriptorWidth);
+  const pad = Math.round(Math.max(24, titleSize * 0.35));
+
+  let width: number;
+  let height: number;
+  let markX: number;
+  let markY: number;
+  let brandX: number;
+  let brandY: number;
+  let descX: number;
+  let descY: number;
+  let textAnchor: "start" | "middle" = "start";
+
+  if (iconOnly) {
+    width = markSize + pad * 2;
+    height = markSize + pad * 2;
+    markX = pad;
+    markY = pad;
+    brandX = 0;
+    brandY = 0;
+    descX = 0;
+    descY = 0;
+  } else if (horizontal) {
+    const rowHeight = Math.max(markSize, typeHeight);
+    width = pad + markSize + markGap + typeWidth + pad;
+    height = pad + rowHeight + pad;
+    markX = pad;
+    markY = pad + (rowHeight - markSize) / 2;
+    brandX = pad + markSize + markGap;
+    const typeTop = pad + (rowHeight - typeHeight) / 2;
+    brandY = typeTop + titleSize * 0.85;
+    descX = brandX;
+    descY = brandY + descriptorGap + lineSize * 0.85;
+    textAnchor = "start";
+  } else {
+    // vertical — same structure as the studio preview
+    const contentWidth = Math.max(markSize, typeWidth);
+    width = pad + contentWidth + pad;
+    height = pad + markSize + markGap + typeHeight + pad;
+    markX = pad + (contentWidth - markSize) / 2;
+    markY = pad;
+    brandX = pad + contentWidth / 2;
+    brandY = pad + markSize + markGap + titleSize * 0.85;
+    descX = brandX;
+    descY = brandY + descriptorGap + lineSize * 0.85;
+    textAnchor = "middle";
+  }
+
+  const mark = `<svg x="${markX}" y="${markY}" width="${markSize}" height="${markSize}" viewBox="${escapeXml(viewBox)}" preserveAspectRatio="xMidYMid meet">${inner}</svg>`;
   const text = iconOnly
     ? ""
-    : horizontal
-    ? `<text x="440" y="215" font-family="${typography.family}" font-size="${titleSize}" font-weight="${wordmarkWeight}" letter-spacing="${wordmarkTracking}" fill="${color}">${brand}</text>
-       ${descriptor ? `<text x="446" y="${215 + Math.round(lineSize * 2.4)}" font-family="Arial, Helvetica, sans-serif" font-size="${lineSize}" letter-spacing="9" fill="${color}">${descriptor.toUpperCase()}</text>` : ""}`
-    : `<text x="450" y="650" text-anchor="middle" font-family="${typography.family}" font-size="${titleSize}" font-weight="${wordmarkWeight}" letter-spacing="${wordmarkTracking}" fill="${color}">${brand}</text>
-       ${descriptor ? `<text x="450" y="${650 + Math.round(lineSize * 2.4)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${lineSize}" letter-spacing="9" fill="${color}">${descriptor.toUpperCase()}</text>` : ""}`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    : `<text x="${brandX}" y="${brandY}" text-anchor="${textAnchor}" font-family="${typography.family}" font-size="${titleSize}" font-weight="${wordmarkWeight}" letter-spacing="${brandLetterSpacing}" fill="${color}">${brand}</text>
+       ${
+         descriptorRaw
+           ? `<text x="${descX}" y="${descY}" text-anchor="${textAnchor}" font-family="Arial, Helvetica, sans-serif" font-size="${lineSize}" letter-spacing="${descriptorLetterSpacing}" fill="${color}">${descriptorUpper}</text>`
+           : ""
+       }`;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(width)}" height="${Math.ceil(height)}" viewBox="0 0 ${Math.ceil(width)} ${Math.ceil(height)}">
   <title>${brand} logo</title>
   ${mark}
   ${text}
