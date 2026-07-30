@@ -133,7 +133,7 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
 });
 
 test("ships the complete refinement and vector production workflow", async () => {
-  const [studio, refine, vectorize, exportRoute, assetRoute, migration] =
+  const [studio, refine, vectorize, exportRoute, assetRoute, migration, artDirection, creative] =
     await Promise.all([
       readFile(new URL("../app/loopen-studio.tsx", import.meta.url), "utf8"),
       readFile(
@@ -156,11 +156,14 @@ test("ships the complete refinement and vector production workflow", async () =>
         ),
         "utf8",
       ),
+      readFile(new URL("../lib/vector-art-direction.ts", import.meta.url), "utf8"),
+      readFile(new URL("../lib/gemini-creative.ts", import.meta.url), "utf8"),
     ]);
 
   assert.match(studio, /Project history/);
-  assert.match(studio, /Refine selected logos/);
+  assert.match(studio, /Reduce .* selected|Reducing/);
   assert.match(studio, /Reconstruct selected/);
+  assert.doesNotMatch(studio, /Refine selected logos →/);
   assert.match(studio, /Brand guide \/ PDF/);
   assert.match(studio, /Industry \*/);
   assert.match(studio, /What the company does \*/);
@@ -168,14 +171,32 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(studio, /Brief template/);
   assert.match(studio, /BRIEF_TEMPLATES/);
   assert.match(studio, /applyBriefTemplate/);
+  assert.match(studio, /New session/);
+  assert.match(studio, /resetStudioToFresh/);
+  assert.match(studio, /clearBriefTemplate/);
   assert.match(studio, /Blank \/ custom brief/);
+  assert.match(studio, /Blank brief — fill in your own details/);
+  assert.match(studio, /Studio reset — as if you opened Loopen/);
   assert.match(studio, /Northline/);
   assert.match(studio, /Voltara/);
+  assert.match(studio, /Muchachos/);
+  assert.match(studio, /Barber shop/);
   assert.match(studio, /e\.g\. Acme/);
   assert.doesNotMatch(studio, /Quick start templates/);
   assert.match(studio, /Core idea \*/);
   assert.match(studio, /Competitors/);
-  assert.match(studio, /Icon only/);
+  assert.match(studio, /sessionStorage/);
+  assert.match(studio, /STUDIO_SESSION_KEY|loopen-studio-session-v1/);
+  assert.match(studio, /readStudioSession|writeStudioSession/);
+  assert.match(studio, /sessionReady/);
+  assert.match(studio, /Studio session restored/);
+  assert.match(studio, /pagehide/);
+  assert.match(studio, /productionLocked/);
+  assert.match(studio, /setProductionLocked\(true\)/);
+  assert.doesNotMatch(studio, /localStorage\.setItem\(STUDIO_SESSION_KEY/);
+  assert.doesNotMatch(studio, /localStorage\.getItem\(STUDIO_SESSION_KEY/);
+  assert.match(studio, /localStorage\.removeItem\(STUDIO_SESSION_KEY/);
+  assert.match(studio, /Icon only|title=\"Icon only\"/);
   assert.match(studio, /Original concept/);
   assert.match(studio, /vectorSourceMode/);
   assert.match(studio, /Jury recommendation/);
@@ -201,6 +222,14 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.doesNotMatch(studio, /\/2 selected/);
   assert.match(vectorize, /external\.api\.recraft\.ai/);
   assert.match(vectorize, /reconstructArchitecturalLogoSvg/);
+  assert.match(artDirection, /openai_incomplete_reasoning_retry/);
+  assert.match(artDirection, /max_output_tokens: attempt\.maxOutputTokens/);
+  assert.match(artDirection, /FIDELITY FIRST/);
+  assert.match(artDirection, /openai_svg_fidelity_retry/);
+  assert.match(artDirection, /maxItems: 8/);
+  assert.doesNotMatch(artDirection, /Do not trace pixels/);
+  assert.match(creative, /normalizeJuryScores/);
+  assert.match(creative, /No written critique returned/);
   assert.match(vectorize, /LOOPEN_GEOMETRIC_RECONSTRUCTION/);
   assert.match(vectorize, /native-vector/);
   assert.match(vectorize, /RECRAFT_API_KEY/);
@@ -213,6 +242,22 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.doesNotMatch(vectorize, /imageToImage/);
   assert.match(exportRoute, /sanitizeSvg/);
   assert.match(exportRoute, /iconOnly/);
+  assert.match(exportRoute, /prepareLockupMarkSvg/);
+  assert.match(exportRoute, /brandName/);
+  assert.match(studio, /lockup-stage/);
+  assert.match(studio, /lockup-rail/);
+  assert.match(studio, /rail-kicker/);
+  assert.match(studio, /Icon only/);
+  assert.match(studio, /SizeSquareSelect/);
+  assert.match(studio, /size-square-trigger/);
+  assert.match(studio, /editor-field-line/);
+  assert.match(studio, /wordmarkSize/);
+  assert.match(studio, /descriptorSize/);
+  assert.match(studio, /LockupMark/);
+  assert.match(studio, /type=\"color\"/);
+  assert.match(exportRoute, /wordmarkSize/);
+  assert.match(exportRoute, /descriptorSize/);
+  assert.doesNotMatch(artDirection, /fill="#F7F4ED"/);
   assert.match(assetRoute, /Content-Disposition/);
   assert.match(migration, /create table if not exists public\.logo_assets/i);
 });

@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { prepareLockupMarkSvg } from "../lib/lockup-svg";
 
 export type StudioUser = {
   displayName: string;
@@ -257,9 +258,244 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     personalities: ["Technical", "Intelligent", "Bold", "Precise", "Calm"],
     descriptor: "Power made practical",
   },
+  {
+    id: "muchachos",
+    label: "Muchachos",
+    industryLabel: "Barber shop",
+    brandName: "Muchachos",
+    coreIdea:
+      "Muchachos is a contemporary barber shop built on sharp craft, masculine hospitality and neighbourhood ritual. The identity should feel confident and brotherly without becoming a cliché scissors brand — a mark that owns the chair, the line-up and the after-hours atmosphere.",
+    industry: "Barber shops, men's grooming and neighbourhood hospitality",
+    companyDescription:
+      "Muchachos is an independent barber shop offering classic and modern cuts, fades, beard work and grooming rituals in a social, well-run space. The shop mixes precise technique with warm service: walk-ins and bookings, good music, clean stations and a culture where regulars feel known. Muchachos wants to feel like the best chair on the block — sharp, welcoming and culturally specific.",
+    audience:
+      "Men and style-conscious locals who want a reliable cut, a strong vibe and a shop that feels social rather than clinical. They care about craft, atmosphere, consistency and a brand that looks as sharp as the finish.",
+    positioning:
+      "A modern barber brand between old-school nostalgia kitsch and luxury spa grooming. Muchachos is bold but friendly, precise without feeling sterile, and culturally warm without becoming costume Latino. The identity should work on a storefront, apron, Instagram avatar and appointment card.",
+    competitors:
+      "Reference landscape: Blind Barber, Schorem, Fellow Barber, local independent barbershops and strong neighbourhood grooming rooms. Do not imitate their marks; use them only as a benchmark for craft credibility, shop culture and street-level presence.",
+    colorApproach: "propose",
+    brandColors: "",
+    colorMood:
+      "Deep barbershop blacks and warm wood neutrals with one sharp accent; masculine, intimate and nightlife-adjacent without looking cheap or neon.",
+    visualDirection:
+      "Create a bold, flat black symbol for a contemporary barber shop named Muchachos. Suggest brotherhood, a precise cut, rhythm, chair craft or neighbourhood signal without drawing scissors, combs, razors, mustaches or barber poles. Prioritise an original compact silhouette, strong gestalt and one memorable idea that works as a storefront mark, stamp and favicon.",
+    usage:
+      "Primary: storefront fascia, window vinyl, social avatar, booking app icon, aprons and appointment cards. Secondary: product labels, loyalty stamps, merch, mirrors and favicon. Required variants: symbol only, horizontal and vertical lockups, positive and reversed monochrome.",
+    avoid:
+      "Avoid scissors, combs, razors, barber poles, mustaches, skulls, crowns and generic hipster badges. No 3D rendering, perspective, mockup, gradients, shadows, textures, fine illustrative detail, text, letters or pseudo-text inside the generated symbol.",
+    personalities: ["Bold", "Warm", "Precise", "Playful", "Editorial"],
+    descriptor: "Sharp cuts. Good company.",
+  },
 ];
 
 const DEFAULT_BRIEF = BRIEF_TEMPLATES[0];
+
+const STUDIO_SESSION_KEY = "loopen-studio-session-v1";
+
+type StudioSessionSnapshot = {
+  v: 1;
+  savedAt: number;
+  projectId: string | null;
+  activeTemplateId: string;
+  brandName: string;
+  coreIdea: string;
+  industry: string;
+  companyDescription: string;
+  audience: string;
+  positioning: string;
+  competitors: string;
+  colorApproach: NonNullable<PremiumBrief["colorApproach"]>;
+  brandColors: string;
+  colorMood: string;
+  visualDirection: string;
+  usage: string;
+  avoid: string;
+  personalities: string[];
+  strategy: BrandStrategy | null;
+  selectedConcept: string;
+  selectedConceptIds: string[];
+  generatedConcepts: GeneratedConcept[];
+  assets: StudioAsset[];
+  selectedRefinement: string;
+  selectedVector: string;
+  /** When true, stages 04–05 stay cleared (e.g. Reduce in progress). */
+  productionLocked: boolean;
+  vectorSourceMode: "refine" | "original";
+  lockupLayout: "horizontal" | "vertical" | "icon";
+  lockupColor: string;
+  wordmarkName: string;
+  descriptor: string;
+  wordmarkStyle: string;
+  wordmarkCase: "original" | "upper" | "lower";
+  wordmarkWeight: number;
+  wordmarkTracking: number;
+  wordmarkSize: number;
+  descriptorSize: number;
+  markScale: number;
+};
+
+const WORDMARK_SIZE_OPTIONS = [
+  { value: "48", label: "48" },
+  { value: "64", label: "64" },
+  { value: "80", label: "80" },
+  { value: "96", label: "96" },
+  { value: "112", label: "112" },
+  { value: "128", label: "128" },
+  { value: "144", label: "144" },
+  { value: "160", label: "160" },
+];
+
+const DESCRIPTOR_SIZE_OPTIONS = [
+  { value: "12", label: "12" },
+  { value: "14", label: "14" },
+  { value: "16", label: "16" },
+  { value: "18", label: "18" },
+  { value: "20", label: "20" },
+  { value: "22", label: "22" },
+  { value: "24", label: "24" },
+  { value: "26", label: "26" },
+  { value: "28", label: "28" },
+];
+
+function readStudioSession(): StudioSessionSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    // Drop any leftover localStorage draft from older builds.
+    window.localStorage.removeItem(STUDIO_SESSION_KEY);
+    const raw = window.sessionStorage.getItem(STUDIO_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StudioSessionSnapshot;
+    if (parsed?.v !== 1) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeStudioSession(snapshot: StudioSessionSnapshot) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(STUDIO_SESSION_KEY, JSON.stringify(snapshot));
+    window.localStorage.removeItem(STUDIO_SESSION_KEY);
+  } catch {
+    // Quota / private mode — session restore is best-effort.
+  }
+}
+
+function clearStudioSession() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(STUDIO_SESSION_KEY);
+    window.localStorage.removeItem(STUDIO_SESSION_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function LockupMark({
+  alt,
+  color,
+  scale,
+  url,
+}: {
+  alt: string;
+  color: string;
+  scale: number;
+  url: string;
+}) {
+  const [src, setSrc] = useState(url);
+
+  useEffect(() => {
+    let revoked: string | null = null;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Mark fetch failed.");
+        const text = await response.text();
+        const tinted = prepareLockupMarkSvg(text, color);
+        const objectUrl = URL.createObjectURL(
+          new Blob([tinted], { type: "image/svg+xml" }),
+        );
+        revoked = objectUrl;
+        if (!cancelled) setSrc(objectUrl);
+      } catch {
+        if (!cancelled) setSrc(url);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (revoked) URL.revokeObjectURL(revoked);
+    };
+  }, [url, color]);
+
+  return (
+    <img
+      className="lockup-mark"
+      src={src}
+      alt={alt}
+      style={{ transform: `scale(${scale / 100})` }}
+    />
+  );
+}
+
+function SizeSquareSelect({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string;
+  onChange: (value: number) => void;
+  options: Array<{ label: string; value: string }>;
+  value: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [open]);
+
+  return (
+    <div className="size-square" ref={root}>
+      <button
+        type="button"
+        className="size-square-trigger"
+        aria-expanded={open}
+        aria-label={`${label} size ${value}px`}
+        title={`${label} size`}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {value}
+      </button>
+      {open && (
+        <div className="size-square-menu" role="listbox" aria-label={`${label} size`}>
+          {options.map((option) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={option.value === String(value)}
+              key={option.value}
+              onClick={() => {
+                onChange(Number(option.value));
+                setOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CreativeSelect({
   label,
@@ -376,6 +612,7 @@ export default function LoopenStudio({
   const [isMethodOpen, setIsMethodOpen] = useState(false);
   const [selectedRefinement, setSelectedRefinement] = useState("");
   const [selectedVector, setSelectedVector] = useState("");
+  const [productionLocked, setProductionLocked] = useState(false);
   const [vectorSourceMode, setVectorSourceMode] = useState<"refine" | "original">(
     "refine",
   );
@@ -383,15 +620,19 @@ export default function LoopenStudio({
     "horizontal",
   );
   const [lockupColor, setLockupColor] = useState("#201f1e");
+  const [wordmarkName, setWordmarkName] = useState("");
   const [descriptor, setDescriptor] = useState("");
   const [wordmarkStyle, setWordmarkStyle] = useState("modern");
   const [wordmarkCase, setWordmarkCase] = useState<"original" | "upper" | "lower">("original");
   const [wordmarkWeight, setWordmarkWeight] = useState(600);
   const [wordmarkTracking, setWordmarkTracking] = useState(-3);
+  const [wordmarkSize, setWordmarkSize] = useState(112);
+  const [descriptorSize, setDescriptorSize] = useState(24);
   const [markScale, setMarkScale] = useState(100);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
   const confirmResolver = useRef<((confirmed: boolean) => void) | null>(null);
   const historyListRef = useRef<HTMLDivElement>(null);
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
     if (!isHistoryOpen) return;
@@ -487,12 +728,20 @@ export default function LoopenStudio({
   const selectedVectorAsset = vectors.find(
     (asset) => asset.id === selectedVector,
   );
+  const lockupPalette = Array.from(
+    new Map(
+      (strategy?.palette ?? ["#201F1E", "#F3F0EA", "#C84A32", "#FFFFFF"]).map((color) => [
+        color.toLowerCase(),
+        color,
+      ]),
+    ).values(),
+  );
   const displayBrandName =
     wordmarkCase === "upper"
-      ? (brandName || "Brand name").toUpperCase()
+      ? (wordmarkName || brandName || "Brand name").toUpperCase()
       : wordmarkCase === "lower"
-        ? (brandName || "Brand name").toLowerCase()
-        : brandName || "Brand name";
+        ? (wordmarkName || brandName || "Brand name").toLowerCase()
+        : wordmarkName || brandName || "Brand name";
   const focusedGeneration = generatedConcepts.find(
     (item) => item.directionKey === selectedConcept,
   );
@@ -501,6 +750,187 @@ export default function LoopenStudio({
     if (!user) return;
     void loadHistory();
   }, [user]);
+
+  useEffect(() => {
+    const snapshot = readStudioSession();
+    if (snapshot) {
+      setProjectId(snapshot.projectId);
+      setActiveTemplateId(snapshot.activeTemplateId ?? "");
+      setBrandName(snapshot.brandName ?? "");
+      setCoreIdea(snapshot.coreIdea ?? "");
+      setIndustry(snapshot.industry ?? "");
+      setCompanyDescription(snapshot.companyDescription ?? "");
+      setAudience(snapshot.audience ?? "");
+      setPositioning(snapshot.positioning ?? "");
+      setCompetitors(snapshot.competitors ?? "");
+      setColorApproach(snapshot.colorApproach ?? "propose");
+      setBrandColors(snapshot.brandColors ?? "");
+      setColorMood(snapshot.colorMood ?? "");
+      setVisualDirection(snapshot.visualDirection ?? "");
+      setUsage(snapshot.usage ?? "");
+      setAvoid(snapshot.avoid ?? "");
+      setPersonalities(snapshot.personalities ?? []);
+      setStrategy(snapshot.strategy ?? null);
+      setSelectedConcept(snapshot.selectedConcept || "continuous");
+      setSelectedConceptIds(snapshot.selectedConceptIds ?? []);
+      setGeneratedConcepts(snapshot.generatedConcepts ?? []);
+      setAssets(snapshot.assets ?? []);
+      setSelectedRefinement(snapshot.selectedRefinement ?? "");
+      setSelectedVector(snapshot.selectedVector ?? "");
+      setProductionLocked(Boolean(snapshot.productionLocked));
+      setVectorSourceMode(snapshot.vectorSourceMode ?? "refine");
+      setLockupLayout(snapshot.lockupLayout ?? "horizontal");
+      setLockupColor(snapshot.lockupColor ?? "#201f1e");
+      setWordmarkName(snapshot.wordmarkName ?? snapshot.brandName ?? "");
+      setDescriptor(snapshot.descriptor ?? "");
+      setWordmarkStyle(snapshot.wordmarkStyle ?? "modern");
+      setWordmarkCase(snapshot.wordmarkCase ?? "original");
+      setWordmarkWeight(snapshot.wordmarkWeight ?? 600);
+      setWordmarkTracking(snapshot.wordmarkTracking ?? -3);
+      setWordmarkSize(snapshot.wordmarkSize ?? 112);
+      setDescriptorSize(snapshot.descriptorSize ?? 24);
+      setMarkScale(snapshot.markScale ?? 100);
+      if (snapshot.projectId || snapshot.generatedConcepts?.length) {
+        setNotice("Studio session restored after reload.");
+      }
+      // While production is locked (Reduce reset), trust local snapshot only —
+      // do not rehydrate old refine/SVG assets from the server.
+      if (snapshot.projectId && !snapshot.productionLocked) {
+        void (async () => {
+          try {
+            const response = await fetch(`/api/projects/${snapshot.projectId}`);
+            if (!response.ok) return;
+            const payload = (await response.json()) as {
+              generations?: GeneratedConcept[];
+              assets?: StudioAsset[];
+            };
+            if (payload.generations?.length) {
+              setGeneratedConcepts(payload.generations);
+            }
+            if (payload.assets) {
+              setAssets(payload.assets);
+              const refineIds = new Set(
+                payload.assets
+                  .filter((asset) => asset.stage === "refine")
+                  .map((asset) => asset.id),
+              );
+              const vectorIds = new Set(
+                payload.assets
+                  .filter((asset) => asset.stage === "vector")
+                  .map((asset) => asset.id),
+              );
+              setSelectedRefinement((current) =>
+                current && refineIds.has(current)
+                  ? current
+                  : payload.assets!.filter((asset) => asset.stage === "refine").at(-1)
+                      ?.id ?? "",
+              );
+              setSelectedVector((current) =>
+                current && vectorIds.has(current)
+                  ? current
+                  : payload.assets!.filter((asset) => asset.stage === "vector").at(-1)
+                      ?.id ?? "",
+              );
+            }
+          } catch {
+            // Keep local snapshot if the API is briefly unavailable after wake.
+          }
+        })();
+      }
+    }
+    setSessionReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionReady) return;
+    const snapshot: StudioSessionSnapshot = {
+      v: 1,
+      savedAt: Date.now(),
+      projectId,
+      activeTemplateId,
+      brandName,
+      coreIdea,
+      industry,
+      companyDescription,
+      audience,
+      positioning,
+      competitors,
+      colorApproach,
+      brandColors,
+      colorMood,
+      visualDirection,
+      usage,
+      avoid,
+      personalities,
+      strategy,
+      selectedConcept,
+      selectedConceptIds,
+      generatedConcepts,
+      assets,
+      selectedRefinement,
+      selectedVector,
+      productionLocked,
+      vectorSourceMode,
+      lockupLayout,
+      lockupColor,
+      wordmarkName,
+      descriptor,
+      wordmarkStyle,
+      wordmarkCase,
+      wordmarkWeight,
+      wordmarkTracking,
+      wordmarkSize,
+      descriptorSize,
+      markScale,
+    };
+    const timer = window.setTimeout(() => writeStudioSession(snapshot), 250);
+    const flush = () => writeStudioSession(snapshot);
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [
+    sessionReady,
+    projectId,
+    activeTemplateId,
+    brandName,
+    coreIdea,
+    industry,
+    companyDescription,
+    audience,
+    positioning,
+    competitors,
+    colorApproach,
+    brandColors,
+    colorMood,
+    visualDirection,
+    usage,
+    avoid,
+    personalities,
+    strategy,
+    selectedConcept,
+    selectedConceptIds,
+    generatedConcepts,
+    assets,
+    selectedRefinement,
+    selectedVector,
+    productionLocked,
+    vectorSourceMode,
+    lockupLayout,
+    lockupColor,
+    wordmarkName,
+    descriptor,
+    wordmarkStyle,
+    wordmarkCase,
+    wordmarkWeight,
+    wordmarkTracking,
+    wordmarkSize,
+    descriptorSize,
+    markScale,
+  ]);
 
   useEffect(() => {
     if (!confirmDialog) return;
@@ -531,8 +961,11 @@ export default function LoopenStudio({
   async function syncProjectAssets(options?: {
     preferRefinementId?: string;
     preferVectorId?: string;
+    /** Bypass productionLocked (needed right after unlock in the same tick). */
+    allowWhileLocked?: boolean;
   }) {
     if (!projectId) return;
+    if (productionLocked && !options?.allowWhileLocked) return;
     const response = await fetch(`/api/projects/${projectId}`);
     if (!response.ok) return;
     const payload = (await response.json()) as {
@@ -586,6 +1019,7 @@ export default function LoopenStudio({
     const loadedGenerations = payload.generations ?? [];
     setProjectId(id);
     setBrandName(payload.project.brandName);
+    setWordmarkName(payload.project.brandName);
     setCoreIdea(payload.project.brief.coreIdea ?? "");
     setIndustry(payload.project.brief.industry ?? "");
     setCompanyDescription(payload.project.brief.companyDescription ?? "");
@@ -612,6 +1046,7 @@ export default function LoopenStudio({
     const latestVector = loadedAssets.filter((asset) => asset.stage === "vector").at(-1);
     setSelectedRefinement(latestRefine?.id ?? "");
     setSelectedVector(latestVector?.id ?? "");
+    setProductionLocked(false);
     setIsHistoryOpen(false);
     setNotice(`${payload.project.brandName} project loaded.`);
     document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth" });
@@ -653,7 +1088,9 @@ export default function LoopenStudio({
       setAssets([]);
       setSelectedRefinement("");
       setSelectedVector("");
+      setProductionLocked(false);
       setStrategy(null);
+      clearStudioSession();
     }
     setNotice(`${project.brandName} was permanently deleted.`);
   }
@@ -667,9 +1104,77 @@ export default function LoopenStudio({
     );
   }
 
+  function clearBriefTemplate() {
+    setActiveTemplateId("");
+    setBrandName("");
+    setWordmarkName("");
+    setCoreIdea("");
+    setIndustry("");
+    setCompanyDescription("");
+    setAudience("");
+    setPositioning("");
+    setCompetitors("");
+    setColorApproach("propose");
+    setBrandColors("");
+    setColorMood("");
+    setVisualDirection("");
+    setUsage("");
+    setAvoid("");
+    setPersonalities([]);
+    setDescriptor("");
+    setStrategy(null);
+    setNotice("Blank brief — fill in your own details.");
+  }
+
+  async function resetStudioToFresh() {
+    const confirmed = await requestConfirmation({
+      kicker: "Session / Fresh start",
+      title: "Reset the studio to first open?",
+      body: "This clears the brief, concepts, refinements, SVG and lockup settings in this tab. Saved projects in history stay on the server.",
+      confirmLabel: "Reset studio",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
+    clearBriefTemplate();
+    setSelectedConcept("continuous");
+    setSelectedConceptIds([]);
+    setGeneratedConcepts([]);
+    setProjectId(null);
+    setIsStrategyOpen(false);
+    setIsGenerating(false);
+    setIsGeneratingMore(false);
+    setDiversityWarning("");
+    setAssets([]);
+    setIsHistoryOpen(false);
+    setDeletingProjectId("");
+    setIsRefining(false);
+    setIsVectorizing(false);
+    setExportingKey("");
+    setIsMethodOpen(false);
+    setSelectedRefinement("");
+    setSelectedVector("");
+    setProductionLocked(false);
+    setVectorSourceMode("refine");
+    setLockupLayout("horizontal");
+    setLockupColor("#201f1e");
+    setWordmarkStyle("modern");
+    setWordmarkCase("original");
+    setWordmarkWeight(600);
+    setWordmarkTracking(-3);
+    setWordmarkSize(112);
+    setDescriptorSize(24);
+    setMarkScale(100);
+    setConfirmDialog(null);
+    clearStudioSession();
+    setNotice("Studio reset — as if you opened Loopen for the first time.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function applyBriefTemplate(template: BriefTemplate) {
     setActiveTemplateId(template.id);
     setBrandName(template.brandName);
+    setWordmarkName(template.brandName);
     setCoreIdea(template.coreIdea);
     setIndustry(template.industry);
     setCompanyDescription(template.companyDescription);
@@ -741,6 +1246,7 @@ export default function LoopenStudio({
       setAssets([]);
       setSelectedRefinement("");
       setSelectedVector("");
+      setProductionLocked(false);
       setSelectedConcept(payload.generations[0].directionKey);
       setSelectedConceptIds([]);
       setIsGenerating(false);
@@ -823,23 +1329,34 @@ export default function LoopenStudio({
       }
     }
     const isRetry = Object.keys(critiquesByGenerationId).length > 0;
+    const previousAssets = assets;
+    const previousRefinement = selectedRefinement;
+    const previousVector = selectedVector;
+    const previousLocked = productionLocked;
+
+    // Clear and lock 04–05 immediately on Reduce click (restore if cancelled).
+    setProductionLocked(true);
+    setAssets([]);
+    setSelectedRefinement("");
+    setSelectedVector("");
+
     if (!(await requestConfirmation({
       kicker: "Stage 02 / Paid generation",
       title: isRetry ? "Retry refinement with jury notes." : "Architecture becomes identity.",
       body: isRetry
-        ? `Nano Banana Pro will refine again using the last dual-jury critique. Production stages 04–05 will clear and stay locked until this pass finishes.`
-        : `Nano Banana Pro will refine the selected concept. Stages 04–05 (refinement, SVG, lockup and brand system) will clear and lock for this new pass.`,
+        ? `Nano Banana Pro will refine again using the last dual-jury critique. Production stages 04–05 stay cleared until SVG is rebuilt.`
+        : `Nano Banana Pro will refine the selected concept. Stages 04–05 (refinement, SVG, lockup and brand system) stay cleared until SVG is rebuilt.`,
       confirmLabel: isRetry
         ? "Retry refinement"
         : `Refine ${selectedConceptIds.length} concept${selectedConceptIds.length > 1 ? "s" : ""}`,
-    }))) return;
-    const previousAssets = assets;
-    const previousRefinement = selectedRefinement;
-    const previousVector = selectedVector;
-    // Reset production pipeline — SVG / lockup / system stay closed until rebuilt.
-    setAssets([]);
-    setSelectedRefinement("");
-    setSelectedVector("");
+    }))) {
+      setAssets(previousAssets);
+      setSelectedRefinement(previousRefinement);
+      setSelectedVector(previousVector);
+      setProductionLocked(previousLocked);
+      return;
+    }
+
     setIsRefining(true);
     setNotice(
       isRetry
@@ -864,15 +1381,18 @@ export default function LoopenStudio({
         setAssets(previousAssets);
         setSelectedRefinement(previousRefinement);
         setSelectedVector(previousVector);
+        setProductionLocked(previousLocked);
         showRequestError(
           "Logo refinement",
           payload.error ?? "Refinement could not be completed.",
         );
         return;
       }
+      // New refine only — keep vectors/lockup/system closed until Reconstruct.
       setAssets(payload.assets);
       setSelectedRefinement(payload.assets[0].id);
       setSelectedVector("");
+      setVectorSourceMode("refine");
       setNotice(
         `${payload.assets.length} refined logo${payload.assets.length > 1 ? "s are" : " is"} ready. Reconstruct SVG when you want to unlock the brand system.`,
       );
@@ -881,6 +1401,7 @@ export default function LoopenStudio({
       setAssets(previousAssets);
       setSelectedRefinement(previousRefinement);
       setSelectedVector(previousVector);
+      setProductionLocked(previousLocked);
       showRequestError(
         "Logo refinement",
         error instanceof Error
@@ -907,8 +1428,8 @@ export default function LoopenStudio({
         ? "Build SVG from the original concept."
         : "Commit to the geometry.",
       body: useOriginal
-        ? `"${sourceLabel}" will be rebuilt as controlled SVG paths from the exploration image. Refine remains optional — jury notes are recommendations only.`
-        : `"${sourceLabel}" will be rebuilt as a controlled set of closed SVG paths. Jury status is advisory and will not block this step.`,
+        ? `"${sourceLabel}" (exploration) will be rebuilt as SVG paths that match its silhouette. Prefer Refinement when a craft pass exists — Original often drifts more.`
+        : `"${sourceLabel}" will be rebuilt as SVG paths that match its silhouette. Light geometric cleanup only — no new concept.`,
       confirmLabel: "Build SVG master",
     }))) return;
     setIsVectorizing(true);
@@ -943,7 +1464,7 @@ export default function LoopenStudio({
         ...payload.assets!,
       ]);
       setSelectedVector(payload.assets[0].id);
-      await syncProjectAssets({ preferVectorId: payload.assets[0].id });
+      setProductionLocked(false);
       setNotice("Production SVGs are ready. Adjust and export your lockup.");
       void loadHistory();
     } catch (error) {
@@ -975,11 +1496,14 @@ export default function LoopenStudio({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         assetId: selectedVector,
+        brandName: wordmarkName || brandName,
         color: lockupColor,
         descriptor,
         layout,
         markScale,
         wordmarkCase,
+        wordmarkSize,
+        descriptorSize,
         wordmarkWeight,
         wordmarkTracking,
         wordmarkStyle,
@@ -1043,11 +1567,44 @@ export default function LoopenStudio({
       return;
     }
     window.open(
-      `/api/projects/${projectId}/brand-guide?assetId=${encodeURIComponent(selectedVector)}&color=${encodeURIComponent(lockupColor)}&descriptor=${encodeURIComponent(descriptor)}`,
+      `/api/projects/${projectId}/brand-guide?assetId=${encodeURIComponent(selectedVector)}&color=${encodeURIComponent(lockupColor)}&descriptor=${encodeURIComponent(descriptor)}&name=${encodeURIComponent(wordmarkName || brandName)}`,
       "_blank",
       "noopener,noreferrer",
     );
     setNotice("Brand guide opened. Choose Print → Save as PDF.");
+  }
+
+  async function deleteConcept(generation: GeneratedConcept) {
+    const confirmed = await requestConfirmation({
+      kicker: "Permanent action / Concept",
+      title: `Delete ${generation.directionTitle}?`,
+      body: "This concept and any linked assets will be permanently removed. No replacement will be generated.",
+      confirmLabel: "Delete concept",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
+    const response = await fetch(`/api/images/${generation.id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      showRequestError(
+        "Delete concept",
+        payload?.error ?? "Concept could not be deleted.",
+      );
+      return;
+    }
+
+    setGeneratedConcepts((current) =>
+      current.filter((item) => item.id !== generation.id),
+    );
+    setSelectedConceptIds((current) =>
+      current.filter((id) => id !== generation.id),
+    );
+    setNotice("Concept deleted. No replacement was generated.");
   }
 
   async function selectGeneratedConcept(generationId: string) {
@@ -1253,17 +1810,26 @@ export default function LoopenStudio({
           <a href="#concepts">Method</a>
           <a href="#manifesto">About</a>
         </nav>
-        <button
-          className="project-pill"
-          type="button"
-          onClick={() =>
-            user ? setIsHistoryOpen((current) => !current) : (window.location.href = signInPath)
-          }
-          title={user ? "Open project history" : "Sign in with ChatGPT"}
-        >
-          <span className="online-dot" />
-          {user ? `${projects.length} projects` : "Sign in"}
-        </button>
+        <div className="header-actions">
+          <button
+            className="session-reset"
+            type="button"
+            onClick={() => void resetStudioToFresh()}
+          >
+            New session
+          </button>
+          <button
+            className="project-pill"
+            type="button"
+            onClick={() =>
+              user ? setIsHistoryOpen((current) => !current) : (window.location.href = signInPath)
+            }
+            title={user ? "Open project history" : "Sign in with ChatGPT"}
+          >
+            <span className="online-dot" />
+            {user ? `${projects.length} projects` : "Sign in"}
+          </button>
+        </div>
       </header>
       {user && isHistoryOpen && (
         <aside className="history-drawer" aria-label="Project history">
@@ -1320,7 +1886,7 @@ export default function LoopenStudio({
               </button>
             </div>
           )}
-          <span className="local-session-note">Local private session</span>
+          <span className="local-session-note">Tab session autosaved</span>
         </aside>
       )}
 
@@ -1382,7 +1948,7 @@ export default function LoopenStudio({
               value={activeTemplateId || "custom"}
               onChange={(value) => {
                 if (value === "custom") {
-                  setActiveTemplateId("");
+                  clearBriefTemplate();
                   return;
                 }
                 const template = BRIEF_TEMPLATES.find((item) => item.id === value);
@@ -1405,8 +1971,12 @@ export default function LoopenStudio({
               value={brandName}
               placeholder="e.g. Acme"
               onChange={(event) => {
+                const next = event.target.value;
                 setActiveTemplateId("");
-                setBrandName(event.target.value);
+                setWordmarkName((current) =>
+                  !current.trim() || current === brandName ? next : current,
+                );
+                setBrandName(next);
               }}
               required
             />
@@ -1758,10 +2328,21 @@ export default function LoopenStudio({
                     <b>{generated.qualityScore ? `${generated.qualityScore}/100` : "↗"}</b>
                   </button>
                 </div>
-                <div className="select-indicator" aria-hidden="true">
-                  {isActive
-                    ? "Selected"
-                    : "Select"}
+                <div className="concept-card-actions">
+                  <span className="select-indicator" aria-hidden="true">
+                    {isActive ? "Selected" : "Select"}
+                  </span>
+                  <button
+                    className="delete-concept"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void deleteConcept(generated);
+                    }}
+                    aria-label={`Delete ${generated.directionTitle}`}
+                  >
+                    Delete
+                  </button>
                 </div>
               </article>
               );
@@ -1854,11 +2435,19 @@ export default function LoopenStudio({
           <div className="stage-index"><span>01</span><strong>Logo refinement</strong></div>
           <div className="asset-grid">
             {refinements.length ? refinements.map((asset) => (
-              <button
-                type="button"
+              <article
                 className={selectedRefinement === asset.id ? "asset-card active" : "asset-card"}
                 key={asset.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedRefinement === asset.id}
                 onClick={() => setSelectedRefinement(asset.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedRefinement(asset.id);
+                  }
+                }}
               >
                 <img src={asset.url} alt={`${brandName} ${asset.label}`} />
                 <span>{asset.label}</span>
@@ -1875,38 +2464,52 @@ export default function LoopenStudio({
                     ? "Recommended"
                     : "Review notes"}
                 </b>
-              </button>
+                {selectedRefinement === asset.id && vectorSourceGeneration && (
+                  <div
+                    className="segmented vector-source-toggle"
+                    role="group"
+                    aria-label="SVG source"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      className={vectorSourceMode === "original" ? "active" : ""}
+                      onClick={() => setVectorSourceMode("original")}
+                    >
+                      Original concept
+                    </button>
+                    <button
+                      type="button"
+                      className={vectorSourceMode === "refine" ? "active" : ""}
+                      onClick={() => setVectorSourceMode("refine")}
+                    >
+                      Refinement
+                    </button>
+                  </div>
+                )}
+              </article>
             )) : (
               <div className="empty-stage">
                 <strong>Professional craft pass</strong>
-                <p>Choose one logo concept. Nano Banana preserves the idea and silhouette while improving proportions, counterspace and small-size clarity.</p>
-                <button type="button" onClick={refineSelected} disabled={isRefining}>
-                  {isRefining ? "Refining…" : "Refine selected logos →"}
-                  {isRefining && <RequestDrop label="Refining selected logos" />}
-                </button>
+                <p>
+                  {isRefining
+                    ? "Nano Banana is refining the selected concept. SVG reconstruction unlocks when this pass finishes."
+                    : selectedConceptIds.length
+                      ? "Use Reduce in the shortlist above to start the craft pass. Or reconstruct SVG directly from the original concept."
+                      : "Choose one logo concept above. Nano Banana preserves the idea and silhouette while improving proportions, counterspace and small-size clarity."}
+                </p>
+                {isRefining && (
+                  <p className="inline-notice" role="status">
+                    Refining selected logo…
+                    <RequestDrop label="Refining selected logos" />
+                  </p>
+                )}
               </div>
             )}
           </div>
-          {(refinements.length > 0 || selectedConceptIds.length > 0) && (
+          {!isRefining && (refinements.length > 0 || selectedConceptIds.length > 0) && (
             <div className="vector-source-bar">
-              {refinements.length > 0 && vectorSourceGeneration && (
-                <div className="segmented vector-source-toggle">
-                  <button
-                    type="button"
-                    className={vectorSourceMode === "original" ? "active" : ""}
-                    onClick={() => setVectorSourceMode("original")}
-                  >
-                    Original concept
-                  </button>
-                  <button
-                    type="button"
-                    className={vectorSourceMode === "refine" ? "active" : ""}
-                    onClick={() => setVectorSourceMode("refine")}
-                  >
-                    Refinement
-                  </button>
-                </div>
-              )}
               <button
                 className="stage-action"
                 type="button"
@@ -1918,7 +2521,7 @@ export default function LoopenStudio({
               </button>
             </div>
           )}
-          {selectedReduction && !juryRecommends && (
+          {!isRefining && selectedReduction && !juryRecommends && (
             <div className="transition-advisory" role="status">
               <span>Jury recommendation</span>
               <strong>Craft notes available — SVG is still unlocked.</strong>
@@ -1960,7 +2563,7 @@ export default function LoopenStudio({
         <div className={`lockup-editor ${selectedVectorAsset ? "" : "locked"}`}>
           {!selectedVectorAsset ? (
             <div className="production-lock">
-              <div className="production-lock-number">05</div>
+              <div className="production-lock-number">—</div>
               <p>Identity workspace / Locked</p>
               <h3>The controls appear<br />when the mark is real.</h3>
               <div>
@@ -1970,100 +2573,149 @@ export default function LoopenStudio({
               <i aria-hidden="true">↘</i>
             </div>
           ) : (<>
-          <div className="editor-controls">
-            <div>
-              <span className="mini-label">Layout</span>
-              <div className="segmented">
-                <button type="button" className={lockupLayout === "horizontal" ? "active" : ""} onClick={() => setLockupLayout("horizontal")}>Horizontal</button>
-                <button type="button" className={lockupLayout === "vertical" ? "active" : ""} onClick={() => setLockupLayout("vertical")}>Vertical</button>
-                <button type="button" className={lockupLayout === "icon" ? "active" : ""} onClick={() => setLockupLayout("icon")}>Icon only</button>
+          <div className="lockup-stage">
+            <aside className="lockup-rail">
+              <div className="rail-block">
+                <p className="rail-kicker">01 / Composition</p>
+                <div className="segmented">
+                  <button type="button" className={lockupLayout === "horizontal" ? "active" : ""} onClick={() => setLockupLayout("horizontal")}>Horizontal</button>
+                  <button type="button" className={lockupLayout === "vertical" ? "active" : ""} onClick={() => setLockupLayout("vertical")}>Vertical</button>
+                  <button type="button" className={lockupLayout === "icon" ? "active" : ""} onClick={() => setLockupLayout("icon")}>Icon only</button>
+                </div>
+                <div className="editor-color-control">
+                  <span className="mini-label">Color</span>
+                  <div className="editor-color-options">
+                    {lockupPalette.map((color) => (
+                      <button
+                        type="button"
+                        key={color}
+                        className={lockupColor.toLowerCase() === color.toLowerCase() ? "active" : ""}
+                        style={{ background: color }}
+                        aria-label={`Use ${color}`}
+                        onClick={() => setLockupColor(color)}
+                      />
+                    ))}
+                    <label className="editor-color-picker" title="Custom color">
+                      <span className="sr-only">Custom color</span>
+                      <input
+                        type="color"
+                        value={/^#[0-9a-f]{6}$/i.test(lockupColor) ? lockupColor : "#201f1e"}
+                        onChange={(event) => setLockupColor(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
-            </div>
-            <label>
-              <span className="mini-label">Descriptor</span>
-              <input
-                value={descriptor}
-                placeholder="Short line under the wordmark"
-                onChange={(event) => setDescriptor(event.target.value)}
-              />
-            </label>
-            <div className="editor-color-control">
-              <span className="mini-label">Color</span>
-              <div className="editor-color-options">
-                {(strategy?.palette ?? ["#201F1E", "#F3F0EA", "#C84A32", "#FFFFFF"]).map(
-                  (color) => (
-                    <button
-                      type="button"
-                      key={color}
-                      className={lockupColor.toLowerCase() === color.toLowerCase() ? "active" : ""}
-                      style={{ background: color }}
-                      aria-label={`Use ${color}`}
-                      onClick={() => setLockupColor(color)}
+
+              <div className="rail-block">
+                <p className="rail-kicker">02 / Type</p>
+                <label className="editor-field-with-size">
+                  <span className="mini-label">Wordmark name</span>
+                  <div className="editor-field-line">
+                    <input
+                      value={wordmarkName}
+                      placeholder={brandName || "Brand name"}
+                      onChange={(event) => setWordmarkName(event.target.value)}
                     />
-                  ),
+                    <SizeSquareSelect
+                      label="Wordmark"
+                      value={wordmarkSize}
+                      onChange={setWordmarkSize}
+                      options={WORDMARK_SIZE_OPTIONS}
+                    />
+                  </div>
+                </label>
+                <label className="editor-field-with-size">
+                  <span className="mini-label">Descriptor</span>
+                  <div className="editor-field-line">
+                    <input
+                      value={descriptor}
+                      placeholder="Short line under the wordmark"
+                      onChange={(event) => setDescriptor(event.target.value)}
+                    />
+                    <SizeSquareSelect
+                      label="Descriptor"
+                      value={descriptorSize}
+                      onChange={setDescriptorSize}
+                      options={DESCRIPTOR_SIZE_OPTIONS}
+                    />
+                  </div>
+                </label>
+                <CreativeSelect
+                  label="Wordmark character"
+                  value={wordmarkStyle}
+                  onChange={setWordmarkStyle}
+                  options={[
+                    { value: "modern", label: "Modern grotesk" },
+                    { value: "geometric", label: "Geometric" },
+                    { value: "humanist", label: "Humanist" },
+                    { value: "editorial", label: "Editorial serif" },
+                  ]}
+                />
+                <CreativeSelect
+                  label="Case"
+                  value={wordmarkCase}
+                  onChange={(value) => setWordmarkCase(value as typeof wordmarkCase)}
+                  options={[
+                    { value: "original", label: "Original" },
+                    { value: "upper", label: "Uppercase" },
+                    { value: "lower", label: "Lowercase" },
+                  ]}
+                />
+              </div>
+
+              <div className="rail-block">
+                <p className="rail-kicker">03 / Optics</p>
+                <label className="creative-range">
+                  <span className="mini-label">Weight — {wordmarkWeight}</span>
+                  <input style={{ "--range-progress": `${((wordmarkWeight - 400) / 400) * 100}%` } as CSSProperties} type="range" min="400" max="800" step="100" value={wordmarkWeight} onChange={(event) => setWordmarkWeight(Number(event.target.value))} />
+                </label>
+                <label className="creative-range">
+                  <span className="mini-label">Tracking — {wordmarkTracking}</span>
+                  <input style={{ "--range-progress": `${((wordmarkTracking + 8) / 16) * 100}%` } as CSSProperties} type="range" min="-8" max="8" value={wordmarkTracking} onChange={(event) => setWordmarkTracking(Number(event.target.value))} />
+                </label>
+                <label className="creative-range">
+                  <span className="mini-label">Mark scale — {markScale}%</span>
+                  <input style={{ "--range-progress": `${((markScale - 70) / 130) * 100}%` } as CSSProperties} type="range" min="70" max="200" step="5" value={markScale} onChange={(event) => setMarkScale(Number(event.target.value))} />
+                </label>
+              </div>
+            </aside>
+
+            <div
+              className={`lockup-preview ${lockupLayout}`}
+              style={
+                {
+                  color: lockupColor,
+                  "--wordmark-size": `${wordmarkSize}px`,
+                  "--descriptor-size": `${descriptorSize}px`,
+                } as CSSProperties
+              }
+            >
+              <div className="lockup-preview-fit">
+                {selectedVectorAsset ? (
+                  <LockupMark
+                    url={selectedVectorAsset.url}
+                    color={lockupColor}
+                    scale={markScale}
+                    alt=""
+                  />
+                ) : <div className="preview-placeholder">SVG</div>}
+                {lockupLayout !== "icon" && (
+                  <div className="lockup-preview-type">
+                    <strong
+                      className={`wordmark-${wordmarkStyle}`}
+                      style={{
+                        fontWeight: wordmarkWeight,
+                        letterSpacing: `${wordmarkTracking / 100}em`,
+                      }}
+                    >
+                      {displayBrandName}
+                    </strong>
+                    {descriptor && <span>{descriptor}</span>}
+                  </div>
                 )}
               </div>
             </div>
-            <CreativeSelect
-              label="Wordmark character"
-              value={wordmarkStyle}
-              onChange={setWordmarkStyle}
-              options={[
-                { value: "modern", label: "Modern grotesk" },
-                { value: "geometric", label: "Geometric" },
-                { value: "humanist", label: "Humanist" },
-                { value: "editorial", label: "Editorial serif" },
-              ]}
-            />
-            <CreativeSelect
-              label="Case"
-              value={wordmarkCase}
-              onChange={(value) => setWordmarkCase(value as typeof wordmarkCase)}
-              options={[
-                { value: "original", label: "Original" },
-                { value: "upper", label: "Uppercase" },
-                { value: "lower", label: "Lowercase" },
-              ]}
-            />
-            <label className="creative-range">
-              <span className="mini-label">Wordmark weight — {wordmarkWeight}</span>
-              <input style={{ "--range-progress": `${((wordmarkWeight - 400) / 400) * 100}%` } as CSSProperties} type="range" min="400" max="800" step="100" value={wordmarkWeight} onChange={(event) => setWordmarkWeight(Number(event.target.value))} />
-            </label>
-            <label className="creative-range">
-              <span className="mini-label">Tracking — {wordmarkTracking}</span>
-              <input style={{ "--range-progress": `${((wordmarkTracking + 8) / 16) * 100}%` } as CSSProperties} type="range" min="-8" max="8" value={wordmarkTracking} onChange={(event) => setWordmarkTracking(Number(event.target.value))} />
-            </label>
-            <label className="creative-range">
-              <span className="mini-label">Optical mark scale — {markScale}%</span>
-              <input style={{ "--range-progress": `${((markScale - 88) / 24) * 100}%` } as CSSProperties} type="range" min="88" max="112" value={markScale} onChange={(event) => setMarkScale(Number(event.target.value))} />
-            </label>
-          </div>
-          <div
-            className={`lockup-preview ${lockupLayout}`}
-            style={{ color: lockupColor }}
-          >
-            {selectedVectorAsset ? (
-              <img
-                src={selectedVectorAsset.url}
-                alt=""
-                style={{ transform: `scale(${markScale / 100})` }}
-              />
-            ) : <div className="preview-placeholder">SVG</div>}
-            {lockupLayout !== "icon" && (
-              <div>
-                <strong
-                  className={`wordmark-${wordmarkStyle}`}
-                  style={{ fontWeight: wordmarkWeight, letterSpacing: `${wordmarkTracking / 100}em` }}
-                >
-                  {wordmarkCase === "upper"
-                    ? (brandName || "Brand name").toUpperCase()
-                    : wordmarkCase === "lower"
-                      ? (brandName || "Brand name").toLowerCase()
-                      : brandName || "Brand name"}
-                </strong>
-                {descriptor && <span>{descriptor}</span>}
-              </div>
-            )}
           </div>
           <div className="quality-lab">
             <article>
@@ -2175,14 +2827,14 @@ export default function LoopenStudio({
           </div>
         ) : (
           <div className="system-locked">
-            <span>05 / Waiting for a master</span>
+            <span>Waiting for a master</span>
             <strong>No placeholder brand system.</strong>
             <p>
               Approve a refined logo and create its geometric SVG. Real
-              applications will then be composed from the actual Ketchup mark,
+              applications will then be composed from the actual brand mark,
               wordmark and selected palette.
             </p>
-            <i aria-hidden="true">05</i>
+            <i aria-hidden="true">○</i>
           </div>
         )}
       </section>

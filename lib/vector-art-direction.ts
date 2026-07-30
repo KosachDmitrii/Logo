@@ -30,6 +30,7 @@ type OpenAIResponse = {
   }>;
   error?: { message?: string };
   status?: string;
+  incomplete_details?: { reason?: string };
 };
 
 const responseModel = "gpt-5.6-terra";
@@ -45,9 +46,21 @@ function extractOutputText(payload: OpenAIResponse) {
     }
   }
   const itemTypes = (payload.output ?? []).map((item) => item.type).join(",") || "none";
+  const incomplete =
+    payload.status === "incomplete"
+      ? ` incomplete_reason=${payload.incomplete_details?.reason ?? "unknown"}`
+      : "";
   throw new Error(
     payload.error?.message ||
-      `OpenAI returned no structured design output (status: ${payload.status ?? "unknown"}; items: ${itemTypes}).`,
+      `OpenAI returned no structured design output (status: ${payload.status ?? "unknown"}; items: ${itemTypes}${incomplete}).`,
+  );
+}
+
+function isIncompleteReasoningOnlyError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /no structured design output/i.test(message) &&
+    (/incomplete/i.test(message) || /items: reasoning/i.test(message))
   );
 }
 
@@ -59,34 +72,59 @@ async function structuredResponse<T>(
   input: string,
   effort: "medium" | "high" | "xhigh" = "high",
 ) {
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    signal: AbortSignal.timeout(240_000),
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: responseModel,
-      reasoning: { effort },
-      instructions,
-      input,
-      max_output_tokens: 16000,
-      text: {
-        format: {
-          type: "json_schema",
-          name,
-          strict: true,
-          schema,
+  const attempts: Array<{ effort: "medium" | "high" | "xhigh"; maxOutputTokens: number }> = [
+    { effort, maxOutputTokens: effort === "xhigh" ? 32000 : 24000 },
+    { effort: "medium", maxOutputTokens: 32000 },
+    { effort: "medium", maxOutputTokens: 48000 },
+  ];
+  let lastError: Error | null = null;
+  for (let index = 0; index < attempts.length; index += 1) {
+    const attempt = attempts[index]!;
+    try {
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        signal: AbortSignal.timeout(240_000),
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
-      },
-    }),
-  });
-  const payload = (await response.json()) as OpenAIResponse;
-  if (!response.ok) {
-    throw new Error(payload.error?.message || `OpenAI returned HTTP ${response.status}.`);
+        body: JSON.stringify({
+          model: responseModel,
+          reasoning: { effort: attempt.effort },
+          instructions,
+          input,
+          max_output_tokens: attempt.maxOutputTokens,
+          text: {
+            format: {
+              type: "json_schema",
+              name,
+              strict: true,
+              schema,
+            },
+          },
+        }),
+      });
+      const payload = (await response.json()) as OpenAIResponse;
+      if (!response.ok) {
+        throw new Error(payload.error?.message || `OpenAI returned HTTP ${response.status}.`);
+      }
+      return JSON.parse(extractOutputText(payload)) as T;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (!isIncompleteReasoningOnlyError(lastError) || index === attempts.length - 1) {
+        throw lastError;
+      }
+      console.warn({
+        event: "openai_incomplete_reasoning_retry",
+        name,
+        attempt: index + 1,
+        nextEffort: attempts[index + 1]?.effort,
+        nextMaxOutputTokens: attempts[index + 1]?.maxOutputTokens,
+        reason: lastError.message.slice(0, 240),
+      });
+    }
   }
-  return JSON.parse(extractOutputText(payload)) as T;
+  throw lastError ?? new Error("OpenAI structured response failed.");
 }
 
 const territorySchema = {
@@ -269,7 +307,8 @@ function renderSvg(paths: string[]) {
   const geometry = paths
     .map((path) => `<path d="${validatePath(path)}" fill="#171716"/>`)
     .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Abstract logo symbol"><rect width="512" height="512" fill="#F7F4ED"/>${geometry}</svg>`;
+  // Transparent plate — lockup editor / export supply their own surface color.
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Abstract logo symbol">${geometry}</svg>`;
 }
 
 async function executeWithRecraft(apiKey: string, prompt: string) {
@@ -653,7 +692,7 @@ export async function reconstructArchitecturalLogoSvg(
       paths: {
         type: "array",
         minItems: 1,
-        maxItems: 5,
+        maxItems: 8,
         items: { type: "string" },
       },
       typographySpec: { type: "string" },
@@ -675,70 +714,124 @@ export async function reconstructArchitecturalLogoSvg(
   async function requestMaster(
     instructions: string,
     input: Array<Record<string, unknown>>,
-    effort: "high" | "xhigh",
+    effort: "medium" | "high" | "xhigh",
   ) {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      signal: AbortSignal.timeout(240_000),
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-      model: responseModel,
-      reasoning: { effort },
-      instructions,
-      input,
-      max_output_tokens: 12000,
-      text: {
-        format: {
-          type: "json_schema",
+    const attempts: Array<{ effort: "medium" | "high" | "xhigh"; maxOutputTokens: number }> = [
+      { effort, maxOutputTokens: effort === "xhigh" ? 32000 : 24000 },
+      { effort: "medium", maxOutputTokens: 32000 },
+      { effort: "medium", maxOutputTokens: 48000 },
+    ];
+    let lastError: Error | null = null;
+    for (let index = 0; index < attempts.length; index += 1) {
+      const attempt = attempts[index]!;
+      try {
+        const response = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          signal: AbortSignal.timeout(240_000),
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: responseModel,
+            reasoning: { effort: attempt.effort },
+            instructions,
+            input,
+            max_output_tokens: attempt.maxOutputTokens,
+            text: {
+              format: {
+                type: "json_schema",
+                name: "architectural_logo_master",
+                strict: true,
+                schema: masterSchema,
+              },
+            },
+          }),
+        });
+        const payload = (await response.json()) as OpenAIResponse;
+        if (!response.ok) {
+          throw new Error(
+            payload.error?.message || `OpenAI returned HTTP ${response.status}.`,
+          );
+        }
+        return JSON.parse(extractOutputText(payload)) as MasterConcept;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (!isIncompleteReasoningOnlyError(lastError) || index === attempts.length - 1) {
+          throw lastError;
+        }
+        console.warn({
+          event: "openai_incomplete_reasoning_retry",
           name: "architectural_logo_master",
-          strict: true,
-          schema: masterSchema,
-        },
-      },
-      }),
-    });
-    const payload = (await response.json()) as OpenAIResponse;
-    if (!response.ok) {
-      throw new Error(payload.error?.message || `OpenAI returned HTTP ${response.status}.`);
+          attempt: index + 1,
+          nextEffort: attempts[index + 1]?.effort,
+          nextMaxOutputTokens: attempts[index + 1]?.maxOutputTokens,
+          reason: lastError.message.slice(0, 240),
+        });
+      }
     }
-    return JSON.parse(extractOutputText(payload)) as MasterConcept;
+    throw lastError ?? new Error("OpenAI SVG reconstruction failed.");
   }
 
   const instructions = `You are the senior vector designer completing a master logo.
-Do not trace pixels. Study the approved refined logo, infer its intended
-construction, and redraw it geometrically on a 512×512 grid. Preserve the defining
-massing relationship and signature negative space while correcting alignment, visual
-weight, joins and optical balance. Use 1–5 closed filled paths only, coordinates within
-56..456, no strokes, transforms, text, letters, gradients, masks or embedded images.
-Every path must be either a raw SVG path d string or one <path d="..."/> element. Every
-contour must begin with M and end with Z. Use only M L H V C S Q T A Z commands.
+FIDELITY FIRST: the attached image is the approved source. Match its recognizable
+silhouette, lobe/gap count, joins, and negative-space structure as closely as
+closed SVG paths allow. Do not invent a new concept, swap motifs, add hooks/tails,
+or reinterpret the mark into a different construction.
+
+Redraw on a 512×512 grid as clean geometric paths (not a noisy pixel trace):
+clean edges, true curves, consistent mass — but the silhouette must stay the same
+logo a viewer would recognize at a glance. Light optical corrections only
+(alignment, joins, 24px clarity). Never redesign proportions or structure.
+
+Use 1–8 closed filled paths only, coordinates within 56..456, no strokes,
+transforms, text, letters, gradients, masks or embedded images.
+Every path must be either a raw SVG path d string or one <path d="..."/> element.
+Every contour must begin with M and end with Z. Use only M L H V C S Q T A Z.
 The result must survive monochrome, inversion and 16px/24px use.
 
 Also specify a separate wordmark system for the exact name "${brief.brandName}":
 recommend a typographic genre, case, weight, tracking and one restrained custom detail.
 The SVG itself remains symbol-only so typography is never converted into fake AI text.
-Return harsh scores; portfolio-grade means at least 90.`;
+Score harshly on silhouette fidelity; portfolio-grade means at least 90 and means
+a stranger would recognize this as the same mark as the attached image.
+Keep reasoning short and spend tokens on complete JSON path data.`;
+  const userContent = [
+    {
+      type: "input_text",
+      text: `Brand: ${brief.brandName}
+Reconstruct the attached approved logo as SVG paths.
+Match the silhouette and structure. Do not invent a different mark.`,
+    },
+    {
+      type: "input_image",
+      image_url: `data:${source.mimeType};base64,${source.base64}`,
+      detail: "high",
+    },
+  ];
   let concept = await requestMaster(
     instructions,
-    [{
-      role: "user",
-      content: [
-        {
-          type: "input_text",
-          text: `BRAND BRIEF:\n${briefText(brief)}\nReconstruct the attached approved logo.`,
-        },
-        {
-          type: "input_image",
-          image_url: `data:${source.mimeType};base64,${source.base64}`,
-          detail: "high",
-        },
-      ],
-    }],
-    "xhigh",
+    [{ role: "user", content: userContent }],
+    "high",
   );
+  // One fidelity retry when the model itself admits a weak match.
+  if (concept.score < 82) {
+    console.warn({
+      event: "openai_svg_fidelity_retry",
+      score: concept.score,
+      verdict: concept.verdict.slice(0, 160),
+    });
+    concept = await requestMaster(
+      `${instructions}
+
+PREVIOUS ATTEMPT SCORED ${concept.score}/100.
+Self-critique: ${concept.verdict}
+Rebuild again. Prioritize exact silhouette match over geometric elegance.
+Keep the same number of major shapes and voids as the attached image.`,
+      [{ role: "user", content: userContent }],
+      "high",
+    );
+  }
   let svg: string;
   try {
     svg = renderSvg(concept.paths);
@@ -746,10 +839,11 @@ Return harsh scores; portfolio-grade means at least 90.`;
     const validationError =
       error instanceof Error ? error.message : "Invalid SVG path geometry.";
     concept = await requestMaster(
-      `You are repairing a rejected SVG master. Preserve the design and all metadata.
-Return only safe closed path geometry: raw d strings, M first, Z last, allowed commands
-M L H V C S Q T A Z, finite coordinates within a 512×512 grid. Remove SVG wrappers,
-styles, transforms, fills and unsupported syntax. This is the one permitted repair pass.`,
+      `You are repairing a rejected SVG master. Preserve the exact logo silhouette
+and all metadata — do not redesign. Return only safe closed path geometry: raw d
+strings, M first, Z last, allowed commands M L H V C S Q T A Z, finite coordinates
+within a 512×512 grid. Remove SVG wrappers, styles, transforms, fills and
+unsupported syntax. This is the one permitted repair pass.`,
       [{
         role: "user",
         content: [{
@@ -757,7 +851,7 @@ styles, transforms, fills and unsupported syntax. This is the one permitted repa
           text: `VALIDATION ERROR: ${validationError}
 INVALID RESULT:
 ${JSON.stringify(concept, null, 2)}
-Repair the paths without changing the logo concept.`,
+Repair the paths without changing the logo silhouette or structure.`,
         }],
       }],
       "high",

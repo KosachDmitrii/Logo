@@ -291,6 +291,23 @@ type JuryScore = {
   reason: string;
 };
 
+function normalizeJuryScores(
+  scores: Array<Partial<JuryScore> & Record<string, unknown>> | undefined,
+): JuryScore[] {
+  return (scores ?? []).map((item) => ({
+    candidateId: String(item.candidateId ?? ""),
+    score: Math.max(0, Math.min(100, Number(item.score ?? 0))),
+    reject: Boolean(item.reject),
+    reason: String(
+      item.reason ??
+        item.verdict ??
+        item.critique ??
+        item.explanation ??
+        "No written critique returned.",
+    ).slice(0, 400),
+  }));
+}
+
 function pickJuryScore(
   scores: JuryScore[],
   candidateId: string,
@@ -422,7 +439,10 @@ ${candidates.map((item) => `${item.candidateId}: ${item.specification}`).join("\
   collectText(payload, strings);
   const json = strings.join("\n").match(/\{[\s\S]*\}/)?.[0];
   if (!json) throw new Error("Gemini jury returned no JSON.");
-  return (JSON.parse(json) as { scores?: JuryScore[] }).scores ?? [];
+  return normalizeJuryScores(
+    (JSON.parse(json) as { scores?: Array<Partial<JuryScore> & Record<string, unknown>> })
+      .scores,
+  );
 }
 
 async function openAIJury(
@@ -527,7 +547,10 @@ ${candidates.map((item) => `${item.candidateId}: ${item.specification}`).join("\
     payload.output?.flatMap((item) => item.content ?? [])
       .find((item) => item.type === "output_text")?.text;
   if (!text) throw new Error("OpenAI jury returned no JSON.");
-  return (JSON.parse(text) as { scores: JuryScore[] }).scores;
+  return normalizeJuryScores(
+    (JSON.parse(text) as { scores?: Array<Partial<JuryScore> & Record<string, unknown>> })
+      .scores,
+  );
 }
 
 export async function createCuratedConcepts(

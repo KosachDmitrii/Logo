@@ -1,4 +1,5 @@
 import { getChatGPTUser } from "../../../../chatgpt-auth";
+import { prepareLockupMarkSvg } from "../../../../../lib/lockup-svg";
 import {
   escapeXml,
   getRuntimeEnv,
@@ -18,11 +19,14 @@ export async function POST(
   const { id: projectId } = await context.params;
   const input = (await request.json()) as {
     assetId?: string;
+    brandName?: string;
     descriptor?: string;
     layout?: "horizontal" | "vertical" | "icon";
     color?: string;
     markScale?: number;
     wordmarkCase?: "original" | "upper" | "lower";
+    wordmarkSize?: number;
+    descriptorSize?: number;
     wordmarkWeight?: number;
     wordmarkTracking?: number;
     wordmarkStyle?: string;
@@ -41,10 +45,12 @@ export async function POST(
   const object = await runtime.FILES.get(row.object_key);
   if (!object) return Response.json({ error: "Vector data not found." }, { status: 404 });
   const source = sanitizeSvg(await object.text());
-  const inner = source
+  const color = /^#[0-9a-f]{6}$/i.test(input.color ?? "") ? input.color! : "#201f1e";
+  const prepared = prepareLockupMarkSvg(source, color);
+  const inner = prepared
     .replace(/^[\s\S]*?<svg[^>]*>/i, "")
     .replace(/<\/svg>[\s\S]*$/i, "");
-  const viewBox = source.match(/viewBox\s*=\s*["']([^"']+)["']/i)?.[1] ?? "0 0 1024 1024";
+  const viewBox = prepared.match(/viewBox\s*=\s*["']([^"']+)["']/i)?.[1] ?? "0 0 1024 1024";
   const layout =
     input.layout === "vertical" || input.layout === "icon"
       ? input.layout
@@ -53,16 +59,16 @@ export async function POST(
   const iconOnly = layout === "icon";
   const width = iconOnly ? 512 : horizontal ? 1400 : 900;
   const height = iconOnly ? 512 : horizontal ? 420 : 900;
-  const color = /^#[0-9a-f]{6}$/i.test(input.color ?? "") ? input.color! : "#201f1e";
+  const nameSource = (input.brandName ?? "").trim() || row.logo_projects.brand_name;
   const displayBrand =
     input.wordmarkCase === "upper"
-      ? row.logo_projects.brand_name.toUpperCase()
+      ? nameSource.toUpperCase()
       : input.wordmarkCase === "lower"
-        ? row.logo_projects.brand_name.toLowerCase()
-        : row.logo_projects.brand_name;
+        ? nameSource.toLowerCase()
+        : nameSource;
   const brand = escapeXml(displayBrand);
   const descriptor = escapeXml((input.descriptor ?? "").trim().slice(0, 80));
-  const scale = Math.min(1.12, Math.max(0.88, Number(input.markScale ?? 100) / 100));
+  const scale = Math.min(2, Math.max(0.7, Number(input.markScale ?? 100) / 100));
   const typography = {
     editorial: {
       family: "Georgia, Times New Roman, serif",
@@ -98,6 +104,8 @@ export async function POST(
     8,
     Math.max(-8, Number(input.wordmarkTracking ?? typography.spacing)),
   );
+  const titleSize = Math.min(160, Math.max(48, Math.round(Number(input.wordmarkSize ?? 112))));
+  const lineSize = Math.min(36, Math.max(10, Math.round(Number(input.descriptorSize ?? 24))));
   const mark = iconOnly
     ? `<svg x="${(512 - scaled(448)) / 2}" y="${(512 - scaled(448)) / 2}" width="${scaled(448)}" height="${scaled(448)}" viewBox="${escapeXml(viewBox)}">${inner}</svg>`
     : horizontal
@@ -106,17 +114,17 @@ export async function POST(
   const text = iconOnly
     ? ""
     : horizontal
-    ? `<text x="440" y="215" font-family="${typography.family}" font-size="112" font-weight="${wordmarkWeight}" letter-spacing="${wordmarkTracking}">${brand}</text>
-       ${descriptor ? `<text x="446" y="275" font-family="Arial, Helvetica, sans-serif" font-size="24" letter-spacing="9">${descriptor.toUpperCase()}</text>` : ""}`
-    : `<text x="450" y="650" text-anchor="middle" font-family="${typography.family}" font-size="112" font-weight="${wordmarkWeight}" letter-spacing="${wordmarkTracking}">${brand}</text>
-       ${descriptor ? `<text x="450" y="715" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="24" letter-spacing="9">${descriptor.toUpperCase()}</text>` : ""}`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="${color}">
+    ? `<text x="440" y="215" font-family="${typography.family}" font-size="${titleSize}" font-weight="${wordmarkWeight}" letter-spacing="${wordmarkTracking}" fill="${color}">${brand}</text>
+       ${descriptor ? `<text x="446" y="${215 + Math.round(lineSize * 2.4)}" font-family="Arial, Helvetica, sans-serif" font-size="${lineSize}" letter-spacing="9" fill="${color}">${descriptor.toUpperCase()}</text>` : ""}`
+    : `<text x="450" y="650" text-anchor="middle" font-family="${typography.family}" font-size="${titleSize}" font-weight="${wordmarkWeight}" letter-spacing="${wordmarkTracking}" fill="${color}">${brand}</text>
+       ${descriptor ? `<text x="450" y="${650 + Math.round(lineSize * 2.4)}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${lineSize}" letter-spacing="9" fill="${color}">${descriptor.toUpperCase()}</text>` : ""}`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <title>${brand} logo</title>
   ${mark}
   ${text}
 </svg>`;
   const filename =
-    row.logo_projects.brand_name
+    nameSource
       .replace(/[^a-zA-Z0-9_-]+/g, "-")
       .replace(/^-|-$/g, "") || "loopen";
   return new Response(svg, {

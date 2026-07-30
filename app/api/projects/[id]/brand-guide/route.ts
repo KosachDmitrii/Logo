@@ -1,4 +1,5 @@
 import { getChatGPTUser } from "../../../../chatgpt-auth";
+import { prepareLockupMarkSvg } from "../../../../../lib/lockup-svg";
 import {
   escapeXml,
   getRuntimeEnv,
@@ -34,7 +35,9 @@ export async function GET(
 
   const brief = row.logo_projects.brief_json;
   const strategy = brief.strategy;
-  const brand = escapeXml(row.logo_projects.brand_name);
+  const nameSource =
+    (url.searchParams.get("name") ?? "").trim() || row.logo_projects.brand_name;
+  const brand = escapeXml(nameSource);
   const descriptor = escapeXml(
     (url.searchParams.get("descriptor") ?? "").slice(0, 80),
   );
@@ -42,7 +45,7 @@ export async function GET(
     ? url.searchParams.get("color")!
     : "#201F1E";
   const palette = strategy?.palette ?? [color, "#F3F0EA", "#FFCF68", "#FFFFFF"];
-  const svg = sanitizeSvg(await object.text());
+  const svg = prepareLockupMarkSvg(sanitizeSvg(await object.text()), color);
   const list = (items: string[]) =>
     items.map((item) => `<li>${escapeXml(item)}</li>`).join("");
 
