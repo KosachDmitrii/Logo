@@ -254,6 +254,27 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
   },
 ];
 
+function resolveBriefTemplateId(fields: {
+  brandName: string;
+  coreIdea: string;
+  industry: string;
+  activeTemplateId?: string;
+}): string {
+  if (
+    fields.activeTemplateId &&
+    BRIEF_TEMPLATES.some((item) => item.id === fields.activeTemplateId)
+  ) {
+    return fields.activeTemplateId;
+  }
+  const match = BRIEF_TEMPLATES.find(
+    (item) =>
+      item.brandName === fields.brandName &&
+      item.coreIdea === fields.coreIdea &&
+      item.industry === fields.industry,
+  );
+  return match?.id ?? "";
+}
+
 const WORDMARK_SIZE_OPTIONS = [
   { value: "24", label: "24" },
   { value: "32", label: "32" },
@@ -505,7 +526,9 @@ function LoopenStudioApp({
   const [selectedConceptIds, setSelectedConceptIds] = useState(initialDraft.selectedConceptIds);
   const [generatedConcepts, setGeneratedConcepts] = useState(initialDraft.generatedConcepts);
   const [projectId, setProjectId] = useState<string | null>(initialDraft.projectId);
-  const [activeTemplateId, setActiveTemplateId] = useState(initialDraft.activeTemplateId);
+  const [activeTemplateId, setActiveTemplateId] = useState(() =>
+    resolveBriefTemplateId(initialDraft),
+  );
   const [brandName, setBrandName] = useState(initialDraft.brandName);
   const [coreIdea, setCoreIdea] = useState(initialDraft.coreIdea);
   const [industry, setIndustry] = useState(initialDraft.industry);
@@ -883,10 +906,13 @@ function LoopenStudioApp({
     const loadedAssets = payload.assets ?? [];
     const loadedGenerations = payload.generations ?? [];
     setProjectId(id);
-    setBrandName(payload.project.brandName);
-    setWordmarkName(payload.project.brandName);
-    setCoreIdea(payload.project.brief.coreIdea ?? "");
-    setIndustry(payload.project.brief.industry ?? "");
+    const nextBrand = payload.project.brandName;
+    const nextCoreIdea = payload.project.brief.coreIdea ?? "";
+    const nextIndustry = payload.project.brief.industry ?? "";
+    setBrandName(nextBrand);
+    setWordmarkName(nextBrand);
+    setCoreIdea(nextCoreIdea);
+    setIndustry(nextIndustry);
     setCompanyDescription(payload.project.brief.companyDescription ?? "");
     setAudience(payload.project.brief.audience ?? "");
     setPositioning(payload.project.brief.positioning ?? "");
@@ -899,6 +925,13 @@ function LoopenStudioApp({
     setAvoid(payload.project.brief.avoid ?? "");
     setStrategy(payload.project.brief.strategy ?? null);
     setPersonalities(payload.project.brief.personalities ?? []);
+    setActiveTemplateId(
+      resolveBriefTemplateId({
+        brandName: nextBrand,
+        coreIdea: nextCoreIdea,
+        industry: nextIndustry,
+      }),
+    );
     setGeneratedConcepts(loadedGenerations);
     setAssets(loadedAssets);
     const selectedLoaded =
@@ -964,7 +997,6 @@ function LoopenStudioApp({
   }
 
   function togglePersonality(item: string) {
-    setActiveTemplateId("");
     setPersonalities((current) =>
       current.includes(item)
         ? current.filter((value) => value !== item)
@@ -1683,9 +1715,7 @@ function LoopenStudioApp({
         </a>
         <nav className="top-nav" aria-label="Main navigation">
           <a href="#brief">Studio</a>
-          <button type="button" onClick={() => setIsMethodOpen(true)}>
-            Method
-          </button>
+          <a href="#manifesto">Method</a>
           <a href="#manifesto">About</a>
         </nav>
         <div className="header-actions">
@@ -1852,11 +1882,15 @@ function LoopenStudioApp({
               placeholder="e.g. Acme"
               onChange={(event) => {
                 const next = event.target.value;
-                setActiveTemplateId("");
                 setWordmarkName((current) =>
                   !current.trim() || current === brandName ? next : current,
                 );
                 setBrandName(next);
+                setActiveTemplateId((current) => {
+                  const template = BRIEF_TEMPLATES.find((item) => item.id === current);
+                  if (template && next !== template.brandName) return "";
+                  return current;
+                });
               }}
               required
             />
