@@ -1953,7 +1953,6 @@ textarea:focus-visible {
   font: 9px/1.45 var(--font-geist-mono), monospace;
   grid-column: 2;
   grid-row: 2;
-  max-width: 52ch;
 }
 
 .transition-blocked button,
@@ -2158,6 +2157,10 @@ textarea:focus-visible {
   z-index: 1;
 }
 
+.lockup-rail .segmented button:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .lockup-rail .editor-color-options {
   gap: 7px;
 }
@@ -2188,13 +2191,17 @@ textarea:focus-visible {
   padding: 9px 8px 9px 0;
 }
 
+.lockup-rail .size-square {
+  width: 38px;
+}
+
 .lockup-rail .size-square-trigger {
   background: rgba(255, 255, 255, 0.04);
   border: 0;
   border-left: 1px solid rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.7);
   height: 36px;
-  width: 38px;
+  width: 100%;
 }
 
 .lockup-rail .size-square-trigger:hover,
@@ -2278,7 +2285,12 @@ textarea:focus-visible {
 .size-square {
   flex: 0 0 auto;
   position: relative;
-  z-index: 30;
+  width: max-content;
+  z-index: 2;
+}
+
+.size-square.is-open {
+  z-index: 80;
 }
 
 .size-square-trigger {
@@ -2303,16 +2315,20 @@ textarea:focus-visible {
 }
 
 .size-square-menu {
-  background: #2a2927;
+  background: #141312;
   border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
   display: grid;
+  isolation: isolate;
+  left: 0;
   max-height: 168px;
   overflow: auto;
   position: absolute;
   right: 0;
   scrollbar-width: none;
   top: calc(100% + 6px);
-  width: 36px;
+  width: 100%;
+  z-index: 1;
   -ms-overflow-style: none;
 }
 
@@ -2323,7 +2339,7 @@ textarea:focus-visible {
 }
 
 .size-square-menu button {
-  background: transparent;
+  background: #141312;
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   color: white;
@@ -2339,7 +2355,7 @@ textarea:focus-visible {
 
 .size-square-menu button:hover,
 .size-square-menu button[aria-selected="true"] {
-  background: rgba(255, 207, 104, 0.16);
+  background: #2a2418;
   color: var(--acid);
 }
 
@@ -2360,9 +2376,24 @@ textarea:focus-visible {
 }
 
 .lockup-rail .creative-select-menu {
+  background: #141312;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
+  color: #fff;
+  isolation: isolate;
   left: 0;
   right: 0;
-  width: auto;
+  width: 100%;
+}
+
+.lockup-rail .creative-select-menu button {
+  background: #141312;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.lockup-rail .creative-select-menu button:hover,
+.lockup-rail .creative-select-menu button[aria-selected="true"] {
+  background: #2a2418;
 }
 
 .creative-select {
@@ -2373,7 +2404,11 @@ textarea:focus-visible {
   height: max-content;
   min-width: 0;
   position: relative;
-  z-index: 20;
+  z-index: 2;
+}
+
+.creative-select.is-open {
+  z-index: 80;
 }
 
 .creative-select-trigger {
@@ -2407,17 +2442,18 @@ textarea:focus-visible {
 }
 
 .creative-select-menu {
-  background: var(--ink);
+  background: #141312;
   border: 1px solid rgba(255, 255, 255, 0.28);
-  box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
   color: white;
+  isolation: isolate;
   left: 0;
   min-width: 250px;
   padding: 6px;
   position: absolute;
   top: calc(100% + 6px);
   width: 100%;
-  z-index: 30;
+  z-index: 1;
 }
 
 .production-brief .creative-select-menu {
@@ -2426,11 +2462,20 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
+.production-brief .creative-select-menu button {
+  background: var(--acid);
+}
+
+.production-brief .creative-select-menu button:hover,
+.production-brief .creative-select-menu button[aria-selected="true"] {
+  background: #e6c45c;
+}
+
 .creative-select-menu button {
   align-items: center;
-  background: transparent;
+  background: #141312;
   border: 0;
-  border-bottom: 1px solid currentColor;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   color: inherit;
   cursor: pointer;
   display: grid;
@@ -2569,43 +2614,59 @@ textarea:focus-visible {
   justify-content: center;
   min-height: 460px;
   overflow: hidden;
-  padding: 45px;
+  padding: 40px;
   position: relative;
 }
 
+/* True pixel lockup — no JS transform fit (it was collapsing size on recolor). */
 .lockup-preview-fit {
   align-items: center;
   display: flex;
-  justify-content: center;
+  flex-direction: row;
+  gap: calc(var(--wordmark-size, 112px) * 0.28);
   max-width: 100%;
-}
-
-.lockup-preview.horizontal .lockup-preview-fit {
-  gap: 60px;
+  width: max-content;
 }
 
 .lockup-preview.vertical .lockup-preview-fit {
   flex-direction: column;
-  gap: 40px;
+  gap: calc(var(--wordmark-size, 112px) * 0.32);
   text-align: center;
+}
+
+.lockup-preview.vertical .lockup-preview-type {
+  align-items: center;
+}
+
+.lockup-preview.icon .lockup-preview-fit {
+  justify-content: center;
+  width: max-content;
 }
 
 .lockup-preview.icon .lockup-preview-type {
   display: none;
 }
 
-.lockup-preview img,
-.lockup-mark,
-.preview-placeholder {
+.lockup-mark-slot {
+  box-sizing: border-box;
   flex: 0 0 auto;
-  height: 230px;
+  height: var(--mark-size, 112px);
+  overflow: hidden;
+  width: var(--mark-size, 112px);
+}
+
+.lockup-mark,
+.lockup-mark-slot .preview-placeholder {
+  display: block;
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
   object-fit: contain;
-  width: 230px;
+  width: 100%;
 }
 
 .lockup-mark {
   background: transparent;
-  transform-origin: center center;
 }
 
 .preview-placeholder {
@@ -2621,15 +2682,16 @@ textarea:focus-visible {
 .lockup-preview-type {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   max-width: 100%;
   min-width: 0;
 }
 
 .lockup-preview strong {
-  font-size: var(--wordmark-size, clamp(48px, 7vw, 110px));
+  font-size: var(--wordmark-size, 112px);
   font-weight: 600;
   letter-spacing: -0.07em;
-  line-height: 0.9;
+  line-height: 0.92;
 }
 
 .lockup-preview .wordmark-geometric {
@@ -2649,8 +2711,8 @@ textarea:focus-visible {
 .lockup-preview span {
   font-family: var(--font-geist-mono), monospace;
   font-size: var(--descriptor-size, 12px);
-  letter-spacing: 0.4em;
-  margin-top: 22px;
+  letter-spacing: 0.28em;
+  margin-top: calc(var(--wordmark-size, 112px) * 0.16);
   text-transform: uppercase;
 }
 
@@ -3679,47 +3741,69 @@ textarea:focus-visible {
 
   .lockup-preview,
   .lockup-preview.horizontal,
-  .lockup-preview.vertical {
+  .lockup-preview.vertical,
+  .lockup-preview.icon {
     min-height: 320px;
-    overflow: hidden;
+    /* Scroll instead of clipping — vw caps were killing Mark scale on narrow viewports. */
+    overflow: auto;
     padding: 24px 16px;
   }
 
-  .lockup-preview-fit {
-    flex-direction: column;
-    gap: 18px;
-    max-width: 100%;
-    width: 100%;
-  }
-
-  .lockup-preview.horizontal .lockup-preview-fit,
-  .lockup-preview.vertical .lockup-preview-fit {
-    gap: 18px;
-  }
-
-  .lockup-preview img,
-  .lockup-mark,
-  .preview-placeholder {
-    height: 140px;
-    width: 140px;
-  }
-
-  .lockup-preview-type {
+  /* Keep true horizontal vs vertical on phone — stacking both made the toggle look broken. */
+  .lockup-preview.horizontal .lockup-preview-fit {
     align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+
+  .lockup-preview.horizontal .lockup-preview-type {
+    align-items: flex-start;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .lockup-preview.vertical .lockup-preview-fit {
+    flex-direction: column;
     text-align: center;
-    width: 100%;
+  }
+
+  .lockup-preview.vertical .lockup-preview-type {
+    align-items: center;
+  }
+
+  .lockup-preview.icon .lockup-preview-fit {
+    margin: auto;
   }
 
   .lockup-preview strong {
-    font-size: clamp(28px, 9.5vw, calc(var(--wordmark-size, 112px) * 0.58));
     max-width: 100%;
     overflow-wrap: anywhere;
   }
 
   .lockup-preview span {
-    font-size: clamp(8px, 2.4vw, var(--descriptor-size, 12px));
-    letter-spacing: 0.18em;
-    margin-top: 10px;
+    letter-spacing: 0.12em;
+  }
+
+  .lockup-rail .segmented {
+    flex-wrap: wrap;
+    gap: 0;
+  }
+
+  .lockup-rail .segmented button {
+    flex: 1 1 30%;
+    min-height: 44px;
+    padding: 12px 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .lockup-rail .segmented button:focus {
+    outline: none;
+  }
+
+  .lockup-rail .segmented button:focus-visible {
+    outline: 2px solid var(--acid);
+    outline-offset: 2px;
   }
 
   .lockup-rail .creative-range,

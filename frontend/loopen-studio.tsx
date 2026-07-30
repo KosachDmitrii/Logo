@@ -9,7 +9,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { apiFetch, apiUrl, resolveMediaUrl } from "./lib/api";
-import { prepareLockupMarkSvg } from "./lib/lockup-svg";
+import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
 import {
   clearStudioSession,
   createEmptyStudioDraft,
@@ -254,6 +254,9 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
 ];
 
 const WORDMARK_SIZE_OPTIONS = [
+  { value: "24", label: "24" },
+  { value: "32", label: "32" },
+  { value: "40", label: "40" },
   { value: "48", label: "48" },
   { value: "64", label: "64" },
   { value: "80", label: "80" },
@@ -262,9 +265,14 @@ const WORDMARK_SIZE_OPTIONS = [
   { value: "128", label: "128" },
   { value: "144", label: "144" },
   { value: "160", label: "160" },
+  { value: "176", label: "176" },
+  { value: "192", label: "192" },
 ];
 
 const DESCRIPTOR_SIZE_OPTIONS = [
+  { value: "6", label: "6" },
+  { value: "8", label: "8" },
+  { value: "10", label: "10" },
   { value: "12", label: "12" },
   { value: "14", label: "14" },
   { value: "16", label: "16" },
@@ -301,48 +309,58 @@ async function fetchProjectList(force = false): Promise<SavedProject[]> {
 function LockupMark({
   alt,
   color,
-  scale,
   url,
 }: {
   alt: string;
   color: string;
-  scale: number;
   url: string;
 }) {
   const [src, setSrc] = useState(() => resolveMediaUrl(url));
+  const srcRef = useRef(src);
+  srcRef.current = src;
 
   useEffect(() => {
-    let revoked: string | null = null;
     let cancelled = false;
     void (async () => {
       try {
         const response = await fetch(resolveMediaUrl(url));
         if (!response.ok) throw new Error("Mark fetch failed.");
         const text = await response.text();
-        const tinted = prepareLockupMarkSvg(text, color);
+        const tinted = trimSvgViewBox(prepareLockupMarkSvg(text, color));
         const objectUrl = URL.createObjectURL(
           new Blob([tinted], { type: "image/svg+xml" }),
         );
-        revoked = objectUrl;
-        if (!cancelled) setSrc(objectUrl);
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        // Keep showing the previous blob until the new tint is ready.
+        // Revoking in effect cleanup was collapsing the mark on color change.
+        setSrc((previous) => {
+          if (previous.startsWith("blob:") && previous !== objectUrl) {
+            URL.revokeObjectURL(previous);
+          }
+          return objectUrl;
+        });
       } catch {
         if (!cancelled) setSrc(resolveMediaUrl(url));
       }
     })();
     return () => {
       cancelled = true;
-      if (revoked) URL.revokeObjectURL(revoked);
     };
   }, [url, color]);
 
-  return (
-    <img
-      className="lockup-mark"
-      src={src}
-      alt={alt}
-      style={{ transform: `scale(${scale / 100})` }}
-    />
+  useEffect(
+    () => () => {
+      if (srcRef.current.startsWith("blob:")) {
+        URL.revokeObjectURL(srcRef.current);
+      }
+    },
+    [],
   );
+
+  return <img className="lockup-mark" src={src} alt={alt} />;
 }
 
 function SizeSquareSelect({
@@ -369,7 +387,7 @@ function SizeSquareSelect({
   }, [open]);
 
   return (
-    <div className="size-square" ref={root}>
+    <div className={`size-square${open ? " is-open" : ""}`} ref={root}>
       <button
         type="button"
         className="size-square-trigger"
@@ -428,7 +446,7 @@ function CreativeSelect({
   }, [open]);
 
   return (
-    <div className="creative-select" ref={root}>
+    <div className={`creative-select${open ? " is-open" : ""}`} ref={root}>
       <span className="mini-label">{label}</span>
       <button
         type="button"
@@ -659,6 +677,12 @@ function LoopenStudioApp({
       : wordmarkCase === "lower"
         ? (wordmarkName || brandName || "Brand name").toLowerCase()
         : wordmarkName || brandName || "Brand name";
+  const markScaleFactor = Math.min(4, Math.max(0.7, markScale / 100));
+  // Same base for horizontal/icon so "Icon only" doesn't jump to a huge orphan size.
+  const markSizePx = Math.round(
+    (lockupLayout === "vertical" ? wordmarkSize * 2 : wordmarkSize * 2.2) *
+      markScaleFactor,
+  );
   const focusedGeneration = generatedConcepts.find(
     (item) => item.directionKey === selectedConcept,
   );
@@ -2535,8 +2559,22 @@ function LoopenStudioApp({
                   <input style={{ "--range-progress": `${((wordmarkTracking + 8) / 16) * 100}%` } as CSSProperties} type="range" min="-8" max="8" value={wordmarkTracking} onChange={(event) => setWordmarkTracking(Number(event.target.value))} />
                 </label>
                 <label className="creative-range">
-                  <span className="mini-label">Mark scale — {markScale}%</span>
-                  <input style={{ "--range-progress": `${((markScale - 70) / 130) * 100}%` } as CSSProperties} type="range" min="70" max="200" step="5" value={markScale} onChange={(event) => setMarkScale(Number(event.target.value))} />
+                  <span className="mini-label">
+                    Mark scale — {markScale}% · {markSizePx}px
+                  </span>
+                  <input
+                    style={
+                      {
+                        "--range-progress": `${((markScale - 70) / 330) * 100}%`,
+                      } as CSSProperties
+                    }
+                    type="range"
+                    min="70"
+                    max="400"
+                    step="5"
+                    value={markScale}
+                    onChange={(event) => setMarkScale(Number(event.target.value))}
+                  />
                 </label>
               </div>
             </aside>
@@ -2548,18 +2586,22 @@ function LoopenStudioApp({
                   color: lockupColor,
                   "--wordmark-size": `${wordmarkSize}px`,
                   "--descriptor-size": `${descriptorSize}px`,
+                  "--mark-size": `${markSizePx}px`,
                 } as CSSProperties
               }
             >
               <div className="lockup-preview-fit">
-                {selectedVectorAsset ? (
-                  <LockupMark
-                    url={resolveMediaUrl(selectedVectorAsset.url)}
-                    color={lockupColor}
-                    scale={markScale}
-                    alt=""
-                  />
-                ) : <div className="preview-placeholder">SVG</div>}
+                <div className="lockup-mark-slot">
+                  {selectedVectorAsset ? (
+                    <LockupMark
+                      url={resolveMediaUrl(selectedVectorAsset.url)}
+                      color={lockupColor}
+                      alt=""
+                    />
+                  ) : (
+                    <div className="preview-placeholder">SVG</div>
+                  )}
+                </div>
                 {lockupLayout !== "icon" && (
                   <div className="lockup-preview-type">
                     <strong
@@ -2571,7 +2613,7 @@ function LoopenStudioApp({
                     >
                       {displayBrandName}
                     </strong>
-                    {descriptor && <span>{descriptor}</span>}
+                    {descriptor ? <span>{descriptor}</span> : null}
                   </div>
                 )}
               </div>

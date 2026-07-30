@@ -100,8 +100,8 @@ export async function POST(
     8,
     Math.max(-8, Number(input.wordmarkTracking ?? typography.spacing)),
   );
-  const titleSize = Math.min(160, Math.max(48, Math.round(Number(input.wordmarkSize ?? 112))));
-  const lineSize = Math.min(36, Math.max(10, Math.round(Number(input.descriptorSize ?? 24))));
+  const titleSize = Math.min(192, Math.max(24, Math.round(Number(input.wordmarkSize ?? 112))));
+  const lineSize = Math.min(36, Math.max(6, Math.round(Number(input.descriptorSize ?? 24))));
   const mark = iconOnly
     ? `<svg x="${(512 - scaled(448)) / 2}" y="${(512 - scaled(448)) / 2}" width="${scaled(448)}" height="${scaled(448)}" viewBox="${escapeXml(viewBox)}">${inner}</svg>`
     : horizontal
