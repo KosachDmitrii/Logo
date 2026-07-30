@@ -29,16 +29,8 @@ backend (Next.js Route Handlers)
 
 Requires Node.js 22.13 or newer.
 
-Create `.env.local`:
-
-```env
-OPENAI_API_KEY=
-RECRAFT_API_KEY=
-GEMINI_API_KEY=
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_STORAGE_BUCKET=logo-files
-```
+Create `.env.local` (see [`.env.example`](.env.example)). For UI-local /
+API-on-Railway you mainly need the proxy lines; API keys live on Railway.
 
 Apply migrations in `backend/supabase/migrations/` to the Supabase project
 (schema + private `logo-files` storage bucket) before starting the app.
@@ -49,32 +41,30 @@ npm test
 npm run dev
 ```
 
-The local development server uses the private `Local Studio` identity, so no
-sign-in step is required.
+Open http://localhost:3000. Local UI uses the Local Studio identity; API
+calls go to Railway when `API_PROXY_TARGET` is set.
 
-## Railway
+## Railway = API (backend)
 
-- Build: `npm run build`
-- Start: `npm start`
-- Healthcheck: `/`
-- Variables: same as `.env.example`
-- Set `ALLOW_LOCAL_STUDIO=1` so the studio uses the Local Studio identity
-  without ChatGPT sign-in (temporary until regular login lands)
-- Open: https://logo-production-043e.up.railway.app
+Recommended workflow: UI on localhost, API on Railway.
 
-Config-as-code: [`railway.json`](railway.json).
+- Railway runs the Next.js server (API routes + keys + Supabase)
+- Local `npm run dev` serves the studio UI and proxies `/api/*` → Railway
+- On Railway Variables set all secrets from `.env.example` plus
+  `ALLOW_LOCAL_STUDIO=1` (temporary until regular login)
 
-### Local UI → Railway API (optional)
-
-Only needed if you keep a local Next UI while calling the Railway API.
-Restart `next dev` after changes:
+Local `.env.local`:
 
 ```env
 NEXT_PUBLIC_API_URL=/api
 API_PROXY_TARGET=https://logo-production-043e.up.railway.app
 ```
 
-Or use an absolute API base and set `CORS_ALLOWED_ORIGINS` on Railway.
+Restart `next dev` after changing `API_PROXY_TARGET` (it is read by
+`next.config.ts`). Open http://localhost:3000 — generate/history hit Railway.
+
+Config-as-code: [`railway.json`](railway.json). Build/start on Railway:
+`npm run build` / `npm start`, healthcheck `/`.
 
 ## Data ownership
 
