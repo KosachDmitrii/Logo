@@ -2623,14 +2623,15 @@ textarea:focus-visible {
   align-items: center;
   display: flex;
   flex-direction: row;
-  gap: calc(var(--wordmark-size, 112px) * 0.28);
+  gap: calc(var(--wordmark-size, 112px) * 0.16);
   max-width: 100%;
   width: max-content;
 }
 
 .lockup-preview.vertical .lockup-preview-fit {
+  align-items: center;
   flex-direction: column;
-  gap: calc(var(--wordmark-size, 112px) * 0.32);
+  gap: calc(var(--wordmark-size, 112px) * 0.18);
   text-align: center;
 }
 
@@ -2711,8 +2712,8 @@ textarea:focus-visible {
 .lockup-preview span {
   font-family: var(--font-geist-mono), monospace;
   font-size: var(--descriptor-size, 12px);
-  letter-spacing: 0.28em;
-  margin-top: calc(var(--wordmark-size, 112px) * 0.16);
+  letter-spacing: 0.22em;
+  margin-top: calc(var(--wordmark-size, 112px) * 0.14);
   text-transform: uppercase;
 }
 

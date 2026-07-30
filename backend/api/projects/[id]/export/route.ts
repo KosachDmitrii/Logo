@@ -118,8 +118,8 @@ export async function POST(
     : typography.spacing;
   const brandLetterSpacing = titleSize * trackingEm;
   const descriptorLetterSpacing = lineSize * 0.28;
-  const markGap = Math.round(titleSize * (horizontal ? 0.28 : 0.32));
-  const descriptorGap = Math.round(titleSize * 0.16);
+  const markGap = Math.round(titleSize * (horizontal ? 0.16 : 0.18));
+  const descriptorGap = Math.round(titleSize * 0.14);
   const typeHeight =
     titleSize * 0.92 + (descriptorRaw ? descriptorGap + lineSize : 0);
   const brandWidth = estimateTextWidth(displayBrand, titleSize, trackingEm);

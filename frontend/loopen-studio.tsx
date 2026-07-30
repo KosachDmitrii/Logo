@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { apiFetch, apiUrl, resolveMediaUrl } from "./lib/api";
+import { buildLockupSvg } from "./lib/lockup-export";
 import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
 import {
   clearStudioSession,
@@ -1358,58 +1359,63 @@ function LoopenStudioApp({
     const requestKey = `${format}-${layout}-${rasterSize ?? "master"}`;
     setExportingKey(requestKey);
     try {
-      const response = await apiFetch(`/projects/${projectId}/export`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        assetId: selectedVector,
+      // Compose on the client from the same sizes as the preview (WYSIWYG).
+      const assetResponse = await apiFetch(`/assets/${selectedVector}`);
+      if (!assetResponse.ok) {
+        const payload = (await assetResponse.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        showRequestError(
+          "Asset export",
+          payload?.error ?? "Vector asset could not be loaded.",
+        );
+        return;
+      }
+      const markSvg = await assetResponse.text();
+      const svg = buildLockupSvg({
         brandName: wordmarkName || brandName,
         color: lockupColor,
         descriptor,
         layout,
         markScale,
+        markSvg,
         wordmarkCase,
         wordmarkSize,
         descriptorSize,
         wordmarkWeight,
         wordmarkTracking,
         wordmarkStyle,
-      }),
       });
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        showRequestError(
-          "Asset export",
-          payload.error ?? "Export could not be created.",
-        );
-        return;
-      }
-      const svgBlob = await response.blob();
-      let blob = svgBlob;
+      const svgBlob = new Blob([svg], { type: "image/svg+xml" });
+      let blob: Blob = svgBlob;
       if (format !== "svg") {
-      const sourceUrl = URL.createObjectURL(svgBlob);
-      const image = new Image();
-      await new Promise<void>((resolve, reject) => {
-        image.onload = () => resolve();
-        image.onerror = () => reject(new Error("Could not render the SVG export."));
-        image.src = sourceUrl;
-      });
-      const canvas = document.createElement("canvas");
-      canvas.width = rasterSize ?? image.naturalWidth;
-      canvas.height = rasterSize ?? image.naturalHeight;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Canvas export is unavailable.");
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(sourceUrl);
-      blob = await new Promise<Blob>((resolve, reject) =>
-        canvas.toBlob(
-          (result) => (result ? resolve(result) : reject(new Error("Raster export failed."))),
-          format === "png" ? "image/png" : "image/webp",
-          0.96,
-        ),
-      );
+        const sourceUrl = URL.createObjectURL(svgBlob);
+        const image = new Image();
+        await new Promise<void>((resolve, reject) => {
+          image.onload = () => resolve();
+          image.onerror = () =>
+            reject(new Error("Could not render the SVG export."));
+          image.src = sourceUrl;
+        });
+        const canvas = document.createElement("canvas");
+        canvas.width = rasterSize ?? image.naturalWidth;
+        canvas.height = rasterSize ?? image.naturalHeight;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Canvas export is unavailable.");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(sourceUrl);
+        blob = await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob(
+            (result) =>
+              result
+                ? resolve(result)
+                : reject(new Error("Raster export failed.")),
+            format === "png" ? "image/png" : "image/webp",
+            0.96,
+          ),
+        );
       }
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
