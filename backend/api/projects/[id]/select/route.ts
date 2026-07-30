@@ -1,5 +1,5 @@
-import { getChatGPTUser } from "../../../../chatgpt-auth";
-import { selectOne, updateRows } from "../../../../../lib/supabase";
+import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { selectOne, updateRows } from "@/backend/lib/supabase";
 
 export const dynamic = "force-dynamic";
 

@@ -1,7 +1,8 @@
+import { access, cp, mkdir, rm } from "node:fs/promises";
+import { resolve } from "node:path";
 import vinext from "vinext";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import hostingConfig from "./.openai/hosting.json";
-import { sites } from "./build/sites-vite-plugin";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
@@ -12,7 +13,7 @@ const { d1, r2 } = hostingConfig;
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
-  main: "./worker/index.ts",
+  main: "./backend/worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   d1_databases: d1
     ? [
@@ -32,6 +33,41 @@ const localBindingConfig = {
       ]
     : [],
 };
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/** Copy Sites hosting metadata into dist after Vite finishes compiling. */
+function sites(): Plugin {
+  let root = process.cwd();
+
+  return {
+    name: "sites",
+    apply: "build",
+    configResolved(config) {
+      root = config.root;
+    },
+    async closeBundle() {
+      const outputDirectory = resolve(root, "dist", ".openai");
+      const hostingConfigPath = resolve(root, ".openai", "hosting.json");
+      await rm(outputDirectory, { recursive: true, force: true });
+      await mkdir(outputDirectory, { recursive: true });
+
+      if (await exists(hostingConfigPath)) {
+        await cp(hostingConfigPath, resolve(outputDirectory, "hosting.json"));
+      }
+    },
+  };
+}
 
 export default defineConfig(async () => {
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool

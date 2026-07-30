@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
 import {
   type BrandStrategy,
   buildPrompt,
@@ -6,19 +6,19 @@ import {
   getRuntimeEnv,
   hashIdentity,
   validateBrief,
-} from "../../../lib/mvp-runtime";
+} from "@/backend/lib/mvp-runtime";
 import {
   countRows,
   insertRow,
   selectOne,
   selectRows,
   updateRows,
-} from "../../../lib/supabase";
+} from "@/backend/lib/supabase";
 import {
   arrayBufferToBase64,
   assessLogoImage,
-} from "../../../lib/logo-quality";
-import { createCuratedConcepts } from "../../../lib/gemini-creative";
+} from "@/backend/lib/logo-quality";
+import { createCuratedConcepts } from "@/backend/lib/gemini-creative";
 
 type ProjectRow = {
   id: string;

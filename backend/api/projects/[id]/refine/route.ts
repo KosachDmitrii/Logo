@@ -1,19 +1,19 @@
-import { getChatGPTUser } from "../../../../chatgpt-auth";
+import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
 import {
   buildRefinementPrompt,
   getRuntimeEnv,
-} from "../../../../../lib/mvp-runtime";
+} from "@/backend/lib/mvp-runtime";
 import {
   insertRow,
   selectOne,
   updateRows,
-} from "../../../../../lib/supabase";
-import { refineVectorConcept } from "../../../../../lib/vector-art-direction";
-import { arrayBufferToBase64 } from "../../../../../lib/logo-quality";
+} from "@/backend/lib/supabase";
+import { refineVectorConcept } from "@/backend/lib/vector-art-direction";
+import { arrayBufferToBase64 } from "@/backend/lib/logo-quality";
 import {
   REFINE_RECOMMENDED_SCORE,
   refineAndReviewWithGemini,
-} from "../../../../../lib/gemini-creative";
+} from "@/backend/lib/gemini-creative";
 
 type ImageResponse = {
   result?: { image?: string };

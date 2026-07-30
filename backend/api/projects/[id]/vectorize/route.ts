@@ -1,19 +1,19 @@
-import { getChatGPTUser } from "../../../../chatgpt-auth";
+import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
 import {
   getRuntimeEnv,
   sanitizeSvg,
-} from "../../../../../lib/mvp-runtime";
+} from "@/backend/lib/mvp-runtime";
 import {
   insertRow,
   selectOne,
   updateRows,
-} from "../../../../../lib/supabase";
+} from "@/backend/lib/supabase";
 import {
   arrayBufferToBase64,
   assessLogoImage,
-} from "../../../../../lib/logo-quality";
-import { reconstructArchitecturalLogoSvg } from "../../../../../lib/vector-art-direction";
-import type { LogoBrief } from "../../../../../lib/mvp-runtime";
+} from "@/backend/lib/logo-quality";
+import { reconstructArchitecturalLogoSvg } from "@/backend/lib/vector-art-direction";
+import type { LogoBrief } from "@/backend/lib/mvp-runtime";
 
 type RecraftResponse = {
   image?: { b64_json?: string; url?: string };

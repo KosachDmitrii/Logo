@@ -1,8 +1,8 @@
 import {
   chatGPTSignInPath,
   getChatGPTUser,
-} from "./chatgpt-auth";
-import LoopenStudio from "./loopen-studio";
+} from "@/backend/auth/chatgpt-auth";
+import LoopenStudio from "@/frontend/loopen-studio";
 
 export const dynamic = "force-dynamic";
 

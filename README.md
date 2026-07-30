@@ -2,12 +2,22 @@
 
 Strategy-first AI logo production pipeline.
 
+## Layout
+
+```text
+frontend/          React studio UI, styles, client session helpers
+backend/           API handlers, auth, worker, Supabase, server libs
+app/               Next/Vinext entry points (thin re-exports into FE/BE)
+public/            Static assets
+tests/             Node test suite
+```
+
 ## Architecture
 
 ```text
-React / Vinext
+frontend (React / Vinext)
       │
-Cloudflare Worker API
+backend (Cloudflare Worker API)
       ├── OpenAI GPT-5.6 Terra — brand strategy and art-direction briefs
       ├── Gemini 3 Pro Image — four explorations and two refinements
       ├── Gemini + GPT-5.6 Sol — independent visual jury
@@ -33,8 +43,8 @@ CLOUDFLARE_ACCOUNT_ID=
 CLOUDFLARE_API_TOKEN=
 ```
 
-Apply `supabase/migrations/20260729190000_loopen_schema.sql` to the Supabase
-project before starting the app.
+Apply `backend/supabase/migrations/20260729190000_loopen_schema.sql` to the
+Supabase project before starting the app.
 
 ```bash
 npm install
@@ -50,6 +60,7 @@ sign-in step is required.
 - Supabase stores project, generation, selection, and asset metadata.
 - R2 stores generated PNG and SVG bytes.
 - API keys stay server-side and must never use a `VITE_` prefix.
+
 # Production quality control
 
 Loopen treats generated concepts as untrusted candidates:

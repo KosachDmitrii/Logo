@@ -1,11 +1,11 @@
-import { getChatGPTUser } from "../../../chatgpt-auth";
-import { getRuntimeEnv } from "../../../../lib/mvp-runtime";
+import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { getRuntimeEnv } from "@/backend/lib/mvp-runtime";
 import {
   deleteRows,
   selectOne,
   selectRows,
   updateRows,
-} from "../../../../lib/supabase";
+} from "@/backend/lib/supabase";
 
 export const dynamic = "force-dynamic";
 

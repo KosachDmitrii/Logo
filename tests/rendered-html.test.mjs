@@ -7,9 +7,9 @@ const root = new URL("../", import.meta.url);
 test("ships the finished Loopen product surface", async () => {
   const [page, studio, layout, css, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/loopen-studio.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../frontend/loopen-studio.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../frontend/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
@@ -33,28 +33,28 @@ test("ships the finished Loopen product surface", async () => {
 test("keeps generation authenticated, persistent, and server-side", async () => {
   const [route, imageRoute, selectRoute, runtime, quality, creative, artDirection, hosting, migration, supabase] =
     await Promise.all([
-      readFile(new URL("../app/api/projects/route.ts", import.meta.url), "utf8"),
+      readFile(new URL("../backend/api/projects/route.ts", import.meta.url), "utf8"),
       readFile(
-        new URL("../app/api/images/[id]/route.ts", import.meta.url),
+        new URL("../backend/api/images/[id]/route.ts", import.meta.url),
         "utf8",
       ),
       readFile(
-        new URL("../app/api/projects/[id]/select/route.ts", import.meta.url),
+        new URL("../backend/api/projects/[id]/select/route.ts", import.meta.url),
         "utf8",
       ),
-      readFile(new URL("../lib/mvp-runtime.ts", import.meta.url), "utf8"),
-      readFile(new URL("../lib/logo-quality.ts", import.meta.url), "utf8"),
-      readFile(new URL("../lib/gemini-creative.ts", import.meta.url), "utf8"),
-      readFile(new URL("../lib/vector-art-direction.ts", import.meta.url), "utf8"),
+      readFile(new URL("../backend/lib/mvp-runtime.ts", import.meta.url), "utf8"),
+      readFile(new URL("../backend/lib/logo-quality.ts", import.meta.url), "utf8"),
+      readFile(new URL("../backend/lib/gemini-creative.ts", import.meta.url), "utf8"),
+      readFile(new URL("../backend/lib/vector-art-direction.ts", import.meta.url), "utf8"),
       readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
       readFile(
         new URL(
-          "../supabase/migrations/20260729190000_loopen_schema.sql",
+          "../backend/supabase/migrations/20260729190000_loopen_schema.sql",
           import.meta.url,
         ),
         "utf8",
       ),
-      readFile(new URL("../lib/supabase.ts", import.meta.url), "utf8"),
+      readFile(new URL("../backend/lib/supabase.ts", import.meta.url), "utf8"),
     ]);
 
   assert.match(route, /getChatGPTUser/);
@@ -135,29 +135,29 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
 test("ships the complete refinement and vector production workflow", async () => {
   const [studio, refine, vectorize, exportRoute, assetRoute, migration, artDirection, creative] =
     await Promise.all([
-      readFile(new URL("../app/loopen-studio.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../frontend/loopen-studio.tsx", import.meta.url), "utf8"),
       readFile(
-        new URL("../app/api/projects/[id]/refine/route.ts", import.meta.url),
+        new URL("../backend/api/projects/[id]/refine/route.ts", import.meta.url),
         "utf8",
       ),
       readFile(
-        new URL("../app/api/projects/[id]/vectorize/route.ts", import.meta.url),
+        new URL("../backend/api/projects/[id]/vectorize/route.ts", import.meta.url),
         "utf8",
       ),
       readFile(
-        new URL("../app/api/projects/[id]/export/route.ts", import.meta.url),
+        new URL("../backend/api/projects/[id]/export/route.ts", import.meta.url),
         "utf8",
       ),
-      readFile(new URL("../app/api/assets/[id]/route.ts", import.meta.url), "utf8"),
+      readFile(new URL("../backend/api/assets/[id]/route.ts", import.meta.url), "utf8"),
       readFile(
         new URL(
-          "../supabase/migrations/20260729190000_loopen_schema.sql",
+          "../backend/supabase/migrations/20260729190000_loopen_schema.sql",
           import.meta.url,
         ),
         "utf8",
       ),
-      readFile(new URL("../lib/vector-art-direction.ts", import.meta.url), "utf8"),
-      readFile(new URL("../lib/gemini-creative.ts", import.meta.url), "utf8"),
+      readFile(new URL("../backend/lib/vector-art-direction.ts", import.meta.url), "utf8"),
+      readFile(new URL("../backend/lib/gemini-creative.ts", import.meta.url), "utf8"),
     ]);
 
   assert.match(studio, /Project history/);
@@ -185,17 +185,26 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.doesNotMatch(studio, /Quick start templates/);
   assert.match(studio, /Core idea \*/);
   assert.match(studio, /Competitors/);
-  assert.match(studio, /sessionStorage/);
-  assert.match(studio, /STUDIO_SESSION_KEY|loopen-studio-session-v1/);
-  assert.match(studio, /readStudioSession|writeStudioSession/);
+  assert.match(studio, /useSyncExternalStore/);
+  assert.match(studio, /getClientStudioSnapshot|draftFromSnapshot|writeStudioSession/);
   assert.match(studio, /sessionReady/);
   assert.match(studio, /Studio session restored/);
   assert.match(studio, /pagehide/);
   assert.match(studio, /productionLocked/);
   assert.match(studio, /setProductionLocked\(true\)/);
-  assert.doesNotMatch(studio, /localStorage\.setItem\(STUDIO_SESSION_KEY/);
-  assert.doesNotMatch(studio, /localStorage\.getItem\(STUDIO_SESSION_KEY/);
-  assert.match(studio, /localStorage\.removeItem\(STUDIO_SESSION_KEY/);
+  assert.match(studio, /workflow-deferred/);
+  assert.match(studio, /aria-pressed=\{active\}/);
+
+  const sessionModule = await readFile(
+    new URL("../frontend/lib/studio-session.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(sessionModule, /loopen-studio-session-v1/);
+  assert.match(sessionModule, /sessionStorage/);
+  assert.match(sessionModule, /readStudioSession|writeStudioSession/);
+  assert.doesNotMatch(sessionModule, /localStorage\.setItem\(STUDIO_SESSION_KEY/);
+  assert.doesNotMatch(sessionModule, /localStorage\.getItem\(STUDIO_SESSION_KEY/);
+  assert.match(sessionModule, /localStorage\.removeItem\(STUDIO_SESSION_KEY/);
   assert.match(studio, /Icon only|title=\"Icon only\"/);
   assert.match(studio, /Original concept/);
   assert.match(studio, /vectorSourceMode/);
@@ -241,6 +250,12 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.doesNotMatch(vectorize, /not safe to vectorize/);
   assert.doesNotMatch(vectorize, /imageToImage/);
   assert.match(exportRoute, /sanitizeSvg/);
+  const sanitizeModule = await readFile(
+    new URL("../backend/lib/sanitize-svg.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(sanitizeModule, /SVG_ALLOWED_TAGS/);
+  assert.match(sanitizeModule, /isSafeSvgUri/);
   assert.match(exportRoute, /iconOnly/);
   assert.match(exportRoute, /prepareLockupMarkSvg/);
   assert.match(exportRoute, /brandName/);
@@ -264,7 +279,7 @@ test("ships the complete refinement and vector production workflow", async () =>
 
 test("uses a sign-in-free local development identity", async () => {
   const auth = await readFile(
-    new URL("../app/chatgpt-auth.ts", import.meta.url),
+    new URL("../backend/auth/chatgpt-auth.ts", import.meta.url),
     "utf8",
   );
 

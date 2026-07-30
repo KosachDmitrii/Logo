@@ -1,6 +1,6 @@
-import { getChatGPTUser } from "../../../chatgpt-auth";
-import { getRuntimeEnv } from "../../../../lib/mvp-runtime";
-import { selectOne } from "../../../../lib/supabase";
+import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { getRuntimeEnv } from "@/backend/lib/mvp-runtime";
+import { selectOne } from "@/backend/lib/supabase";
 
 export const dynamic = "force-dynamic";
 

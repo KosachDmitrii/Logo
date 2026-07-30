@@ -179,13 +179,7 @@ No border, mockup, presentation card, gradients, shadows, texture, 3D or unrelat
   `.trim();
 }
 
-export function sanitizeSvg(svg: string) {
-  return svg
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*')/gi, "")
-    .replace(/\s(?:href|xlink:href)\s*=\s*(?:"https?:[^"]*"|'https?:[^']*')/gi, "")
-    .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, "");
-}
+export { sanitizeSvg } from "./sanitize-svg";
 
 export function escapeXml(value: string) {
   return value.replace(/[<>&"']/g, (character) => {

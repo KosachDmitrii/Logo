@@ -112,17 +112,27 @@ textarea:focus-visible {
 .top-nav {
   display: flex;
   font-family: var(--font-geist-mono), monospace;
-  font-size: 11px;
+  font-size: 12px;
   gap: 34px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.top-nav a {
+.top-nav a,
+.top-nav button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 0;
   position: relative;
+  text-transform: inherit;
 }
 
-.top-nav a::after {
+.top-nav a::after,
+.top-nav button::after {
   background: var(--ink);
   bottom: -6px;
   content: "";
@@ -135,7 +145,8 @@ textarea:focus-visible {
   width: 100%;
 }
 
-.top-nav a:hover::after {
+.top-nav a:hover::after,
+.top-nav button:hover::after {
   transform: scaleX(1);
   transform-origin: left;
 }
@@ -153,7 +164,7 @@ textarea:focus-visible {
   color: var(--ink);
   cursor: pointer;
   font-family: var(--font-geist-mono), monospace;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   padding: 8px 4px;
   text-transform: uppercase;
@@ -171,7 +182,7 @@ textarea:focus-visible {
   cursor: pointer;
   display: flex;
   font-family: var(--font-geist-mono), monospace;
-  font-size: 10px;
+  font-size: 11px;
   gap: 8px;
   padding: 10px 14px;
 }
@@ -631,7 +642,7 @@ textarea:focus-visible {
   border: 1px solid var(--line);
   border-radius: 999px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   padding: 10px 15px;
   transition:
     background 150ms ease,
@@ -660,7 +671,7 @@ textarea:focus-visible {
 .mini-label {
   color: color-mix(in srgb, currentColor 46%, transparent);
   font-family: var(--font-geist-mono), monospace;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -3107,7 +3118,7 @@ textarea:focus-visible {
 
 .footer-signal span,
 .footer-signal p {
-  font: 8px/1.55 var(--font-geist-mono), monospace;
+  font: 11px/1.55 var(--font-geist-mono), monospace;
   margin: 0;
   text-transform: uppercase;
 }
@@ -3134,7 +3145,7 @@ textarea:focus-visible {
 }
 
 .footer-statement > span {
-  font: 9px var(--font-geist-mono), monospace;
+  font: 11px var(--font-geist-mono), monospace;
   text-transform: uppercase;
 }
 
@@ -3179,7 +3190,7 @@ textarea:focus-visible {
 
 .footer-route span,
 .footer-route i {
-  font: 8px var(--font-geist-mono), monospace;
+  font: 11px var(--font-geist-mono), monospace;
   font-style: normal;
   opacity: 0.6;
 }
@@ -3381,21 +3392,49 @@ textarea:focus-visible {
     --section-space: 88px;
   }
 
+  .workflow-deferred {
+    display: none;
+  }
+
   section[id] {
     scroll-margin-top: 66px;
   }
   .site-header {
-    grid-template-columns: 1fr auto;
-    height: 66px;
-    padding: 0 18px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    height: auto;
+    min-height: 66px;
+    padding: 10px 18px 12px;
+    row-gap: 8px;
+  }
+
+  .site-header .wordmark {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .header-actions {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: end;
   }
 
   .top-nav {
-    display: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 22px;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
   }
 
   .project-pill {
+    font-size: 12px;
     padding: 8px 11px;
+  }
+
+  .session-reset {
+    font-size: 12px;
   }
 
   .hero {

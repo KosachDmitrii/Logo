@@ -6,66 +6,29 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
-import { prepareLockupMarkSvg } from "../lib/lockup-svg";
+import { prepareLockupMarkSvg } from "./lib/lockup-svg";
+import {
+  clearStudioSession,
+  createEmptyStudioDraft,
+  draftFromSnapshot,
+  getClientStudioSnapshot,
+  subscribeStudioSession,
+  writeStudioSession,
+} from "./lib/studio-session";
+import type {
+  BrandStrategy,
+  GeneratedConcept,
+  PremiumBrief,
+  StudioAsset,
+  StudioDraft,
+  StudioSessionSnapshot,
+} from "./lib/studio-types";
 
 export type StudioUser = {
   displayName: string;
   email: string;
-};
-
-type GeneratedConcept = {
-  directionKey: string;
-  directionTitle: string;
-  downloadUrl: string;
-  id: string;
-  imageUrl: string;
-  qualityScore?: number;
-  rationale?: string;
-  reviewReason?: string;
-  reviewStatus?: string;
-};
-
-type BrandStrategy = {
-  categoryCodes: string[];
-  competitorRisks: string[];
-  differentiation: string;
-  typography: string;
-  palette: string[];
-  trademarkNotice: string;
-};
-
-type PremiumBrief = {
-  audience?: string;
-  avoid?: string;
-  companyDescription?: string;
-  competitors?: string;
-  colorApproach?: "propose" | "existing" | "mood";
-  brandColors?: string;
-  colorMood?: string;
-  coreIdea?: string;
-  industry?: string;
-  logoType?: "abstract" | "monogram" | "wordmark" | "emblem" | "combination";
-  personalities?: string[];
-  positioning?: string;
-  strategy?: BrandStrategy;
-  usage?: string;
-  visualDirection?: string;
-};
-
-type StudioAsset = {
-  contentType: string;
-  downloadUrl: string;
-  id: string;
-  label: string;
-  model: string;
-  parentId: string;
-  provider: string;
-  qualityScore?: number;
-  reviewReason?: string;
-  reviewStatus?: string;
-  stage: "refine" | "vector";
-  url: string;
 };
 
 type SavedProject = {
@@ -289,52 +252,6 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
   },
 ];
 
-const DEFAULT_BRIEF = BRIEF_TEMPLATES[0];
-
-const STUDIO_SESSION_KEY = "loopen-studio-session-v1";
-
-type StudioSessionSnapshot = {
-  v: 1;
-  savedAt: number;
-  projectId: string | null;
-  activeTemplateId: string;
-  brandName: string;
-  coreIdea: string;
-  industry: string;
-  companyDescription: string;
-  audience: string;
-  positioning: string;
-  competitors: string;
-  colorApproach: NonNullable<PremiumBrief["colorApproach"]>;
-  brandColors: string;
-  colorMood: string;
-  visualDirection: string;
-  usage: string;
-  avoid: string;
-  personalities: string[];
-  strategy: BrandStrategy | null;
-  selectedConcept: string;
-  selectedConceptIds: string[];
-  generatedConcepts: GeneratedConcept[];
-  assets: StudioAsset[];
-  selectedRefinement: string;
-  selectedVector: string;
-  /** When true, stages 04–05 stay cleared (e.g. Reduce in progress). */
-  productionLocked: boolean;
-  vectorSourceMode: "refine" | "original";
-  lockupLayout: "horizontal" | "vertical" | "icon";
-  lockupColor: string;
-  wordmarkName: string;
-  descriptor: string;
-  wordmarkStyle: string;
-  wordmarkCase: "original" | "upper" | "lower";
-  wordmarkWeight: number;
-  wordmarkTracking: number;
-  wordmarkSize: number;
-  descriptorSize: number;
-  markScale: number;
-};
-
 const WORDMARK_SIZE_OPTIONS = [
   { value: "48", label: "48" },
   { value: "64", label: "64" },
@@ -357,41 +274,6 @@ const DESCRIPTOR_SIZE_OPTIONS = [
   { value: "26", label: "26" },
   { value: "28", label: "28" },
 ];
-
-function readStudioSession(): StudioSessionSnapshot | null {
-  if (typeof window === "undefined") return null;
-  try {
-    // Drop any leftover localStorage draft from older builds.
-    window.localStorage.removeItem(STUDIO_SESSION_KEY);
-    const raw = window.sessionStorage.getItem(STUDIO_SESSION_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StudioSessionSnapshot;
-    if (parsed?.v !== 1) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function writeStudioSession(snapshot: StudioSessionSnapshot) {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(STUDIO_SESSION_KEY, JSON.stringify(snapshot));
-    window.localStorage.removeItem(STUDIO_SESSION_KEY);
-  } catch {
-    // Quota / private mode — session restore is best-effort.
-  }
-}
-
-function clearStudioSession() {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.removeItem(STUDIO_SESSION_KEY);
-    window.localStorage.removeItem(STUDIO_SESSION_KEY);
-  } catch {
-    // ignore
-  }
-}
 
 function LockupMark({
   alt,
@@ -566,43 +448,47 @@ function RequestDrop({ label = "Working" }: { label?: string }) {
   );
 }
 
-export default function LoopenStudio({
+function LoopenStudioApp({
   signInPath,
   user,
+  initialDraft,
+  restoreNotice,
 }: {
   signInPath: string;
   user: StudioUser | null;
+  initialDraft: StudioDraft;
+  restoreNotice: string;
 }) {
-  const [selectedConcept, setSelectedConcept] = useState("continuous");
-  const [selectedConceptIds, setSelectedConceptIds] = useState<string[]>([]);
-  const [generatedConcepts, setGeneratedConcepts] = useState<
-    GeneratedConcept[]
-  >([]);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [activeTemplateId, setActiveTemplateId] = useState("");
-  const [brandName, setBrandName] = useState("");
-  const [coreIdea, setCoreIdea] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [companyDescription, setCompanyDescription] = useState("");
-  const [audience, setAudience] = useState("");
-  const [positioning, setPositioning] = useState("");
-  const [competitors, setCompetitors] = useState("");
+  const [selectedConcept, setSelectedConcept] = useState(initialDraft.selectedConcept);
+  const [selectedConceptIds, setSelectedConceptIds] = useState(initialDraft.selectedConceptIds);
+  const [generatedConcepts, setGeneratedConcepts] = useState(initialDraft.generatedConcepts);
+  const [projectId, setProjectId] = useState<string | null>(initialDraft.projectId);
+  const [activeTemplateId, setActiveTemplateId] = useState(initialDraft.activeTemplateId);
+  const [brandName, setBrandName] = useState(initialDraft.brandName);
+  const [coreIdea, setCoreIdea] = useState(initialDraft.coreIdea);
+  const [industry, setIndustry] = useState(initialDraft.industry);
+  const [companyDescription, setCompanyDescription] = useState(
+    initialDraft.companyDescription,
+  );
+  const [audience, setAudience] = useState(initialDraft.audience);
+  const [positioning, setPositioning] = useState(initialDraft.positioning);
+  const [competitors, setCompetitors] = useState(initialDraft.competitors);
   const [colorApproach, setColorApproach] =
-    useState<NonNullable<PremiumBrief["colorApproach"]>>("propose");
-  const [brandColors, setBrandColors] = useState("");
-  const [colorMood, setColorMood] = useState("");
+    useState<NonNullable<PremiumBrief["colorApproach"]>>(initialDraft.colorApproach);
+  const [brandColors, setBrandColors] = useState(initialDraft.brandColors);
+  const [colorMood, setColorMood] = useState(initialDraft.colorMood);
   const logoType: PremiumBrief["logoType"] = "combination";
-  const [visualDirection, setVisualDirection] = useState("");
-  const [usage, setUsage] = useState("");
-  const [avoid, setAvoid] = useState("");
-  const [strategy, setStrategy] = useState<BrandStrategy | null>(null);
+  const [visualDirection, setVisualDirection] = useState(initialDraft.visualDirection);
+  const [usage, setUsage] = useState(initialDraft.usage);
+  const [avoid, setAvoid] = useState(initialDraft.avoid);
+  const [strategy, setStrategy] = useState<BrandStrategy | null>(initialDraft.strategy);
   const [isStrategyOpen, setIsStrategyOpen] = useState(false);
-  const [personalities, setPersonalities] = useState<string[]>([]);
+  const [personalities, setPersonalities] = useState(initialDraft.personalities);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(restoreNotice);
   const [diversityWarning, setDiversityWarning] = useState("");
-  const [assets, setAssets] = useState<StudioAsset[]>([]);
+  const [assets, setAssets] = useState(initialDraft.assets);
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [deletingProjectId, setDeletingProjectId] = useState("");
@@ -610,29 +496,31 @@ export default function LoopenStudio({
   const [isVectorizing, setIsVectorizing] = useState(false);
   const [exportingKey, setExportingKey] = useState("");
   const [isMethodOpen, setIsMethodOpen] = useState(false);
-  const [selectedRefinement, setSelectedRefinement] = useState("");
-  const [selectedVector, setSelectedVector] = useState("");
-  const [productionLocked, setProductionLocked] = useState(false);
+  const [selectedRefinement, setSelectedRefinement] = useState(initialDraft.selectedRefinement);
+  const [selectedVector, setSelectedVector] = useState(initialDraft.selectedVector);
+  const [productionLocked, setProductionLocked] = useState(initialDraft.productionLocked);
   const [vectorSourceMode, setVectorSourceMode] = useState<"refine" | "original">(
-    "refine",
+    initialDraft.vectorSourceMode,
   );
   const [lockupLayout, setLockupLayout] = useState<"horizontal" | "vertical" | "icon">(
-    "horizontal",
+    initialDraft.lockupLayout,
   );
-  const [lockupColor, setLockupColor] = useState("#201f1e");
-  const [wordmarkName, setWordmarkName] = useState("");
-  const [descriptor, setDescriptor] = useState("");
-  const [wordmarkStyle, setWordmarkStyle] = useState("modern");
-  const [wordmarkCase, setWordmarkCase] = useState<"original" | "upper" | "lower">("original");
-  const [wordmarkWeight, setWordmarkWeight] = useState(600);
-  const [wordmarkTracking, setWordmarkTracking] = useState(-3);
-  const [wordmarkSize, setWordmarkSize] = useState(112);
-  const [descriptorSize, setDescriptorSize] = useState(24);
-  const [markScale, setMarkScale] = useState(100);
+  const [lockupColor, setLockupColor] = useState(initialDraft.lockupColor);
+  const [wordmarkName, setWordmarkName] = useState(initialDraft.wordmarkName);
+  const [descriptor, setDescriptor] = useState(initialDraft.descriptor);
+  const [wordmarkStyle, setWordmarkStyle] = useState(initialDraft.wordmarkStyle);
+  const [wordmarkCase, setWordmarkCase] = useState<"original" | "upper" | "lower">(
+    initialDraft.wordmarkCase,
+  );
+  const [wordmarkWeight, setWordmarkWeight] = useState(initialDraft.wordmarkWeight);
+  const [wordmarkTracking, setWordmarkTracking] = useState(initialDraft.wordmarkTracking);
+  const [wordmarkSize, setWordmarkSize] = useState(initialDraft.wordmarkSize);
+  const [descriptorSize, setDescriptorSize] = useState(initialDraft.descriptorSize);
+  const [markScale, setMarkScale] = useState(initialDraft.markScale);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
   const confirmResolver = useRef<((confirmed: boolean) => void) | null>(null);
   const historyListRef = useRef<HTMLDivElement>(null);
-  const [sessionReady, setSessionReady] = useState(false);
+  const sessionReady = true;
 
   useEffect(() => {
     if (!isHistoryOpen) return;
@@ -708,6 +596,12 @@ export default function LoopenStudio({
   );
   const refinements = assets.filter((asset) => asset.stage === "refine");
   const vectors = assets.filter((asset) => asset.stage === "vector");
+  const productionUnlocked =
+    selectedConceptIds.length > 0 ||
+    refinements.length > 0 ||
+    vectors.length > 0 ||
+    isRefining ||
+    isVectorizing;
   const selectedReduction = refinements.find(
     (asset) => asset.id === selectedRefinement,
   );
@@ -752,94 +646,55 @@ export default function LoopenStudio({
   }, [user]);
 
   useEffect(() => {
-    const snapshot = readStudioSession();
-    if (snapshot) {
-      setProjectId(snapshot.projectId);
-      setActiveTemplateId(snapshot.activeTemplateId ?? "");
-      setBrandName(snapshot.brandName ?? "");
-      setCoreIdea(snapshot.coreIdea ?? "");
-      setIndustry(snapshot.industry ?? "");
-      setCompanyDescription(snapshot.companyDescription ?? "");
-      setAudience(snapshot.audience ?? "");
-      setPositioning(snapshot.positioning ?? "");
-      setCompetitors(snapshot.competitors ?? "");
-      setColorApproach(snapshot.colorApproach ?? "propose");
-      setBrandColors(snapshot.brandColors ?? "");
-      setColorMood(snapshot.colorMood ?? "");
-      setVisualDirection(snapshot.visualDirection ?? "");
-      setUsage(snapshot.usage ?? "");
-      setAvoid(snapshot.avoid ?? "");
-      setPersonalities(snapshot.personalities ?? []);
-      setStrategy(snapshot.strategy ?? null);
-      setSelectedConcept(snapshot.selectedConcept || "continuous");
-      setSelectedConceptIds(snapshot.selectedConceptIds ?? []);
-      setGeneratedConcepts(snapshot.generatedConcepts ?? []);
-      setAssets(snapshot.assets ?? []);
-      setSelectedRefinement(snapshot.selectedRefinement ?? "");
-      setSelectedVector(snapshot.selectedVector ?? "");
-      setProductionLocked(Boolean(snapshot.productionLocked));
-      setVectorSourceMode(snapshot.vectorSourceMode ?? "refine");
-      setLockupLayout(snapshot.lockupLayout ?? "horizontal");
-      setLockupColor(snapshot.lockupColor ?? "#201f1e");
-      setWordmarkName(snapshot.wordmarkName ?? snapshot.brandName ?? "");
-      setDescriptor(snapshot.descriptor ?? "");
-      setWordmarkStyle(snapshot.wordmarkStyle ?? "modern");
-      setWordmarkCase(snapshot.wordmarkCase ?? "original");
-      setWordmarkWeight(snapshot.wordmarkWeight ?? 600);
-      setWordmarkTracking(snapshot.wordmarkTracking ?? -3);
-      setWordmarkSize(snapshot.wordmarkSize ?? 112);
-      setDescriptorSize(snapshot.descriptorSize ?? 24);
-      setMarkScale(snapshot.markScale ?? 100);
-      if (snapshot.projectId || snapshot.generatedConcepts?.length) {
-        setNotice("Studio session restored after reload.");
+    // While production is locked (Reduce reset), trust local snapshot only —
+    // do not rehydrate old refine/SVG assets from the server.
+    if (!initialDraft.projectId || initialDraft.productionLocked) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/projects/${initialDraft.projectId}`);
+        if (!response.ok || cancelled) return;
+        const payload = (await response.json()) as {
+          generations?: GeneratedConcept[];
+          assets?: StudioAsset[];
+        };
+        if (cancelled) return;
+        if (payload.generations?.length) {
+          setGeneratedConcepts(payload.generations);
+        }
+        if (payload.assets) {
+          setAssets(payload.assets);
+          const refineIds = new Set(
+            payload.assets
+              .filter((asset) => asset.stage === "refine")
+              .map((asset) => asset.id),
+          );
+          const vectorIds = new Set(
+            payload.assets
+              .filter((asset) => asset.stage === "vector")
+              .map((asset) => asset.id),
+          );
+          setSelectedRefinement((current) =>
+            current && refineIds.has(current)
+              ? current
+              : payload.assets!.filter((asset) => asset.stage === "refine").at(-1)
+                  ?.id ?? "",
+          );
+          setSelectedVector((current) =>
+            current && vectorIds.has(current)
+              ? current
+              : payload.assets!.filter((asset) => asset.stage === "vector").at(-1)
+                  ?.id ?? "",
+          );
+        }
+      } catch {
+        // Keep local snapshot if the API is briefly unavailable after wake.
       }
-      // While production is locked (Reduce reset), trust local snapshot only —
-      // do not rehydrate old refine/SVG assets from the server.
-      if (snapshot.projectId && !snapshot.productionLocked) {
-        void (async () => {
-          try {
-            const response = await fetch(`/api/projects/${snapshot.projectId}`);
-            if (!response.ok) return;
-            const payload = (await response.json()) as {
-              generations?: GeneratedConcept[];
-              assets?: StudioAsset[];
-            };
-            if (payload.generations?.length) {
-              setGeneratedConcepts(payload.generations);
-            }
-            if (payload.assets) {
-              setAssets(payload.assets);
-              const refineIds = new Set(
-                payload.assets
-                  .filter((asset) => asset.stage === "refine")
-                  .map((asset) => asset.id),
-              );
-              const vectorIds = new Set(
-                payload.assets
-                  .filter((asset) => asset.stage === "vector")
-                  .map((asset) => asset.id),
-              );
-              setSelectedRefinement((current) =>
-                current && refineIds.has(current)
-                  ? current
-                  : payload.assets!.filter((asset) => asset.stage === "refine").at(-1)
-                      ?.id ?? "",
-              );
-              setSelectedVector((current) =>
-                current && vectorIds.has(current)
-                  ? current
-                  : payload.assets!.filter((asset) => asset.stage === "vector").at(-1)
-                      ?.id ?? "",
-              );
-            }
-          } catch {
-            // Keep local snapshot if the API is briefly unavailable after wake.
-          }
-        })();
-      }
-    }
-    setSessionReady(true);
-  }, []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialDraft.projectId, initialDraft.productionLocked]);
 
   useEffect(() => {
     if (!sessionReady) return;
@@ -955,48 +810,6 @@ export default function LoopenStudio({
     if (!response.ok) return;
     const payload = (await response.json()) as { projects?: SavedProject[] };
     setProjects(payload.projects ?? []);
-  }
-
-  /** Reload assets from the server without wiping SVG / lockup selection. */
-  async function syncProjectAssets(options?: {
-    preferRefinementId?: string;
-    preferVectorId?: string;
-    /** Bypass productionLocked (needed right after unlock in the same tick). */
-    allowWhileLocked?: boolean;
-  }) {
-    if (!projectId) return;
-    if (productionLocked && !options?.allowWhileLocked) return;
-    const response = await fetch(`/api/projects/${projectId}`);
-    if (!response.ok) return;
-    const payload = (await response.json()) as {
-      assets?: StudioAsset[];
-      generations?: GeneratedConcept[];
-    };
-    const loadedAssets = payload.assets ?? [];
-    setAssets(loadedAssets);
-    if (payload.generations?.length) {
-      setGeneratedConcepts(payload.generations);
-    }
-    const refineIds = new Set(
-      loadedAssets.filter((asset) => asset.stage === "refine").map((asset) => asset.id),
-    );
-    const vectorIds = new Set(
-      loadedAssets.filter((asset) => asset.stage === "vector").map((asset) => asset.id),
-    );
-    setSelectedRefinement((current) => {
-      if (options?.preferRefinementId && refineIds.has(options.preferRefinementId)) {
-        return options.preferRefinementId;
-      }
-      if (current && refineIds.has(current)) return current;
-      return loadedAssets.filter((asset) => asset.stage === "refine").at(-1)?.id ?? "";
-    });
-    setSelectedVector((current) => {
-      if (options?.preferVectorId && vectorIds.has(options.preferVectorId)) {
-        return options.preferVectorId;
-      }
-      if (current && vectorIds.has(current)) return current;
-      return loadedAssets.filter((asset) => asset.stage === "vector").at(-1)?.id ?? "";
-    });
   }
 
   async function openProject(id: string) {
@@ -1807,7 +1620,9 @@ export default function LoopenStudio({
         </a>
         <nav className="top-nav" aria-label="Main navigation">
           <a href="#brief">Studio</a>
-          <a href="#concepts">Method</a>
+          <button type="button" onClick={() => setIsMethodOpen(true)}>
+            Method
+          </button>
           <a href="#manifesto">About</a>
         </nav>
         <div className="header-actions">
@@ -2424,7 +2239,11 @@ export default function LoopenStudio({
         </div>}
       </section>
 
-      <section className="workflow-section" id="workflow">
+      <section
+        className={`workflow-section${productionUnlocked ? "" : " workflow-deferred"}`}
+        id="workflow"
+        aria-hidden={productionUnlocked ? undefined : true}
+      >
         <div className="workflow-heading">
           <p className="eyebrow">04 / Production pipeline</p>
           <h2>From chosen thought<br />to usable identity.</h2>
@@ -2907,5 +2726,36 @@ export default function LoopenStudio({
         </div>
       </footer>
     </main>
+  );
+}
+
+export default function LoopenStudio({
+  signInPath,
+  user,
+}: {
+  signInPath: string;
+  user: StudioUser | null;
+}) {
+  const restored = useSyncExternalStore(
+    subscribeStudioSession,
+    getClientStudioSnapshot,
+    () => null,
+  );
+  const initialDraft = restored
+    ? draftFromSnapshot(restored)
+    : createEmptyStudioDraft();
+  const restoreNotice =
+    restored && (restored.projectId || restored.generatedConcepts.length)
+      ? "Studio session restored after reload."
+      : "";
+
+  return (
+    <LoopenStudioApp
+      key={restored ? `session-${restored.savedAt}` : "fresh"}
+      signInPath={signInPath}
+      user={user}
+      initialDraft={initialDraft}
+      restoreNotice={restoreNotice}
+    />
   );
 }

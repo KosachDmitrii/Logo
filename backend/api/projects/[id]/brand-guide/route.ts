@@ -1,12 +1,12 @@
-import { getChatGPTUser } from "../../../../chatgpt-auth";
-import { prepareLockupMarkSvg } from "../../../../../lib/lockup-svg";
+import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { prepareLockupMarkSvg } from "@/frontend/lib/lockup-svg";
 import {
   escapeXml,
   getRuntimeEnv,
   type LogoBrief,
   sanitizeSvg,
-} from "../../../../../lib/mvp-runtime";
-import { selectOne } from "../../../../../lib/supabase";
+} from "@/backend/lib/mvp-runtime";
+import { selectOne } from "@/backend/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
