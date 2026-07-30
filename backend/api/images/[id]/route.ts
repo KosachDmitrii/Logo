@@ -1,4 +1,5 @@
 import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { applyCorsHeaders } from "@/backend/lib/cors";
 import {
   deleteRows,
   selectOne,
@@ -15,7 +16,10 @@ export async function GET(
 ) {
   const user = await getChatGPTUser();
   if (!user) {
-    return Response.json({ error: "Authentication required." }, { status: 401 });
+    return Response.json(
+      { error: "Authentication required." },
+      { status: 401, headers: applyCorsHeaders(request, new Headers()) },
+    );
   }
 
   const { id } = await context.params;
@@ -30,20 +34,29 @@ export async function GET(
   });
 
   if (!generation) {
-    return Response.json({ error: "Image not found." }, { status: 404 });
+    return Response.json(
+      { error: "Image not found." },
+      { status: 404, headers: applyCorsHeaders(request, new Headers()) },
+    );
   }
 
   const object = await getObject(generation.object_key);
   if (!object) {
-    return Response.json({ error: "Image data not found." }, { status: 404 });
+    return Response.json(
+      { error: "Image data not found." },
+      { status: 404, headers: applyCorsHeaders(request, new Headers()) },
+    );
   }
 
   const url = new URL(request.url);
-  const headers = new Headers({
-    "Cache-Control": "private, max-age=3600",
-    "Content-Type": object.contentType || "image/png",
-    ETag: object.etag,
-  });
+  const headers = applyCorsHeaders(
+    request,
+    new Headers({
+      "Cache-Control": "private, max-age=3600",
+      "Content-Type": object.contentType || "image/png",
+      ETag: object.etag,
+    }),
+  );
 
   if (url.searchParams.get("download") === "1") {
     const safeBrand = generation.logo_projects.brand_name

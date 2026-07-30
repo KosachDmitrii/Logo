@@ -1,23 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-
-function allowedOrigins(): string[] {
-  const fromEnv = (process.env.CORS_ALLOWED_ORIGINS ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  // Local UI → Railway API (absolute NEXT_PUBLIC_API_URL) without extra config.
-  return [
-    ...new Set([
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-      ...fromEnv,
-    ]),
-  ];
-}
+import { isAllowedCorsOrigin } from "@/backend/lib/cors";
 
 function corsHeaders(origin: string | null): HeadersInit {
-  const allowed = allowedOrigins();
-  if (!origin || !allowed.includes(origin)) return {};
+  if (!isAllowedCorsOrigin(origin) || !origin) return {};
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
