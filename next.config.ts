@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const apiProxyTarget = process.env.API_PROXY_TARGET?.replace(/\/+$/, "");
 
+if (apiProxyTarget) {
+  console.info(`[next.config] Proxying /api/* → ${apiProxyTarget}/api/*`);
+}
+
 const nextConfig: NextConfig = {
   // Large Gemini/OpenAI payloads during concept generation.
   experimental: {
