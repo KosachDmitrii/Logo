@@ -9,6 +9,11 @@ import {
   updateRows,
 } from "../../../../../lib/supabase";
 import { refineVectorConcept } from "../../../../../lib/vector-art-direction";
+import { arrayBufferToBase64 } from "../../../../../lib/logo-quality";
+import {
+  evaluateReducedLogo,
+  refineWithGemini,
+} from "../../../../../lib/gemini-creative";
 
 type ImageResponse = {
   result?: { image?: string };
@@ -49,10 +54,11 @@ export async function POST(
     id: string;
     object_key: string;
     direction_title: string;
+    prompt: string;
     logo_projects: { brief_json: Record<string, unknown> };
   }>("logo_generations", {
     select:
-      "id,object_key,direction_title,logo_projects!inner(brief_json)",
+      "id,object_key,direction_title,prompt,logo_projects!inner(brief_json)",
     id: `eq.${generationId}`,
     project_id: `eq.${projectId}`,
     user_email: `eq.${user.email}`,
@@ -120,6 +126,77 @@ export async function POST(
           model: "gpt-5.6-terra",
           contentType: "image/svg+xml",
           qualityScore: refined.score,
+          url: `/api/assets/${id}`,
+          downloadUrl: `/api/assets/${id}?download=1`,
+        };
+      }
+      if (runtime.GEMINI_API_KEY && runtime.OPENAI_API_KEY) {
+        const sourceMime = source.httpMetadata?.contentType ?? "image/png";
+        const critique = decodeURIComponent(
+          row.prompt.match(/\[LOOPEN_REASON:([^\]]*)\]/)?.[1] ??
+            "Improve optical balance and small-size clarity.",
+        );
+        const refined = await refineWithGemini(
+          runtime.GEMINI_API_KEY,
+          brief as Parameters<typeof refineWithGemini>[1],
+          {
+            base64: arrayBufferToBase64(sourceBytes),
+            mimeType: sourceMime,
+          },
+          critique,
+        );
+        const finalReview = await evaluateReducedLogo(
+          {
+            gemini: runtime.GEMINI_API_KEY,
+            openai: runtime.OPENAI_API_KEY,
+          },
+          brief as Parameters<typeof refineWithGemini>[1],
+          { base64: refined.data, mimeType: refined.mimeType },
+          {
+            base64: arrayBufferToBase64(sourceBytes),
+            mimeType: sourceMime,
+          },
+        );
+        const id = crypto.randomUUID();
+        const extension = refined.mimeType.includes("jpeg") ? "jpg" : "png";
+        const objectKey = `users/assets/${user.email.length}/${projectId}/${id}.${extension}`;
+        const bytes = Uint8Array.from(atob(refined.data), (character) =>
+          character.charCodeAt(0),
+        );
+        await runtime.FILES.put(objectKey, bytes, {
+          httpMetadata: { contentType: refined.mimeType },
+        });
+        await insertRow("logo_assets", {
+          id,
+          project_id: projectId,
+          user_email: user.email,
+          parent_id: row.id,
+          stage: "refine",
+          label: `Architectural reduction ${index + 1}`,
+          provider: "google",
+          model: "gemini-3-pro-image",
+          prompt: [
+            `[LOOPEN_ARCHITECTURE_REDUCTION]`,
+            `[LOOPEN_QC:${finalReview.score}]`,
+            `[LOOPEN_STATUS:${finalReview.score >= 90 ? "Recommended" : "Review"}]`,
+            `[LOOPEN_REASON:${encodeURIComponent(finalReview.verdict)}]`,
+            critique,
+          ].join(""),
+          object_key: objectKey,
+          content_type: refined.mimeType,
+          created_at: Date.now(),
+        });
+        return {
+          id,
+          parentId: row.id,
+          stage: "refine",
+          label: `Architectural reduction ${index + 1}`,
+          provider: "google",
+          model: "gemini-3-pro-image",
+          contentType: refined.mimeType,
+          qualityScore: finalReview.score,
+          reviewReason: finalReview.verdict,
+          reviewStatus: finalReview.score >= 90 ? "Recommended" : "Review",
           url: `/api/assets/${id}`,
           downloadUrl: `/api/assets/${id}?download=1`,
         };

@@ -109,6 +109,12 @@ export async function GET(
       contentType: item.content_type,
       createdAt: item.created_at,
       qualityScore: Number(item.prompt.match(/\[LOOPEN_QC:(\d+)\]/)?.[1]) || undefined,
+      reviewStatus:
+        item.prompt.match(/\[LOOPEN_STATUS:([^\]]+)\]/)?.[1] ?? "Review",
+      reviewReason: decodeURIComponent(
+        item.prompt.match(/\[LOOPEN_REASON:([^\]]*)\]/)?.[1] ??
+          "Inspect this asset before production.",
+      ),
       downloadUrl: `/api/assets/${item.id}?download=1`,
       url: `/api/assets/${item.id}`,
     })),

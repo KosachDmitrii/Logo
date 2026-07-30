@@ -16,7 +16,9 @@ test("ships the finished Loopen product surface", async () => {
   assert.match(layout, /Loopen — Brand systems, not random logos/);
   assert.match(page, /getChatGPTUser/);
   assert.match(page, /chatGPTSignInPath/);
-  assert.match(studio, /Generate 4 graphic marks/);
+  assert.match(studio, /Generate 4 architectural studies/);
+  assert.match(studio, /02 \/ Category research/);
+  assert.match(studio, /Awaiting brief/);
   assert.match(studio, /\/api\/project-list/);
   assert.match(studio, /\/api\/generate-concepts/);
   assert.match(studio, /Delete .* project/);
@@ -29,7 +31,7 @@ test("ships the finished Loopen product surface", async () => {
 });
 
 test("keeps generation authenticated, persistent, and server-side", async () => {
-  const [route, imageRoute, selectRoute, runtime, quality, hosting, migration, supabase] =
+  const [route, imageRoute, selectRoute, runtime, quality, creative, hosting, migration, supabase] =
     await Promise.all([
       readFile(new URL("../app/api/projects/route.ts", import.meta.url), "utf8"),
       readFile(
@@ -42,6 +44,7 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
       ),
       readFile(new URL("../lib/mvp-runtime.ts", import.meta.url), "utf8"),
       readFile(new URL("../lib/logo-quality.ts", import.meta.url), "utf8"),
+      readFile(new URL("../lib/gemini-creative.ts", import.meta.url), "utf8"),
       readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
       readFile(
         new URL(
@@ -56,11 +59,25 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
   assert.match(route, /getChatGPTUser/);
   assert.match(imageRoute, /getChatGPTUser/);
   assert.match(selectRoute, /getChatGPTUser/);
-  assert.match(route, /createVectorConcepts/);
+  assert.match(route, /createCuratedConcepts/);
   assert.match(route, /OPENAI_API_KEY/);
   assert.match(route, /Promise\.allSettled/);
-  assert.match(route, /image\/svg\+xml/);
-  assert.match(route, /gpt-5\.6-terra-vector/);
+  assert.match(route, /gemini-3-pro-image|gemini-3\.1-flash-image/);
+  assert.match(creative, /gemini-3\.1-flash-image/);
+  assert.match(creative, /gemini-3-pro-image/);
+  assert.match(creative, /gemini-3-flash-preview/);
+  assert.match(creative, /logo_exploration_jury/);
+  assert.match(creative, /architectural concept study/);
+  assert.match(creative, /STAGE TWO — ARCHITECTURE-TO-IDENTITY REDUCTION/);
+  assert.match(creative, /evaluateReducedLogo/);
+  assert.match(creative, /Math\.min\(\.\.\.parts\.map/);
+  assert.match(creative, /logo_jury_soft_fallback/);
+  assert.match(creative, /gpt-5\.6-sol/);
+  assert.match(creative, /refineWithGemini/);
+  assert.match(creative, /\[\.\.\.merged\]\.sort/);
+  assert.doesNotMatch(creative, /strict 88\/100 dual-jury threshold/);
+  assert.doesNotMatch(creative, /return \[passingFinals\[0\]\]/);
+  assert.match(route, /temporarily overloaded/);
   assert.match(route, /reviewStatus/);
   assert.match(route, /requestId/);
   assert.match(quality, /containsText/);
@@ -114,8 +131,8 @@ test("ships the complete refinement and vector production workflow", async () =>
     ]);
 
   assert.match(studio, /Project history/);
-  assert.match(studio, /Create refinements/);
-  assert.match(studio, /Vectorize selected/);
+  assert.match(studio, /Create logo reductions/);
+  assert.match(studio, /Reconstruct selected/);
   assert.match(studio, /Brand guide \/ PDF/);
   assert.match(studio, /Industry \*/);
   assert.match(studio, /What the company does \*/);
@@ -125,6 +142,9 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(studio, /Icon only/);
   assert.match(refine, /@cf\/black-forest-labs\/flux-2-dev/);
   assert.match(refine, /refineVectorConcept/);
+  assert.match(refine, /refineWithGemini/);
+  assert.match(refine, /evaluateReducedLogo/);
+  assert.match(refine, /LOOPEN_ARCHITECTURE_REDUCTION/);
   assert.match(refine, /image\/svg\+xml/);
   assert.match(refine, /form\.append\("width", "1024"\)/);
   assert.match(refine, /generationIds/);
@@ -132,6 +152,8 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(studio, /More concept \+1/);
   assert.match(studio, /Selected .*\/2|selectedConceptIds\.length/);
   assert.match(vectorize, /external\.api\.recraft\.ai/);
+  assert.match(vectorize, /reconstructArchitecturalLogoSvg/);
+  assert.match(vectorize, /LOOPEN_GEOMETRIC_RECONSTRUCTION/);
   assert.match(vectorize, /native-vector/);
   assert.match(vectorize, /RECRAFT_API_KEY/);
   assert.match(vectorize, /not safe to vectorize/);

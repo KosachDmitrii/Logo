@@ -8,9 +8,10 @@ Strategy-first AI logo production pipeline.
 React / Vinext
       │
 Cloudflare Worker API
-      ├── OpenAI GPT-5.6 Terra — brand strategy and concept territories
-      ├── OpenAI GPT-5.6 Terra — design-director briefs and vector refinement
-      ├── Recraft V4.1 Vector — editable SVG execution
+      ├── OpenAI GPT-5.6 Terra — brand strategy and art-direction briefs
+      ├── Gemini 3 Pro Image — four explorations and two refinements
+      ├── Gemini + GPT-5.6 Sol — independent visual jury
+      ├── Recraft — selected raster-to-SVG production
       ├── Recraft API — legacy raster-to-vector fallback
       ├── Supabase PostgreSQL — projects and metadata
       └── Cloudflare R2 — PNG and SVG assets
@@ -25,6 +26,7 @@ Create `.env.local`:
 ```env
 OPENAI_API_KEY=
 RECRAFT_API_KEY=
+GEMINI_API_KEY=
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 CLOUDFLARE_ACCOUNT_ID=
@@ -53,11 +55,12 @@ sign-in step is required.
 Loopen treats generated concepts as untrusted candidates:
 
 - A strategy pass creates six brand-specific territories from the complete brief.
-- A separate design-director pass selects and resolves only the strongest routes.
-- Recraft V4.1 Vector executes the selected art-direction briefs as editable SVG.
-- Application validation rejects text, external assets and unsafe SVG markup.
-- Concepts are scored on idea, distinctiveness, craft, small-size clarity and brief fit.
-- Selected concepts remain editable vectors throughout refinement and delivery.
+- A separate design-director pass selects and briefs only the strongest routes.
+- Gemini creates one visual exploration per route (four total).
+- Gemini and GPT independently score specification fidelity, idea, distinctiveness,
+  craft, small-size clarity and brief fit, then all four scored directions are returned.
+- Paid Gemini refinement stays a separate user-triggered step on the concept you pick.
+- Recraft vectorizes only user-selected, refined artwork.
 
 The older FLUX/Moondream/raster-vectorization path remains only as a compatibility fallback
 for existing raster projects.

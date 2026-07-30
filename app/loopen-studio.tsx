@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 export type StudioUser = {
   displayName: string;
@@ -33,6 +39,9 @@ type PremiumBrief = {
   avoid?: string;
   companyDescription?: string;
   competitors?: string;
+  colorApproach?: "propose" | "existing" | "mood";
+  brandColors?: string;
+  colorMood?: string;
   coreIdea?: string;
   industry?: string;
   logoType?: "abstract" | "monogram" | "wordmark" | "emblem" | "combination";
@@ -52,6 +61,8 @@ type StudioAsset = {
   parentId: string;
   provider: string;
   qualityScore?: number;
+  reviewReason?: string;
+  reviewStatus?: string;
   stage: "refine" | "vector";
   url: string;
 };
@@ -72,6 +83,15 @@ type Concept = {
   thesis: string;
   className: string;
   accent: string;
+};
+
+type ConfirmDialog = {
+  body: string;
+  confirmLabel: string;
+  dismissOnly?: boolean;
+  kicker: string;
+  title: string;
+  tone?: "default" | "danger";
 };
 
 const concepts: Concept[] = [
@@ -110,6 +130,7 @@ const concepts: Concept[] = [
 ];
 
 const personalityOptions = [
+  "Architectural",
   "Intelligent",
   "Playful",
   "Precise",
@@ -117,6 +138,75 @@ const personalityOptions = [
   "Experimental",
   "Bold",
 ];
+
+function CreativeSelect({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  options: Array<{ label: string; value: string }>;
+  value: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const selectedLabel =
+    options.find((option) => option.value === value)?.label ?? value;
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [open]);
+
+  return (
+    <div className="creative-select" ref={root}>
+      <span className="mini-label">{label}</span>
+      <button
+        type="button"
+        className="creative-select-trigger"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{selectedLabel}</span>
+        <i>{open ? "−" : "↘"}</i>
+      </button>
+      {open && (
+        <div className="creative-select-menu" role="listbox" aria-label={label}>
+          {options.map((option, index) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              key={option.value}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{option.label}</strong>
+              <i>{option.value === value ? "●" : "○"}</i>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RequestDrop({ label = "Working" }: { label?: string }) {
+  return (
+    <span className="water-loader" aria-label={label}>
+      <i />
+    </span>
+  );
+}
 
 export default function LoopenStudio({
   signInPath,
@@ -133,40 +223,48 @@ export default function LoopenStudio({
   const [projectId, setProjectId] = useState<string | null>(null);
   const [brandName, setBrandName] = useState("Ketchup");
   const [coreIdea, setCoreIdea] = useState(
-    "Architecture as a catalyst: adding energy, clarity and human character to everyday spaces. Ketchup transforms ordinary constraints into bold, memorable and highly functional environments.",
+    "Architecture turns constraints into opportunity. Create an original inhabitable structure in which two or three precise masses form one memorable shared void. A daring but believable cantilever, shift or cut should transform weight into openness and rigor into an unexpected human moment. The final identity must preserve this spatial idea rather than merely depict a building.",
   );
-  const [industry, setIndustry] = useState("Architecture and spatial design");
+  const [industry, setIndustry] = useState(
+    "Contemporary architecture, interiors and spatial design",
+  );
   const [companyDescription, setCompanyDescription] = useState(
-    "Ketchup is a contemporary architecture studio designing residential, hospitality, retail and cultural spaces. The studio combines rigorous spatial thinking with playful experimentation, creating buildings and interiors that feel distinctive, useful and deeply connected to their context.",
+    "Ketchup is an independent architecture and spatial-design studio working across residential, hospitality, retail and cultural projects. The studio treats budgets, sites, regulations and existing structures as creative material. Its work combines rigorous planning, clear construction and generous public or shared space with one surprising intervention that makes each project recognisable, useful and emotionally engaging.",
   );
   const [audience, setAudience] = useState(
-    "Design-conscious property developers, hospitality founders, cultural institutions and private clients seeking contemporary architecture with a distinctive identity.",
+    "Design-literate private clients, progressive developers, hospitality and retail brands, cultural institutions and entrepreneurs. They value original thinking and strong authorship, but also expect buildability, commercial intelligence, clarity, reliability and lasting cultural relevance.",
   );
   const [positioning, setPositioning] = useState(
-    "An independent, design-led architecture studio for ambitious clients who want intelligent spaces with a strong point of view. Conceptually bold but never self-important; playful in spirit, precise in execution.",
+    "A sharp, independent architecture practice positioned between corporate predictability and self-indulgent experimentation. Ketchup is conceptually bold but practical, playful without becoming childish, and precise without feeling sterile. The identity should feel confident in an architecture biennale, on construction drawings and on a building façade.",
   );
   const [competitors, setCompetitors] = useState(
-    "MVRDV, OMA, BIG, Snøhetta, Assemble, Space10, Adjaye Associates",
+    "Reference landscape: OMA, MVRDV, Snøhetta, Assemble, Space10, Schemata Architects, Studio Muoto and contemporary independent architecture practices. Do not imitate their identities, projects or signature buildings; use them only as a benchmark for conceptual clarity, cultural confidence and professional execution.",
+  );
+  const [colorApproach, setColorApproach] =
+    useState<NonNullable<PremiumBrief["colorApproach"]>>("propose");
+  const [brandColors, setBrandColors] = useState("");
+  const [colorMood, setColorMood] = useState(
+    "Warm architectural neutrals with one cultured, energetic accent; contemporary, tactile and confident rather than corporate or fashionable.",
   );
   const [logoType, setLogoType] =
-    useState<PremiumBrief["logoType"]>("abstract");
+    useState<PremiumBrief["logoType"]>("combination");
   const [visualDirection, setVisualDirection] = useState(
-    "Abstract, non-literal graphic mark with architectural precision, strong negative space and one playful geometric interruption.",
+    "Stage 1 — architectural discovery: invent a compact, believable contemporary pavilion or small civic structure, shown as a precise monochrome study model. It should use two or three primary volumes, controlled asymmetry, legible support and circulation, and one inhabitable negative space such as a passage, courtyard or sheltered threshold. Its signature move should be a surprising but structurally credible cantilever, displacement or deep subtraction. Stage 2 — identity reduction: preserve the exact massing relationship, structural tension and signature void while removing perspective, material, windows, stairs and incidental detail. Rebuild it as a flat near-black symbol made from two to four closed shapes, with a distinctive silhouette and excellent 16–24 px recognition. Pair it with a restrained custom Ketchup wordmark; the symbol must also work alone.",
   );
   const [usage, setUsage] = useState(
-    "Architectural drawings, construction-site signage, project presentations, website, social media, competition boards, wayfinding, printed publications and building plaques.",
+    "Primary: website header, social avatar, proposals, architectural drawings, title blocks, competition boards and client presentations. Secondary: construction signage, hoarding, building graphics, wayfinding, publications, stamps, merchandise and favicon. Required variants: symbol only, horizontal and vertical lockups, positive and reversed monochrome. The mark must remain recognisable at 16 and 24 pixels and retain authority at environmental scale.",
   );
   const [avoid, setAvoid] = useState(
-    "No tomatoes, ketchup bottles, sauce splashes or food imagery. Avoid houses, rooftops, skylines, floor-plan icons, columns, arches, K monograms, infinity symbols, gradients, shadows, 3D effects and generic corporate architecture branding.",
+    "No conventional house outline, pitched roof, doorway pictogram, skyline, skyscraper, generic office block, temple façade, isolated column, floor-plan maze, drafting tool or property-development aesthetic. No hidden K, monogram, arrow, infinity loop, chain, cube, container, app icon, random rectangles or fashionable abstract blob. No tomato, bottle, sauce, red splatter or other food reference. During architectural discovery, avoid fantasy physics, decorative sculpture, people, trees and photorealistic scenery. During logo reduction, allow no perspective, windows, stairs, thin lines, gradients, shadows, textures, pseudo-text or unnecessary detail. Do not copy or closely resemble an existing building or logo.",
   );
   const [strategy, setStrategy] = useState<BrandStrategy | null>(null);
   const [isStrategyOpen, setIsStrategyOpen] = useState(false);
   const [personalities, setPersonalities] = useState([
+    "Architectural",
     "Intelligent",
     "Playful",
     "Precise",
     "Experimental",
-    "Bold",
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
@@ -178,18 +276,50 @@ export default function LoopenStudio({
   const [deletingProjectId, setDeletingProjectId] = useState("");
   const [isRefining, setIsRefining] = useState(false);
   const [isVectorizing, setIsVectorizing] = useState(false);
+  const [exportingKey, setExportingKey] = useState("");
+  const [isMethodOpen, setIsMethodOpen] = useState(false);
   const [selectedRefinement, setSelectedRefinement] = useState("");
   const [selectedVector, setSelectedVector] = useState("");
   const [lockupLayout, setLockupLayout] = useState<"horizontal" | "vertical" | "icon">(
     "horizontal",
   );
   const [lockupColor, setLockupColor] = useState("#201f1e");
-  const [descriptor, setDescriptor] = useState("Architecture as a catalyst");
+  const [descriptor, setDescriptor] = useState("Architecture with an unexpected opening");
   const [wordmarkStyle, setWordmarkStyle] = useState("modern");
   const [wordmarkCase, setWordmarkCase] = useState<"original" | "upper" | "lower">("original");
   const [wordmarkWeight, setWordmarkWeight] = useState(600);
   const [wordmarkTracking, setWordmarkTracking] = useState(-3);
   const [markScale, setMarkScale] = useState(100);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
+  const confirmResolver = useRef<((confirmed: boolean) => void) | null>(null);
+
+  function requestConfirmation(dialog: ConfirmDialog) {
+    return new Promise<boolean>((resolve) => {
+      confirmResolver.current?.(false);
+      confirmResolver.current = resolve;
+      setConfirmDialog(dialog);
+    });
+  }
+
+  function resolveConfirmation(confirmed: boolean) {
+    confirmResolver.current?.(confirmed);
+    confirmResolver.current = null;
+    setConfirmDialog(null);
+  }
+
+  function showRequestError(stage: string, message: string) {
+    setNotice(message);
+    confirmResolver.current?.(false);
+    confirmResolver.current = null;
+    setConfirmDialog({
+      kicker: `${stage} / Request failed`,
+      title: "The process stopped.",
+      body: message,
+      confirmLabel: "Return to studio",
+      dismissOnly: true,
+      tone: "danger",
+    });
+  }
 
   const selected = useMemo(
     () =>
@@ -207,9 +337,22 @@ export default function LoopenStudio({
   );
   const refinements = assets.filter((asset) => asset.stage === "refine");
   const vectors = assets.filter((asset) => asset.stage === "vector");
+  const selectedReduction = refinements.find(
+    (asset) => asset.id === selectedRefinement,
+  );
+  const canReconstruct = Boolean(
+    selectedReduction?.reviewStatus === "Recommended" &&
+      (selectedReduction.qualityScore ?? 0) >= 90,
+  );
   const selectedVectorAsset = vectors.find(
     (asset) => asset.id === selectedVector,
   );
+  const displayBrandName =
+    wordmarkCase === "upper"
+      ? (brandName || "Brand name").toUpperCase()
+      : wordmarkCase === "lower"
+        ? (brandName || "Brand name").toLowerCase()
+        : brandName || "Brand name";
   const focusedGeneration = generatedConcepts.find(
     (item) => item.directionKey === selectedConcept,
   );
@@ -218,6 +361,24 @@ export default function LoopenStudio({
     if (!user) return;
     void loadHistory();
   }, [user]);
+
+  useEffect(() => {
+    if (!confirmDialog) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") resolveConfirmation(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [confirmDialog]);
+
+  useEffect(() => {
+    if (!isMethodOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsMethodOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isMethodOpen]);
 
   async function loadHistory() {
     const response = await fetch("/api/project-list");
@@ -236,7 +397,10 @@ export default function LoopenStudio({
       assets?: StudioAsset[];
     };
     if (!response.ok || !payload.project) {
-      setNotice(payload.error ?? "Project could not be loaded.");
+      showRequestError(
+        "Project history",
+        payload.error ?? "Project could not be loaded.",
+      );
       return;
     }
     const loadedAssets = payload.assets ?? [];
@@ -249,6 +413,9 @@ export default function LoopenStudio({
     setAudience(payload.project.brief.audience ?? "");
     setPositioning(payload.project.brief.positioning ?? "");
     setCompetitors(payload.project.brief.competitors ?? "");
+    setColorApproach(payload.project.brief.colorApproach ?? "propose");
+    setBrandColors(payload.project.brief.brandColors ?? "");
+    setColorMood(payload.project.brief.colorMood ?? "");
     setLogoType(payload.project.brief.logoType ?? "abstract");
     setVisualDirection(payload.project.brief.visualDirection ?? "");
     setUsage(payload.project.brief.usage ?? "");
@@ -273,9 +440,13 @@ export default function LoopenStudio({
   }
 
   async function deleteProject(project: SavedProject) {
-    const confirmed = window.confirm(
-      `Delete “${project.brandName}” and all of its generated assets? This cannot be undone.`,
-    );
+    const confirmed = await requestConfirmation({
+      kicker: "Permanent action / Project",
+      title: `Erase ${project.brandName}?`,
+      body: "The brief, architectural studies, reductions and production assets will be permanently removed. This cannot be undone.",
+      confirmLabel: "Delete project",
+      tone: "danger",
+    });
     if (!confirmed) return;
 
     setDeletingProjectId(project.id);
@@ -287,7 +458,10 @@ export default function LoopenStudio({
       const payload = (await response.json().catch(() => null)) as {
         error?: string;
       } | null;
-      setNotice(payload?.error ?? "Project could not be deleted.");
+      showRequestError(
+        "Delete project",
+        payload?.error ?? "Project could not be deleted.",
+      );
       return;
     }
 
@@ -339,6 +513,9 @@ export default function LoopenStudio({
           audience,
           positioning,
           competitors,
+          colorApproach,
+          brandColors,
+          colorMood,
           logoType,
           visualDirection,
           usage,
@@ -369,7 +546,7 @@ export default function LoopenStudio({
       setNotice(
         payload.failures?.length
           ? `${payload.generations.length} of 4 directions generated. ${payload.failures.length} still failed after one safety recovery.`
-          : "All 4 graphic marks generated, reviewed and saved.",
+          : "All 4 architectural studies generated, reviewed and saved.",
       );
       void auditDiversity(payload.generations);
       void loadHistory();
@@ -378,7 +555,8 @@ export default function LoopenStudio({
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
       setIsGenerating(false);
-      setNotice(
+      showRequestError(
+        "Architectural studies",
         error instanceof Error
           ? error.message
           : "Generation could not be completed.",
@@ -412,7 +590,12 @@ export default function LoopenStudio({
           : "One additional concept is ready.",
       );
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "More concepts could not be generated.");
+      showRequestError(
+        "Additional study",
+        error instanceof Error
+          ? error.message
+          : "More concepts could not be generated.",
+      );
     } finally {
       setIsGeneratingMore(false);
     }
@@ -423,31 +606,48 @@ export default function LoopenStudio({
       setNotice("Select one or two concepts before refinement.");
       return;
     }
-    if (
-      !window.confirm(
-        `Create ${selectedConceptIds.length} paid FLUX.2 Dev refinement${selectedConceptIds.length > 1 ? "s" : ""} at 1024 px? No automatic retries will run.`,
-      )
-    ) return;
+    if (!(await requestConfirmation({
+      kicker: "Stage 02 / Paid generation",
+      title: "Architecture becomes identity.",
+      body: `Nano Banana Pro will reduce ${selectedConceptIds.length} selected architectural stud${selectedConceptIds.length > 1 ? "ies" : "y"} into flat identity symbols. The source massing and signature void will remain visible.`,
+      confirmLabel: `Create ${selectedConceptIds.length} reduction${selectedConceptIds.length > 1 ? "s" : ""}`,
+    }))) return;
     setIsRefining(true);
-    setNotice(`Creating ${selectedConceptIds.length} high-fidelity FLUX.2 Dev refinement${selectedConceptIds.length > 1 ? "s" : ""}…`);
-    const response = await fetch(`/api/projects/${projectId}/refine`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ generationIds: selectedConceptIds }),
-    });
-    const payload = (await response.json()) as { assets?: StudioAsset[]; error?: string };
-    setIsRefining(false);
-    if (!response.ok || !payload.assets?.length) {
-      setNotice(payload.error ?? "Refinement could not be completed.");
-      return;
+    setNotice(`Reducing ${selectedConceptIds.length} architectural stud${selectedConceptIds.length > 1 ? "ies" : "y"} into flat identity symbols…`);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generationIds: selectedConceptIds }),
+      });
+      const payload = (await response.json()) as {
+        assets?: StudioAsset[];
+        error?: string;
+      };
+      if (!response.ok || !payload.assets?.length) {
+        showRequestError(
+          "Logo reduction",
+          payload.error ?? "Refinement could not be completed.",
+        );
+        return;
+      }
+      setAssets((current) => [
+        ...current.filter((asset) => asset.stage !== "refine"),
+        ...payload.assets!,
+      ]);
+      setSelectedRefinement(payload.assets[0].id);
+      setNotice(`${payload.assets.length} architectural reduction${payload.assets.length > 1 ? "s are" : " is"} ready. Choose one for geometric SVG reconstruction.`);
+      void loadHistory();
+    } catch (error) {
+      showRequestError(
+        "Logo reduction",
+        error instanceof Error
+          ? error.message
+          : "Refinement could not be completed.",
+      );
+    } finally {
+      setIsRefining(false);
     }
-    setAssets((current) => [
-      ...current.filter((asset) => asset.stage !== "refine"),
-      ...payload.assets!,
-    ]);
-    setSelectedRefinement(payload.assets[0].id);
-    setNotice(`${payload.assets.length} high-fidelity refinement${payload.assets.length > 1 ? "s are" : " is"} ready. Choose one for vector production.`);
-    void loadHistory();
   }
 
   async function vectorizeSelected() {
@@ -456,12 +656,23 @@ export default function LoopenStudio({
       return;
     }
     if (
-      !window.confirm(
-        "Run one preflight review and, if it passes, one paid Recraft vectorization request?",
-      )
-    ) return;
+      !selectedReduction ||
+      selectedReduction.reviewStatus !== "Recommended" ||
+      (selectedReduction.qualityScore ?? 0) < 90
+    ) {
+      setNotice(
+        "This reduction did not pass both final juries. Choose a Recommended flat reduction before SVG reconstruction.",
+      );
+      return;
+    }
+    if (!(await requestConfirmation({
+      kicker: "Stage 03 / Production master",
+      title: "Commit to the geometry.",
+      body: "The approved reduction will be rebuilt as a controlled set of closed SVG paths and tested for monochrome and small-size use.",
+      confirmLabel: "Build SVG master",
+    }))) return;
     setIsVectorizing(true);
-    setNotice("Tracing the selected symbol into an exact SVG…");
+    setNotice("Rebuilding the selected symbol as controlled SVG geometry…");
     try {
       const response = await fetch(`/api/projects/${projectId}/vectorize`, {
         method: "POST",
@@ -473,7 +684,10 @@ export default function LoopenStudio({
         error?: string;
       } | null;
       if (!response.ok || !payload?.assets?.length) {
-        setNotice(payload?.error ?? "Vectorization could not be completed.");
+        showRequestError(
+          "SVG reconstruction",
+          payload?.error ?? "Vectorization could not be completed.",
+        );
         return;
       }
       setAssets((current) => [
@@ -484,7 +698,8 @@ export default function LoopenStudio({
       setNotice("Production SVGs are ready. Adjust and export your lockup.");
       void loadHistory();
     } catch (error) {
-      setNotice(
+      showRequestError(
+        "SVG reconstruction",
         error instanceof Error
           ? error.message
           : "Vectorization could not be completed.",
@@ -503,7 +718,10 @@ export default function LoopenStudio({
       setNotice("Choose a vector result before export.");
       return;
     }
-    const response = await fetch(`/api/projects/${projectId}/export`, {
+    const requestKey = `${format}-${layout}-${rasterSize ?? "master"}`;
+    setExportingKey(requestKey);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/export`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -517,15 +735,18 @@ export default function LoopenStudio({
         wordmarkTracking,
         wordmarkStyle,
       }),
-    });
-    if (!response.ok) {
-      const payload = (await response.json()) as { error?: string };
-      setNotice(payload.error ?? "Export could not be created.");
-      return;
-    }
-    const svgBlob = await response.blob();
-    let blob = svgBlob;
-    if (format !== "svg") {
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        showRequestError(
+          "Asset export",
+          payload.error ?? "Export could not be created.",
+        );
+        return;
+      }
+      const svgBlob = await response.blob();
+      let blob = svgBlob;
+      if (format !== "svg") {
       const sourceUrl = URL.createObjectURL(svgBlob);
       const image = new Image();
       await new Promise<void>((resolve, reject) => {
@@ -549,14 +770,22 @@ export default function LoopenStudio({
           0.96,
         ),
       );
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${brandName}-${layout}${rasterSize ? `-${rasterSize}` : ""}.${format}`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setNotice(`Production ${format.toUpperCase()} downloaded.`);
+    } catch (error) {
+      showRequestError(
+        "Asset export",
+        error instanceof Error ? error.message : "Export could not be created.",
+      );
+    } finally {
+      setExportingKey("");
     }
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${brandName}-${layout}${rasterSize ? `-${rasterSize}` : ""}.${format}`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setNotice(`Production ${format.toUpperCase()} downloaded.`);
   }
 
   function printBrandGuide() {
@@ -607,12 +836,18 @@ export default function LoopenStudio({
   }
 
   async function deleteConcept(generation: GeneratedConcept) {
-    if (!window.confirm(`Delete “${generation.directionTitle}”?`)) return;
+    if (!(await requestConfirmation({
+      kicker: "Permanent action / Direction",
+      title: `Remove ${generation.directionTitle}?`,
+      body: "This architectural study and its place in the current shortlist will be permanently removed.",
+      confirmLabel: "Delete direction",
+      tone: "danger",
+    }))) return;
     const response = await fetch(`/api/images/${generation.id}`, {
       method: "DELETE",
     });
     if (!response.ok) {
-      setNotice("Concept could not be deleted.");
+      showRequestError("Delete direction", "Concept could not be deleted.");
       return;
     }
     setGeneratedConcepts((current) =>
@@ -679,6 +914,117 @@ export default function LoopenStudio({
 
   return (
     <main>
+      {isMethodOpen && (
+        <div
+          className="method-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) setIsMethodOpen(false);
+          }}
+        >
+          <article
+            className="method-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="method-title"
+          >
+            <header>
+              <a href="#top" onClick={() => setIsMethodOpen(false)}>LOOPEN®</a>
+              <span>Method / 01—05</span>
+              <button type="button" onClick={() => setIsMethodOpen(false)}>
+                Close <i>×</i>
+              </button>
+            </header>
+            <div className="method-intro">
+              <p>Our point of view</p>
+              <h2 id="method-title">
+                Direction before
+                <br />
+                <em>decoration.</em>
+              </h2>
+              <p>
+                AI expands the field. Strategy sets the boundaries. Independent
+                juries remove noise. Human selection makes the identity specific.
+              </p>
+            </div>
+            <div className="method-steps">
+              {[
+                ["01", "Brand signal", "The client defines meaning, audience, position, constraints and color intent before form exists.", "Human + GPT"],
+                ["02", "Category refusal", "The system identifies repeated category codes, competitor ownership and the visual territory the brand should avoid.", "GPT strategy"],
+                ["03", "Distinct territories", "Gemini creates genuinely different architectural studies from separate spatial ideas—not multiple seeds of one symbol.", "Gemini image"],
+                ["04", "Reduction + jury", "Selected architecture is reduced to a flat mark. Gemini and GPT judge fidelity, distinction, craft and 24 px clarity independently.", "Dual jury"],
+                ["05", "Production master", "Only an approved reduction is rebuilt as controlled SVG geometry, paired with a separate wordmark and tested across contexts.", "GPT + human"],
+              ].map(([number, title, body, owner]) => (
+                <section key={number}>
+                  <span>{number}</span>
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                  <b>{owner}</b>
+                </section>
+              ))}
+            </div>
+            <footer>
+              <blockquote>
+                AI should multiply <em>directions,</em> not multiply noise.
+              </blockquote>
+              <button type="button" onClick={() => {
+                setIsMethodOpen(false);
+                document.getElementById("brief")?.scrollIntoView({ behavior: "smooth" });
+              }}>
+                Start with the brief <span>↘</span>
+              </button>
+            </footer>
+          </article>
+        </div>
+      )}
+      {confirmDialog && (
+        <div
+          className="confirm-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) resolveConfirmation(false);
+          }}
+        >
+          <section
+            className={`confirm-dialog ${confirmDialog.tone === "danger" ? "danger" : ""}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-dialog-title"
+          >
+            <div className="confirm-dialog-index">↘</div>
+            <p>{confirmDialog.kicker}</p>
+            <h2 id="confirm-dialog-title">{confirmDialog.title}</h2>
+            <div className="confirm-dialog-copy">
+              <span>Decision</span>
+              <p>{confirmDialog.body}</p>
+            </div>
+            <div className="confirm-dialog-actions">
+              {confirmDialog.dismissOnly ? (
+                <button
+                  type="button"
+                  className="confirm-dialog-primary"
+                  onClick={() => resolveConfirmation(false)}
+                >
+                  {confirmDialog.confirmLabel} <span>↘</span>
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={() => resolveConfirmation(false)}>
+                    Keep exploring
+                  </button>
+                  <button
+                    type="button"
+                    className="confirm-dialog-primary"
+                    onClick={() => resolveConfirmation(true)}
+                  >
+                    {confirmDialog.confirmLabel} <span>→</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
       <header className="site-header">
         <a className="wordmark" href="#top" aria-label="Loopen home">
           <span className="wordmark-glyph" aria-hidden="true">
@@ -732,7 +1078,9 @@ export default function LoopenStudio({
                   aria-label={`Delete ${project.brandName} project`}
                   title="Delete project"
                 >
-                  {deletingProjectId === project.id ? "…" : "×"}
+                  {deletingProjectId === project.id ? (
+                    <RequestDrop label="Deleting project" />
+                  ) : "×"}
                 </button>
               </div>
             )) : <p>No saved projects yet.</p>}
@@ -800,7 +1148,6 @@ export default function LoopenStudio({
               id="brand-name"
               value={brandName}
               onChange={(event) => setBrandName(event.target.value)}
-              maxLength={80}
               required
             />
           </div>
@@ -812,26 +1159,25 @@ export default function LoopenStudio({
               rows={2}
               value={coreIdea}
               onChange={(event) => setCoreIdea(event.target.value)}
-              maxLength={500}
               required
             />
           </div>
           <div className="premium-fields">
             <label>
               <span className="mini-label">Industry *</span>
-              <input value={industry} onChange={(event) => setIndustry(event.target.value)} maxLength={120} required />
+              <input value={industry} onChange={(event) => setIndustry(event.target.value)} required />
             </label>
             <label>
               <span className="mini-label">What the company does *</span>
-              <textarea value={companyDescription} onChange={(event) => setCompanyDescription(event.target.value)} maxLength={500} rows={3} required />
+              <textarea value={companyDescription} onChange={(event) => setCompanyDescription(event.target.value)} rows={3} required />
             </label>
             <label>
               <span className="mini-label">Positioning</span>
-              <textarea value={positioning} onChange={(event) => setPositioning(event.target.value)} maxLength={300} rows={2} />
+              <textarea value={positioning} onChange={(event) => setPositioning(event.target.value)} rows={2} />
             </label>
             <label>
               <span className="mini-label">Competitors</span>
-              <textarea value={competitors} onChange={(event) => setCompetitors(event.target.value)} maxLength={500} rows={2} placeholder="Names or URLs, separated by commas" />
+              <textarea value={competitors} onChange={(event) => setCompetitors(event.target.value)} rows={2} placeholder="Names or URLs, separated by commas" />
             </label>
           </div>
           <div className="personality-row">
@@ -858,36 +1204,75 @@ export default function LoopenStudio({
             </div>
           </div>
           <div className="premium-fields production-brief">
-            <label>
-              <span className="mini-label">Final identity type</span>
-              <select value={logoType} onChange={(event) => setLogoType(event.target.value as PremiumBrief["logoType"])}>
-                <option value="abstract">Abstract symbol</option>
-                <option value="monogram">Monogram</option>
-                <option value="wordmark">Wordmark</option>
-                <option value="emblem">Emblem</option>
-                <option value="combination">Symbol + wordmark</option>
-              </select>
-            </label>
+            <CreativeSelect
+              label="Final identity type"
+              value={logoType ?? "combination"}
+              onChange={(value) =>
+                setLogoType(value as PremiumBrief["logoType"])
+              }
+              options={[
+                { value: "abstract", label: "Abstract symbol" },
+                { value: "monogram", label: "Monogram" },
+                { value: "wordmark", label: "Wordmark" },
+                { value: "emblem", label: "Emblem" },
+                { value: "combination", label: "Symbol + wordmark" },
+              ]}
+            />
             <label>
               <span className="mini-label">Visual direction</span>
-              <input value={visualDirection} onChange={(event) => setVisualDirection(event.target.value)} maxLength={200} />
+              <textarea value={visualDirection} onChange={(event) => setVisualDirection(event.target.value)} rows={3} />
             </label>
             <label>
               <span className="mini-label">Audience</span>
-              <textarea value={audience} onChange={(event) => setAudience(event.target.value)} maxLength={300} rows={2} />
+              <textarea value={audience} onChange={(event) => setAudience(event.target.value)} rows={2} />
             </label>
+            <CreativeSelect
+              label="Color strategy"
+              value={colorApproach}
+              onChange={(value) =>
+                setColorApproach(
+                  value as NonNullable<PremiumBrief["colorApproach"]>,
+                )
+              }
+              options={[
+                { value: "propose", label: "Let the system propose" },
+                { value: "existing", label: "Use existing brand colors" },
+                { value: "mood", label: "Build from a color mood" },
+              ]}
+            />
+            {colorApproach === "existing" && (
+              <label>
+                <span className="mini-label">Existing colors</span>
+                <textarea
+                  value={brandColors}
+                  onChange={(event) => setBrandColors(event.target.value)}
+                  rows={2}
+                  placeholder="#111111, #F4F1E8 — add names or usage notes"
+                />
+              </label>
+            )}
+            {colorApproach !== "existing" && (
+              <label>
+                <span className="mini-label">Desired color mood</span>
+                <textarea
+                  value={colorMood}
+                  onChange={(event) => setColorMood(event.target.value)}
+                  rows={2}
+                />
+              </label>
+            )}
             <label>
               <span className="mini-label">Primary usage</span>
-              <textarea value={usage} onChange={(event) => setUsage(event.target.value)} maxLength={300} rows={2} />
+              <textarea value={usage} onChange={(event) => setUsage(event.target.value)} rows={2} />
             </label>
             <label className="wide-field">
               <span className="mini-label">Avoid</span>
-              <textarea value={avoid} onChange={(event) => setAvoid(event.target.value)} maxLength={300} rows={2} />
+              <textarea value={avoid} onChange={(event) => setAvoid(event.target.value)} rows={3} />
             </label>
           </div>
           <div className="generate-row">
             <p>
-              <span>4</span> images · Klein 4B · 512 px · exactly 4 image requests + non-blocking reviews
+              <span>4</span> directed explorations · Nano Banana Pro · dual independent jury
             </p>
             <button
               className="primary-button"
@@ -896,14 +1281,12 @@ export default function LoopenStudio({
               disabled={isGenerating}
             >
               {isGenerating
-                ? "Generating real concepts…"
+                ? "Generating architectural studies…"
                 : user
-                  ? "Generate 4 graphic marks"
+                  ? "Generate 4 architectural studies"
                   : "Sign in to generate"}
               {isGenerating ? (
-                <span className="water-loader" aria-label="Generating">
-                  <i />
-                </span>
+                <RequestDrop label="Generating architectural studies" />
               ) : (
                 <span>↗</span>
               )}
@@ -923,23 +1306,53 @@ export default function LoopenStudio({
         </div>
       </section>
 
-      {strategy && (
-        <section className="strategy-section" aria-label="Brand research and strategy">
+      <section className="strategy-section" id="research" aria-label="Brand research and strategy">
           <div className="strategy-heading">
             <p className="eyebrow">02 / Category research</p>
             <h2>Know the category.<br />Refuse its clichés.</h2>
-            <p>{strategy.differentiation}</p>
+            <p>
+              {strategy?.differentiation ??
+                (isGenerating
+                  ? "Research sets the boundaries for the creative work: what the category repeats, what competitors already own and where Ketchup can be unmistakably different."
+                  : "Submit the brief to establish category codes, competitor risks, typography and a client-directed color strategy before concepts are created.")}
+            </p>
           </div>
-          <button
-            className="strategy-toggle"
-            type="button"
-            aria-expanded={isStrategyOpen}
-            onClick={() => setIsStrategyOpen((current) => !current)}
-          >
-            {isStrategyOpen ? "Hide research" : "View research details"}
-            <span>{isStrategyOpen ? "−" : "+"}</span>
-          </button>
-          {isStrategyOpen && <div className="strategy-grid">
+          {strategy ? (
+            <button
+              className="strategy-toggle"
+              type="button"
+              aria-expanded={isStrategyOpen}
+              onClick={() => setIsStrategyOpen((current) => !current)}
+            >
+              {isStrategyOpen ? "Hide research" : "View research details"}
+              <span>{isStrategyOpen ? "−" : "+"}</span>
+            </button>
+          ) : (
+            <div className={`strategy-pending ${isGenerating ? "active" : ""}`}>
+              <div className="research-status">
+                <span>{isGenerating ? "Research in progress" : "Awaiting brief"}</span>
+                <b>{isGenerating ? "04 signals" : "00 / 04"}</b>
+              </div>
+              <div className="research-route" aria-label="Research stages">
+                {[
+                  ["01", "Category codes"],
+                  ["02", "Competitor field"],
+                  ["03", "White space"],
+                  ["04", "Color logic"],
+                ].map(([number, label]) => (
+                  <div className="research-node" key={number}>
+                    <i aria-hidden="true" />
+                    <span>{number}</span>
+                    <strong>{label}</strong>
+                  </div>
+                ))}
+              </div>
+              {!isGenerating && (
+                <p>Submit the brand signal above to activate the research map.</p>
+              )}
+            </div>
+          )}
+          {strategy && isStrategyOpen && <div className="strategy-grid">
             <article>
               <span>Visual codes</span>
               {strategy.categoryCodes.map((item) => <p key={item}>{item}</p>)}
@@ -953,7 +1366,11 @@ export default function LoopenStudio({
               <p>{strategy.typography}</p>
             </article>
             <article>
-              <span>Starting palette</span>
+              <span>
+                {colorApproach === "existing"
+                  ? "Client palette"
+                  : "Proposed palette"}
+              </span>
               <div className="palette-row">
                 {strategy.palette.map((color) => (
                   <button
@@ -969,19 +1386,18 @@ export default function LoopenStudio({
               </div>
             </article>
           </div>}
-          {isStrategyOpen && <p className="trademark-notice">Trademark note — {strategy.trademarkNotice}</p>}
+          {strategy && isStrategyOpen && <p className="trademark-notice">Trademark note — {strategy.trademarkNotice}</p>}
         </section>
-      )}
 
       <section className="concepts-section" id="concepts">
         <div className="concepts-header">
           <div>
-            <p className="eyebrow light">02 / Concept territories</p>
+            <p className="eyebrow light">03 / Concept territories</p>
             <h2>Different ideas. Not different seeds.</h2>
           </div>
           <p>
-            Each route starts from a distinct strategic thought and survives at
-            24 px before it earns the right to become a brand.
+            Each route begins as a real architectural idea. Only the selected
+            structures are later reduced and tested as identity symbols.
           </p>
         </div>
         {diversityWarning && (
@@ -1056,8 +1472,8 @@ export default function LoopenStudio({
             <span>Awaiting a real brief</span>
             <strong>No sample logos. No invented scores.</strong>
             <p>
-              Complete the premium brief and generate four strategic directions.
-              Only actual Cloudflare results will appear here.
+              Complete the brief and generate four architectural studies.
+              Only real generated maquettes will appear here.
             </p>
             <a href="#brief">Complete the brief ↑</a>
           </div>
@@ -1072,6 +1488,7 @@ export default function LoopenStudio({
               disabled={isGeneratingMore}
             >
               {isGeneratingMore ? "Generating one more…" : "More concept +1"}
+              {isGeneratingMore && <RequestDrop label="Generating one more study" />}
             </button>
           </div>
         )}
@@ -1083,7 +1500,7 @@ export default function LoopenStudio({
             <em />
           </div>
           <div>
-            <span>Refinement shortlist</span>
+            <span>Architecture shortlist</span>
             <strong>
               {selectedConceptIds.length}/2 selected
               {focusedGeneration ? ` · ${focusedGeneration.directionTitle}` : ""}
@@ -1119,7 +1536,8 @@ export default function LoopenStudio({
               onClick={refineSelected}
               disabled={isRefining || selectedConceptIds.length === 0}
             >
-              {isRefining ? "Refining…" : `Refine ${selectedConceptIds.length || ""} selected`} <span>→</span>
+              {isRefining ? "Reducing…" : `Reduce ${selectedConceptIds.length || ""} selected`}
+              {isRefining ? <RequestDrop label="Reducing selected studies" /> : <span>→</span>}
             </button>
           </div>
         </div>}
@@ -1127,13 +1545,13 @@ export default function LoopenStudio({
 
       <section className="workflow-section" id="workflow">
         <div className="workflow-heading">
-          <p className="eyebrow">03 / Production pipeline</p>
+          <p className="eyebrow">04 / Production pipeline</p>
           <h2>From chosen thought<br />to usable identity.</h2>
           <p>Every stage keeps a visible parent, so the creative decision never disappears inside a black box.</p>
         </div>
 
         <div className="workflow-stage">
-          <div className="stage-index"><span>01</span><strong>Refine</strong></div>
+          <div className="stage-index"><span>01</span><strong>Logo reduction</strong></div>
           <div className="asset-grid">
             {refinements.length ? refinements.map((asset) => (
               <button
@@ -1148,21 +1566,52 @@ export default function LoopenStudio({
                   {asset.model}
                   {asset.qualityScore ? ` · QC ${asset.qualityScore}/100` : ""}
                 </small>
+                <b
+                  className={`asset-verdict ${
+                    asset.reviewStatus === "Recommended" ? "approved" : "rejected"
+                  }`}
+                >
+                  {asset.reviewStatus ?? "Review required"}
+                </b>
               </button>
             )) : (
               <div className="empty-stage">
-                <strong>Controlled symbol refinement</strong>
-                <p>Choose one or two approved symbols above. The exact brand name is composed separately in the lockup editor.</p>
+                <strong>Architecture-to-symbol reduction</strong>
+                <p>Choose one or two architectural studies. Nano Banana preserves their massing and signature void while removing perspective and detail.</p>
                 <button type="button" onClick={refineSelected} disabled={isRefining}>
-                  {isRefining ? "Refining…" : "Create refinements →"}
+                  {isRefining ? "Reducing…" : "Create logo reductions →"}
+                  {isRefining && <RequestDrop label="Creating logo reductions" />}
                 </button>
               </div>
             )}
           </div>
           {refinements.length > 0 && (
-            <button className="stage-action" type="button" onClick={vectorizeSelected} disabled={isVectorizing}>
-            {isVectorizing ? "Creating SVG…" : "Vectorize selected"} <span>→</span>
+            <button
+              className="stage-action"
+              type="button"
+              onClick={vectorizeSelected}
+              disabled={
+                isVectorizing ||
+                !canReconstruct
+              }
+            >
+            {isVectorizing ? "Creating SVG…" : "Reconstruct selected"}
+            {isVectorizing ? <RequestDrop label="Creating SVG master" /> : <span>→</span>}
             </button>
+          )}
+          {selectedReduction && !canReconstruct && (
+            <div className="transition-blocked" role="status">
+              <span>Transition blocked</span>
+              <strong>This image is still an architectural render, not an approved flat mark.</strong>
+              <p>
+                {selectedReduction.reviewReason ??
+                  "The reduction did not pass both final juries at 90/100. SVG reconstruction is intentionally unavailable."}
+              </p>
+              <button type="button" onClick={refineSelected} disabled={isRefining}>
+                {isRefining ? "Reducing again…" : "Try a new reduction"}
+                {isRefining ? <RequestDrop label="Retrying logo reduction" /> : <span>↗</span>}
+              </button>
+            </div>
           )}
         </div>
 
@@ -1182,14 +1631,26 @@ export default function LoopenStudio({
               </button>
             )) : (
               <div className="empty-stage">
-                <strong>Exact vector trace</strong>
-                <p>Recraft converts the selected symbol to SVG without generative reconstruction.</p>
+                <strong>Geometric SVG master</strong>
+                <p>GPT redraws the approved symbol as a small set of controlled paths and specifies the Ketchup wordmark separately.</p>
               </div>
             )}
           </div>
         </div>
 
-        <div className="lockup-editor">
+        <div className={`lockup-editor ${selectedVectorAsset ? "" : "locked"}`}>
+          {!selectedVectorAsset ? (
+            <div className="production-lock">
+              <div className="production-lock-number">05</div>
+              <p>Identity workspace / Locked</p>
+              <h3>The controls appear<br />when the mark is real.</h3>
+              <div>
+                <span>Required state</span>
+                <strong>Recommended reduction → Geometric SVG master</strong>
+              </div>
+              <i aria-hidden="true">↘</i>
+            </div>
+          ) : (<>
           <div className="editor-controls">
             <div>
               <span className="mini-label">Layout</span>
@@ -1201,40 +1662,57 @@ export default function LoopenStudio({
             </div>
             <label>
               <span className="mini-label">Descriptor</span>
-              <input value={descriptor} maxLength={80} onChange={(event) => setDescriptor(event.target.value)} />
+              <input value={descriptor} onChange={(event) => setDescriptor(event.target.value)} />
             </label>
-            <label>
+            <div className="editor-color-control">
               <span className="mini-label">Color</span>
-              <input type="color" value={lockupColor} onChange={(event) => setLockupColor(event.target.value)} />
-            </label>
-            <label>
-              <span className="mini-label">Wordmark character</span>
-              <select value={wordmarkStyle} onChange={(event) => setWordmarkStyle(event.target.value)}>
-                <option value="modern">Modern grotesk</option>
-                <option value="geometric">Geometric</option>
-                <option value="humanist">Humanist</option>
-                <option value="editorial">Editorial serif</option>
-              </select>
-            </label>
-            <label>
-              <span className="mini-label">Case</span>
-              <select value={wordmarkCase} onChange={(event) => setWordmarkCase(event.target.value as typeof wordmarkCase)}>
-                <option value="original">Original</option>
-                <option value="upper">Uppercase</option>
-                <option value="lower">Lowercase</option>
-              </select>
-            </label>
-            <label>
+              <div className="editor-color-options">
+                {(strategy?.palette ?? ["#201F1E", "#F3F0EA", "#C84A32", "#FFFFFF"]).map(
+                  (color) => (
+                    <button
+                      type="button"
+                      key={color}
+                      className={lockupColor.toLowerCase() === color.toLowerCase() ? "active" : ""}
+                      style={{ background: color }}
+                      aria-label={`Use ${color}`}
+                      onClick={() => setLockupColor(color)}
+                    />
+                  ),
+                )}
+              </div>
+            </div>
+            <CreativeSelect
+              label="Wordmark character"
+              value={wordmarkStyle}
+              onChange={setWordmarkStyle}
+              options={[
+                { value: "modern", label: "Modern grotesk" },
+                { value: "geometric", label: "Geometric" },
+                { value: "humanist", label: "Humanist" },
+                { value: "editorial", label: "Editorial serif" },
+              ]}
+            />
+            <CreativeSelect
+              label="Case"
+              value={wordmarkCase}
+              onChange={(value) => setWordmarkCase(value as typeof wordmarkCase)}
+              options={[
+                { value: "original", label: "Original" },
+                { value: "upper", label: "Uppercase" },
+                { value: "lower", label: "Lowercase" },
+              ]}
+            />
+            <label className="creative-range">
               <span className="mini-label">Wordmark weight — {wordmarkWeight}</span>
-              <input type="range" min="400" max="800" step="100" value={wordmarkWeight} onChange={(event) => setWordmarkWeight(Number(event.target.value))} />
+              <input style={{ "--range-progress": `${((wordmarkWeight - 400) / 400) * 100}%` } as CSSProperties} type="range" min="400" max="800" step="100" value={wordmarkWeight} onChange={(event) => setWordmarkWeight(Number(event.target.value))} />
             </label>
-            <label>
+            <label className="creative-range">
               <span className="mini-label">Tracking — {wordmarkTracking}</span>
-              <input type="range" min="-8" max="8" value={wordmarkTracking} onChange={(event) => setWordmarkTracking(Number(event.target.value))} />
+              <input style={{ "--range-progress": `${((wordmarkTracking + 8) / 16) * 100}%` } as CSSProperties} type="range" min="-8" max="8" value={wordmarkTracking} onChange={(event) => setWordmarkTracking(Number(event.target.value))} />
             </label>
-            <label>
+            <label className="creative-range">
               <span className="mini-label">Optical mark scale — {markScale}%</span>
-              <input type="range" min="88" max="112" value={markScale} onChange={(event) => setMarkScale(Number(event.target.value))} />
+              <input style={{ "--range-progress": `${((markScale - 88) / 24) * 100}%` } as CSSProperties} type="range" min="88" max="112" value={markScale} onChange={(event) => setMarkScale(Number(event.target.value))} />
             </label>
           </div>
           <div
@@ -1299,52 +1777,94 @@ export default function LoopenStudio({
               {refinements.find((asset) => asset.id === selectedRefinement) && (
                 <a href={refinements.find((asset) => asset.id === selectedRefinement)!.downloadUrl}>Download PNG</a>
               )}
-              <button type="button" onClick={() => void exportLockup("svg")} disabled={!selectedVector}>SVG ↓</button>
-              <button type="button" onClick={() => void exportLockup("png")} disabled={!selectedVector}>PNG ↓</button>
-              <button type="button" onClick={() => void exportLockup("webp")} disabled={!selectedVector}>WebP ↓</button>
-              <button type="button" onClick={() => void exportLockup("png", "icon", 48)} disabled={!selectedVector}>Favicon 48 ↓</button>
-              <button type="button" onClick={() => void exportLockup("png", "icon", 1024)} disabled={!selectedVector}>Social avatar ↓</button>
+              <button type="button" onClick={() => void exportLockup("svg")} disabled={!selectedVector || Boolean(exportingKey)}>
+                SVG {exportingKey === `svg-${lockupLayout}-master` ? <RequestDrop label="Exporting SVG" /> : "↓"}
+              </button>
+              <button type="button" onClick={() => void exportLockup("png")} disabled={!selectedVector || Boolean(exportingKey)}>
+                PNG {exportingKey === `png-${lockupLayout}-master` ? <RequestDrop label="Exporting PNG" /> : "↓"}
+              </button>
+              <button type="button" onClick={() => void exportLockup("webp")} disabled={!selectedVector || Boolean(exportingKey)}>
+                WebP {exportingKey === `webp-${lockupLayout}-master` ? <RequestDrop label="Exporting WebP" /> : "↓"}
+              </button>
+              <button type="button" onClick={() => void exportLockup("png", "icon", 48)} disabled={!selectedVector || Boolean(exportingKey)}>
+                Favicon 48 {exportingKey === "png-icon-48" ? <RequestDrop label="Exporting favicon" /> : "↓"}
+              </button>
+              <button type="button" onClick={() => void exportLockup("png", "icon", 1024)} disabled={!selectedVector || Boolean(exportingKey)}>
+                Social avatar {exportingKey === "png-icon-1024" ? <RequestDrop label="Exporting social avatar" /> : "↓"}
+              </button>
               <button type="button" onClick={printBrandGuide} disabled={!selectedVector}>Brand guide / PDF ↗</button>
             </div>
           </div>
+          </>)}
         </div>
       </section>
 
-      <section className="system-section">
+      <section className="system-section" id="system">
         <div className="system-left">
-          <p className="eyebrow">04 / Brand system</p>
+          <p className="eyebrow">05 / Brand system</p>
           <h2>
             One idea.
             <br />
             Every context.
           </h2>
-          <div className="system-number">12</div>
-          <p className="system-caption">Production-ready assets from one route.</p>
+          <div className="system-number">{selectedVectorAsset ? "03" : "—"}</div>
+          <p className="system-caption">
+            {selectedVectorAsset
+              ? "Three live identity contexts built from the approved master."
+              : "The brand system unlocks after an approved SVG master exists."}
+          </p>
         </div>
-        <div className="system-board">
-          <article className="application-card acid-card">
-            <span className="app-label">App icon / 01</span>
-            <div className="app-loop" />
-            <strong>Loop forward.</strong>
-          </article>
-          <article className="application-card black-card">
-            <span className="app-label">Wordmark / 02</span>
-            <div className="black-wordmark">LOO<span>∞</span>PEN</div>
-            <p>Adaptive identity for adaptive brands.</p>
-          </article>
-          <article className="application-card white-card">
-            <span className="app-label">Micro mark / 03</span>
-            <div className="micro-grid">
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-            </div>
-            <p>24 px → ∞</p>
-          </article>
-        </div>
+        {selectedVectorAsset ? (
+          <div className="system-board">
+            <article
+              className="application-card identity-drawing-card"
+              style={{ background: strategy?.palette?.[2] ?? "var(--acid)" }}
+            >
+              <span className="app-label">Drawing title block / 01</span>
+              <img src={selectedVectorAsset.url} alt="" />
+              <div className="drawing-metadata">
+                <span>PROJECT</span><b>KT / 001</b>
+                <span>STAGE</span><b>CONCEPT</b>
+                <span>REVISION</span><b>01</b>
+              </div>
+              <strong>{displayBrandName}</strong>
+            </article>
+            <article className="application-card identity-proposal-card">
+              <span className="app-label">Proposal cover / 02</span>
+              <div className={`dynamic-wordmark wordmark-${wordmarkStyle}`}>
+                {displayBrandName}
+              </div>
+              <p>{descriptor || "Architecture with a point of view."}</p>
+            </article>
+            <article className="application-card identity-scale-card">
+              <span className="app-label">Responsive mark / 03</span>
+              <div className="identity-scale-row">
+                {[24, 40, 72].map((size) => (
+                  <figure key={size}>
+                    <img
+                      src={selectedVectorAsset.url}
+                      alt=""
+                      style={{ width: size, height: size }}
+                    />
+                    <figcaption>{size}px</figcaption>
+                  </figure>
+                ))}
+              </div>
+              <p>One master. Controlled at every scale.</p>
+            </article>
+          </div>
+        ) : (
+          <div className="system-locked">
+            <span>05 / Waiting for a master</span>
+            <strong>No placeholder brand system.</strong>
+            <p>
+              Approve a flat reduction and create its geometric SVG. Real
+              applications will then be composed from the actual Ketchup mark,
+              wordmark and selected palette.
+            </p>
+            <i aria-hidden="true">05</i>
+          </div>
+        )}
       </section>
 
       <section className="manifesto" id="manifesto">
@@ -1358,23 +1878,60 @@ export default function LoopenStudio({
             Strategy makes it relevant. Selection makes it distinct. Craft makes
             it last.
           </p>
-          <button className="text-button" type="button">
+          <button
+            className="text-button"
+            type="button"
+            onClick={() => setIsMethodOpen(true)}
+          >
             Read the Loopen method <span>↗</span>
           </button>
         </div>
       </section>
 
-      <footer>
-        <a className="footer-wordmark" href="#top">
-          LOOPEN<span>®</span>
-        </a>
-        <div className="footer-meta">
-          <p>Brand systems, not random logos.</p>
-          <p>Made with intent in Tel Aviv.</p>
+      <footer className="site-footer">
+        <div className="footer-signal">
+          <span><i /> System online</span>
+          <p>Independent AI identity studio<br />Tel Aviv / 2026</p>
         </div>
-        <a className="back-top" href="#top">
-          Back to top ↑
-        </a>
+        <div className="footer-statement">
+          <span>One sharp brief.</span>
+          <strong>
+            A brand with
+            <br />
+            somewhere to <em>go.</em>
+          </strong>
+        </div>
+        <nav className="footer-route" aria-label="Page sections">
+          {[
+            ["01", "Brief", "#brief"],
+            ["02", "Research", "#research"],
+            ["03", "Territories", "#concepts"],
+            ["04", "Production", "#workflow"],
+            ["05", "System", "#system"],
+          ].map(([number, label, href]) => (
+            <a href={href} key={number}>
+              <span>{number}</span>
+              <strong>{label}</strong>
+              <i>↘</i>
+            </a>
+          ))}
+        </nav>
+        <div className="footer-brand-row">
+          <a className="footer-wordmark" href="#top">
+            LOOPEN<span>®</span>
+          </a>
+          <div className="footer-orbit" aria-hidden="true"><i /></div>
+          <div className="footer-meta">
+            <p>Brand systems,<br />not random logos.</p>
+            <button type="button" onClick={() => setIsMethodOpen(true)}>
+              Read the method ↗
+            </button>
+          </div>
+          <a className="back-top" href="#top">
+            <span>Back to top</span>
+            <i>↑</i>
+          </a>
+        </div>
       </footer>
     </main>
   );

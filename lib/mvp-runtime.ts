@@ -6,6 +6,9 @@ export type LogoBrief = {
   brandName: string;
   companyDescription: string;
   competitors: string;
+  colorApproach: "propose" | "existing" | "mood";
+  brandColors: string;
+  colorMood: string;
   coreIdea: string;
   industry: string;
   logoType: "abstract" | "monogram" | "wordmark" | "emblem" | "combination";
@@ -36,6 +39,7 @@ type RuntimeEnv = {
   FILES?: R2Bucket;
   OPENAI_API_KEY?: string;
   RECRAFT_API_KEY?: string;
+  GEMINI_API_KEY?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
@@ -120,6 +124,7 @@ export function getRuntimeEnv(): Required<
     RuntimeEnv,
     | "OPENAI_API_KEY"
     | "RECRAFT_API_KEY"
+    | "GEMINI_API_KEY"
     | "SUPABASE_URL"
     | "SUPABASE_SERVICE_ROLE_KEY"
     | "CLOUDFLARE_ACCOUNT_ID"
@@ -134,6 +139,7 @@ export function getRuntimeEnv(): Required<
     FILES: runtime.FILES,
     OPENAI_API_KEY: runtime.OPENAI_API_KEY,
     RECRAFT_API_KEY: runtime.RECRAFT_API_KEY,
+    GEMINI_API_KEY: runtime.GEMINI_API_KEY,
     SUPABASE_URL: runtime.SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY: runtime.SUPABASE_SERVICE_ROLE_KEY,
     CLOUDFLARE_ACCOUNT_ID: runtime.CLOUDFLARE_ACCOUNT_ID,
@@ -200,16 +206,24 @@ export function validateBrief(value: unknown): LogoBrief {
   }
 
   const input = value as Record<string, unknown>;
-  const brandName = cleanString(input.brandName, 80);
-  const coreIdea = cleanString(input.coreIdea, 500);
-  const industry = cleanString(input.industry, 120);
-  const companyDescription = cleanString(input.companyDescription, 500);
-  const audience = cleanString(input.audience, 300);
-  const avoid = cleanString(input.avoid, 300);
-  const positioning = cleanString(input.positioning, 300);
-  const competitors = cleanString(input.competitors, 500);
-  const visualDirection = cleanString(input.visualDirection, 200);
-  const usage = cleanString(input.usage, 300);
+  const brandName = cleanString(input.brandName);
+  const coreIdea = cleanString(input.coreIdea);
+  const industry = cleanString(input.industry);
+  const companyDescription = cleanString(input.companyDescription);
+  const audience = cleanString(input.audience);
+  const avoid = cleanString(input.avoid);
+  const positioning = cleanString(input.positioning);
+  const competitors = cleanString(input.competitors);
+  const colorApproaches = ["propose", "existing", "mood"] as const;
+  const colorApproach = colorApproaches.includes(
+    input.colorApproach as (typeof colorApproaches)[number],
+  )
+    ? (input.colorApproach as LogoBrief["colorApproach"])
+    : "propose";
+  const brandColors = cleanString(input.brandColors);
+  const colorMood = cleanString(input.colorMood);
+  const visualDirection = cleanString(input.visualDirection);
+  const usage = cleanString(input.usage);
   const logoTypes = ["abstract", "monogram", "wordmark", "emblem", "combination"] as const;
   const logoType = logoTypes.includes(input.logoType as (typeof logoTypes)[number])
     ? (input.logoType as LogoBrief["logoType"])
@@ -217,7 +231,7 @@ export function validateBrief(value: unknown): LogoBrief {
   const personalities = Array.isArray(input.personalities)
     ? input.personalities
         .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim().slice(0, 40))
+        .map((item) => item.trim())
         .filter(Boolean)
         .slice(0, 6)
     : [];
@@ -234,6 +248,9 @@ export function validateBrief(value: unknown): LogoBrief {
     brandName,
     companyDescription,
     competitors,
+    colorApproach,
+    brandColors,
+    colorMood,
     coreIdea,
     industry,
     logoType,
@@ -328,6 +345,6 @@ export async function hashIdentity(value: string) {
     .join("");
 }
 
-function cleanString(value: unknown, maxLength: number) {
-  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+function cleanString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }

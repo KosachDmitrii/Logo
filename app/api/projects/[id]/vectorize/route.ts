@@ -12,6 +12,8 @@ import {
   arrayBufferToBase64,
   assessLogoImage,
 } from "../../../../../lib/logo-quality";
+import { reconstructArchitecturalLogoSvg } from "../../../../../lib/vector-art-direction";
+import type { LogoBrief } from "../../../../../lib/mvp-runtime";
 
 type RecraftResponse = {
   image?: { b64_json?: string; url?: string };
@@ -54,11 +56,12 @@ export async function POST(
       id: string;
       object_key: string;
       content_type: string;
-      logo_projects: { brief_json: { avoid?: string } };
+      prompt: string;
+      logo_projects: { brief_json: LogoBrief };
     }>(
       "logo_assets",
       {
-        select: "id,object_key,content_type,logo_projects!inner(brief_json)",
+        select: "id,object_key,content_type,prompt,logo_projects!inner(brief_json)",
         id: `eq.${assetId}`,
         project_id: `eq.${projectId}`,
         user_email: `eq.${userEmail}`,
@@ -66,6 +69,18 @@ export async function POST(
       },
     );
     if (!asset) return Response.json({ error: "Refined asset not found." }, { status: 404 });
+    const finalScore = Number(asset.prompt.match(/\[LOOPEN_QC:(\d+)\]/)?.[1] ?? 0);
+    const finalStatus =
+      asset.prompt.match(/\[LOOPEN_STATUS:([^\]]+)\]/)?.[1] ?? "Review";
+    if (finalScore < 90 || finalStatus !== "Recommended") {
+      return Response.json(
+        {
+          error:
+            "This reduction was rejected by the transition jury. Select or generate a flat approved reduction before SVG reconstruction.",
+        },
+        { status: 422 },
+      );
+    }
     const source = await runtime.FILES.get(asset.object_key);
     if (!source) return Response.json({ error: "Refined image data not found." }, { status: 404 });
     const bytes = await source.arrayBuffer();
@@ -114,6 +129,72 @@ export async function POST(
             provider: "loopen",
             model: "native-vector",
             contentType: "image/svg+xml",
+            url: `/api/assets/${id}`,
+            downloadUrl: `/api/assets/${id}?download=1`,
+          }],
+        },
+        { status: 201 },
+      );
+    }
+    if (runtime.OPENAI_API_KEY) {
+      const master = await reconstructArchitecturalLogoSvg(
+        asset.logo_projects.brief_json,
+        runtime.OPENAI_API_KEY,
+        {
+          base64: arrayBufferToBase64(bytes),
+          mimeType: asset.content_type || "image/png",
+        },
+      );
+      if (master.score < 90) {
+        return Response.json(
+          {
+            error: `The geometric reconstruction did not reach production quality (${master.score}/100): ${master.verdict}`,
+          },
+          { status: 422 },
+        );
+      }
+      const svg = sanitizeSvg(master.svg);
+      const id = crypto.randomUUID();
+      const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
+      await runtime.FILES.put(objectKey, svg, {
+        httpMetadata: { contentType: "image/svg+xml" },
+      });
+      await insertRow("logo_assets", {
+        id,
+        project_id: projectId,
+        user_email: userEmail,
+        parent_id: asset.id,
+        stage: "vector",
+        label: "Geometrically reconstructed SVG master",
+        provider: "openai",
+        model: "gpt-5.6-terra",
+        prompt: [
+          `[LOOPEN_GEOMETRIC_RECONSTRUCTION]`,
+          `[LOOPEN_QC:${master.score}]`,
+          `[LOOPEN_REASON:${encodeURIComponent(master.verdict)}]`,
+          master.rationale,
+        ].join(""),
+        object_key: objectKey,
+        content_type: "image/svg+xml",
+        created_at: Date.now(),
+      });
+      await updateRows(
+        "logo_projects",
+        { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
+        { status: "vectorized", updated_at: Date.now() },
+      );
+      return Response.json(
+        {
+          assets: [{
+            id,
+            parentId: asset.id,
+            stage: "vector",
+            label: "Geometrically reconstructed SVG master",
+            provider: "openai",
+            model: "gpt-5.6-terra",
+            contentType: "image/svg+xml",
+            qualityScore: master.score,
+            reviewReason: master.verdict,
             url: `/api/assets/${id}`,
             downloadUrl: `/api/assets/${id}?download=1`,
           }],

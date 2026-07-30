@@ -15,7 +15,7 @@ import {
   updateRows,
 } from "../../../lib/supabase";
 import { assessLogoImage } from "../../../lib/logo-quality";
-import { createVectorConcepts } from "../../../lib/vector-art-direction";
+import { createCuratedConcepts } from "../../../lib/gemini-creative";
 
 type ProjectRow = {
   id: string;
@@ -62,6 +62,23 @@ function imageFormat(base64: string) {
 }
 
 function fallbackStrategy(brief: ReturnType<typeof validateBrief>): BrandStrategy {
+  const suppliedColors =
+    (brief.brandColors || "").match(/#[0-9a-f]{6}\b/gi)?.map((color) => color.toUpperCase()) ??
+    [];
+  const mood = (brief.colorMood || "").toLowerCase();
+  const moodPalette = /monochrome|black.?and.?white|minimal/.test(mood)
+    ? ["#171716", "#F4F1E8", "#77736C", "#FFFFFF"]
+    : /cool|blue|calm|technical/.test(mood)
+      ? ["#182129", "#EDF1F2", "#326A78", "#AEBFC5"]
+      : /vibrant|bright|bold|electric/.test(mood)
+        ? ["#171716", "#F4F1E8", "#E64B2E", "#3159C7"]
+        : ["#171716", "#F4F1E8", "#C84A32", "#A9B6A3"];
+  const proposedPalette =
+    brief.colorApproach === "existing" && suppliedColors.length
+      ? [...suppliedColors.slice(0, 4), "#F4F1E8", "#FFFFFF"].slice(0, 4)
+      : brief.colorApproach === "mood"
+        ? moodPalette
+        : ["#171716", "#F4F1E8", "#C84A32", "#A9B6A3"];
   return {
     categoryCodes: [
       `Recognizable ${brief.industry} confidence`,
@@ -79,7 +96,7 @@ function fallbackStrategy(brief: ReturnType<typeof validateBrief>): BrandStrateg
       brief.logoType === "wordmark" || brief.logoType === "combination"
         ? "Begin with a restrained grotesk wordmark, then custom-draw distinctive letter details and spacing."
         : "Pair the symbol with a neutral, optically spaced grotesk wordmark so the symbol remains the hero.",
-    palette: ["#201F1E", "#F3F0EA", "#FFCF68", "#FFFFFF"],
+    palette: proposedPalette,
     trademarkNotice:
       "Automated similarity checks are directional only. A qualified trademark professional must clear the final identity in every intended market.",
     creativeDirections: directions,
@@ -119,11 +136,11 @@ export async function POST(request: Request) {
   const userEmail = user.email;
 
   const runtime = getRuntimeEnv();
-  if (!runtime.OPENAI_API_KEY || !runtime.RECRAFT_API_KEY) {
+  if (!runtime.OPENAI_API_KEY || !runtime.GEMINI_API_KEY) {
     return Response.json(
       {
         error:
-          "Professional concept generation is not configured. Add OPENAI_API_KEY and RECRAFT_API_KEY.",
+          "Professional concept generation is not configured. Add OPENAI_API_KEY and GEMINI_API_KEY.",
       },
       { status: 503 },
     );
@@ -262,12 +279,10 @@ export async function POST(request: Request) {
     });
   }
 
-  // Concept creation is vector-native. A reasoning model first develops
-  // brand-specific territories, then a separate design-director pass selects
-  // and turns the strongest ideas into execution briefs for Recraft V4.1
-  // Vector. Returned SVG is structurally validated before storage. This
-  // eliminates pseudo-text, raster artifacts and literal prompt illustration
-  // by construction instead of hoping a vision classifier catches them later.
+  // A reasoning model develops brand-specific territories and art-direction
+  // briefs. Gemini explores each route visually; Gemini and GPT then judge the
+  // candidates independently. Only candidates above the shared threshold are
+  // stored. Recraft is reserved for final vectorization after user selection.
   try {
     const previousRows = existingProjectId
       ? await selectRows<{ direction_title: string }>("logo_generations", {
@@ -278,40 +293,47 @@ export async function POST(request: Request) {
         })
       : [];
     const conceptCount: 1 | 4 = existingProjectId ? 1 : 4;
-    const vectorConcepts = await createVectorConcepts(
+    const curatedConcepts = await createCuratedConcepts(
       enrichedBrief,
-      runtime.OPENAI_API_KEY,
-      runtime.RECRAFT_API_KEY,
+      {
+        openai: runtime.OPENAI_API_KEY,
+        gemini: runtime.GEMINI_API_KEY,
+      },
       conceptCount,
       previousRows.map((row) => row.direction_title),
     );
-    const recommendedIndex = vectorConcepts.reduce(
+    const recommendedIndex = curatedConcepts.reduce(
       (best, concept, index, all) =>
         concept.score > all[best].score ? index : best,
       0,
     );
     const generations = await Promise.all(
-      vectorConcepts.map(async (concept, index) => {
+      curatedConcepts.map(async (concept, index) => {
         const generationId =
           existingProjectId && actionId ? actionId : crypto.randomUUID();
-        const objectKey = `users/${userHash}/projects/${projectId}/${generationId}.svg`;
+        const format = imageFormat(concept.base64);
+        const objectKey = `users/${userHash}/projects/${projectId}/${generationId}.${format.extension}`;
         const reviewStatus =
           index === recommendedIndex && concept.score >= 90
             ? "Recommended"
-            : concept.score >= 88
+            : concept.score >= 80
               ? "Curated"
               : "Review";
-        await runtime.FILES.put(objectKey, new TextEncoder().encode(concept.svg), {
-          httpMetadata: { contentType: "image/svg+xml" },
+        const bytes = Uint8Array.from(atob(concept.base64), (character) =>
+          character.charCodeAt(0),
+        );
+        await runtime.FILES.put(objectKey, bytes, {
+          httpMetadata: { contentType: concept.mimeType || format.contentType },
           customMetadata: {
             direction: concept.key,
-            model: "gpt-5.6-terra-vector",
+            model: "gemini-3.1-flash-image",
             project: projectId,
             score: String(concept.score),
           },
         });
         const prompt = [
-          `[LOOPEN_VECTOR_NATIVE]`,
+          `[LOOPEN_ARCHITECTURE_STUDY]`,
+          `[LOOPEN_DUAL_JURY]`,
           `[LOOPEN_QC:${concept.score}]`,
           `[LOOPEN_STATUS:${reviewStatus}]`,
           `[LOOPEN_REASON:${encodeURIComponent(concept.verdict)}]`,
@@ -341,7 +363,7 @@ export async function POST(request: Request) {
         };
       }),
     );
-    const creativeDirections = vectorConcepts.map((concept) => ({
+    const creativeDirections = curatedConcepts.map((concept) => ({
       key: concept.key,
       title: concept.title,
       thesis: concept.thesis,
@@ -363,36 +385,38 @@ export async function POST(request: Request) {
       },
     );
     console.log({
-      event: "vector_logo_batch_completed",
+      event: "architectural_study_batch_completed",
       projectId,
       count: generations.length,
-      model: "gpt-5.6-terra",
-      scores: vectorConcepts.map((concept) => concept.score),
+      model: "gemini-3.1-flash-image→gemini-3-pro-image",
+      scores: curatedConcepts.map((concept) => concept.score),
     });
     return Response.json(
       { failures: [], generations, projectId, strategy: updatedStrategy },
       { status: 201 },
     );
   } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
     console.error({
       event: "vector_logo_batch_failed",
       projectId,
-      reason: error instanceof Error ? error.message : String(error),
+      reason,
     });
     await updateRows(
       "logo_projects",
       { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
       { status: "failed", updated_at: Date.now() },
     );
+    const highDemand =
+      /high demand|try again later|resource_exhausted|overloaded/i.test(reason);
     return Response.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Professional vector concept generation failed.",
+        error: highDemand
+          ? "Gemini image generation is temporarily overloaded. Wait a minute and try again — no concepts were saved."
+          : reason || "Professional vector concept generation failed.",
         projectId,
       },
-      { status: 502 },
+      { status: highDemand ? 503 : 502 },
     );
   }
 

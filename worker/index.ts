@@ -7,6 +7,7 @@ interface Env {
   FILES: R2Bucket;
   OPENAI_API_KEY?: string;
   RECRAFT_API_KEY?: string;
+  GEMINI_API_KEY?: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
