@@ -2789,9 +2789,16 @@ textarea:focus-visible {
   margin: 0;
 }
 
-.size-test img {
-  filter: invert(1);
+.size-test-mark {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.size-test-mark .lockup-mark {
+  display: block;
+  height: 100%;
   object-fit: contain;
+  width: 100%;
 }
 
 .size-test figcaption {
@@ -2817,14 +2824,10 @@ textarea:focus-visible {
   background: #0c0c0c;
 }
 
-.contrast-test img {
+.contrast-test .lockup-mark {
   height: 70px;
   object-fit: contain;
   width: 70px;
-}
-
-.contrast-test div:last-child img {
-  filter: invert(1);
 }
 
 .quality-lab ul {
@@ -2954,7 +2957,7 @@ textarea:focus-visible {
   min-height: 720px;
 }
 
-.identity-drawing-card > img {
+.identity-drawing-card > .lockup-mark {
   height: 330px;
   left: 50%;
   object-fit: contain;
@@ -3033,8 +3036,10 @@ textarea:focus-visible {
   margin: 0;
 }
 
-.identity-scale-row img {
+.identity-scale-row .lockup-mark {
+  height: 100%;
   object-fit: contain;
+  width: 100%;
 }
 
 .identity-scale-row figcaption {
@@ -3954,7 +3959,7 @@ textarea:focus-visible {
     min-height: 580px;
   }
 
-  .identity-drawing-card > img {
+  .identity-drawing-card > .lockup-mark {
     height: 250px;
   }
 

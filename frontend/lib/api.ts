@@ -32,6 +32,28 @@ export function resolveMediaUrl(url: string): string {
   return apiUrl(url);
 }
 
+/**
+ * Same-origin `/api/...` URL for fetching SVG text (tint / plate strip).
+ * Avoids cross-origin failures when NEXT_PUBLIC_API_URL points at Railway —
+ * the Next rewrite proxy still serves `/api/*` locally.
+ */
+export function sameOriginApiUrl(url: string): string {
+  if (!url) return url;
+  if (url.startsWith("/api/")) return url;
+  if (url.startsWith("/") && !url.startsWith("//")) {
+    return url.startsWith("/api") ? url : apiUrl(url);
+  }
+  try {
+    const parsed = new URL(url, "http://local.invalid");
+    if (parsed.pathname.startsWith("/api/")) {
+      return `${parsed.pathname}${parsed.search}`;
+    }
+  } catch {
+    // ignore
+  }
+  return resolveMediaUrl(url);
+}
+
 export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   return fetch(apiUrl(path), init);
 }

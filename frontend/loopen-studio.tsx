@@ -8,7 +8,13 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { apiFetch, apiUrl, readApiJson, resolveMediaUrl } from "./lib/api";
+import {
+  apiFetch,
+  apiUrl,
+  readApiJson,
+  resolveMediaUrl,
+  sameOriginApiUrl,
+} from "./lib/api";
 import { buildLockupSvg } from "./lib/lockup-export";
 import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
 import {
@@ -275,21 +281,10 @@ function resolveBriefTemplateId(fields: {
   return match?.id ?? "";
 }
 
-const WORDMARK_SIZE_OPTIONS = [
-  { value: "24", label: "24" },
-  { value: "32", label: "32" },
-  { value: "40", label: "40" },
-  { value: "48", label: "48" },
-  { value: "64", label: "64" },
-  { value: "80", label: "80" },
-  { value: "96", label: "96" },
-  { value: "112", label: "112" },
-  { value: "128", label: "128" },
-  { value: "144", label: "144" },
-  { value: "160", label: "160" },
-  { value: "176", label: "176" },
-  { value: "192", label: "192" },
-];
+const WORDMARK_SIZE_OPTIONS = Array.from({ length: (192 - 24) / 4 + 1 }, (_, i) => {
+  const value = String(24 + i * 4);
+  return { value, label: value };
+});
 
 const DESCRIPTOR_SIZE_OPTIONS = [
   { value: "6", label: "6" },
@@ -337,7 +332,8 @@ function LockupMark({
   color: string;
   url: string;
 }) {
-  const [src, setSrc] = useState(() => resolveMediaUrl(url));
+  // Empty until prepared — raw Recraft assets include an opaque paper plate.
+  const [src, setSrc] = useState("");
   const srcRef = useRef(src);
   srcRef.current = src;
 
@@ -345,10 +341,17 @@ function LockupMark({
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch(resolveMediaUrl(url));
+        // Same-origin `/api/...` so the Next proxy + Local Studio auth apply.
+        // Absolute Railway URLs break SVG text fetch (CORS / cookies).
+        const response = await fetch(sameOriginApiUrl(url), {
+          credentials: "same-origin",
+        });
         if (!response.ok) throw new Error("Mark fetch failed.");
         const text = await response.text();
+        if (!/<svg[\s>]/i.test(text)) throw new Error("Mark was not SVG.");
+        // Never show the raw asset — Recraft SVGs include opaque paper plates.
         const tinted = trimSvgViewBox(prepareLockupMarkSvg(text, color));
+        if (!/<path\b/i.test(tinted)) throw new Error("Mark geometry empty.");
         const objectUrl = URL.createObjectURL(
           new Blob([tinted], { type: "image/svg+xml" }),
         );
@@ -364,8 +367,9 @@ function LockupMark({
           }
           return objectUrl;
         });
-      } catch {
-        if (!cancelled) setSrc(resolveMediaUrl(url));
+      } catch (error) {
+        console.warn("Lockup mark prepare failed:", error);
+        // Keep prior blob; avoid flashing the cream plate from the raw SVG URL.
       }
     })();
     return () => {
@@ -382,6 +386,9 @@ function LockupMark({
     [],
   );
 
+  if (!src) {
+    return <span className="lockup-mark" aria-hidden="true" />;
+  }
   return <img className="lockup-mark" src={src} alt={alt} />;
 }
 
@@ -2693,7 +2700,7 @@ function LoopenStudioApp({
                 <div className="lockup-mark-slot">
                   {selectedVectorAsset ? (
                     <LockupMark
-                      url={resolveMediaUrl(selectedVectorAsset.url)}
+                      url={selectedVectorAsset.url}
                       color={lockupColor}
                       alt=""
                     />
@@ -2724,7 +2731,17 @@ function LoopenStudioApp({
               <div className="size-test">
                 {[16, 24, 32, 64].map((size) => (
                   <figure key={size}>
-                    {selectedVectorAsset ? <img src={resolveMediaUrl(selectedVectorAsset.url)} alt="" style={{ width: size, height: size }} /> : <i />}
+                    <span className="size-test-mark" style={{ width: size, height: size }}>
+                      {selectedVectorAsset ? (
+                        <LockupMark
+                          url={selectedVectorAsset.url}
+                          color="#ffffff"
+                          alt=""
+                        />
+                      ) : (
+                        <i />
+                      )}
+                    </span>
                     <figcaption>{size}px</figcaption>
                   </figure>
                 ))}
@@ -2733,8 +2750,24 @@ function LoopenStudioApp({
             <article>
               <span>Contrast test</span>
               <div className="contrast-test">
-                <div>{selectedVectorAsset && <img src={resolveMediaUrl(selectedVectorAsset.url)} alt="" />}</div>
-                <div>{selectedVectorAsset && <img src={resolveMediaUrl(selectedVectorAsset.url)} alt="" />}</div>
+                <div>
+                  {selectedVectorAsset && (
+                    <LockupMark
+                      url={selectedVectorAsset.url}
+                      color={lockupColor}
+                      alt=""
+                    />
+                  )}
+                </div>
+                <div>
+                  {selectedVectorAsset && (
+                    <LockupMark
+                      url={selectedVectorAsset.url}
+                      color="#ffffff"
+                      alt=""
+                    />
+                  )}
+                </div>
               </div>
             </article>
             <article>
@@ -2794,7 +2827,11 @@ function LoopenStudioApp({
               style={{ background: strategy?.palette?.[2] ?? "var(--acid)" }}
             >
               <span className="app-label">Drawing title block / 01</span>
-              <img src={resolveMediaUrl(selectedVectorAsset.url)} alt="" />
+              <LockupMark
+                url={selectedVectorAsset.url}
+                color={lockupColor}
+                alt=""
+              />
               <div className="drawing-metadata">
                 <span>PROJECT</span><b>KT / 001</b>
                 <span>STAGE</span><b>CONCEPT</b>
@@ -2814,11 +2851,13 @@ function LoopenStudioApp({
               <div className="identity-scale-row">
                 {[24, 40, 72].map((size) => (
                   <figure key={size}>
-                    <img
-                      src={resolveMediaUrl(selectedVectorAsset.url)}
-                      alt=""
-                      style={{ width: size, height: size }}
-                    />
+                    <span className="size-test-mark" style={{ width: size, height: size }}>
+                      <LockupMark
+                        url={selectedVectorAsset.url}
+                        color={lockupColor}
+                        alt=""
+                      />
+                    </span>
                     <figcaption>{size}px</figcaption>
                   </figure>
                 ))}
