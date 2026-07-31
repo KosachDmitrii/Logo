@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { getStudioUser } from "@/backend/auth/session";
 import { prepareLockupMarkSvg } from "@/frontend/lib/lockup-svg";
 import { escapeXml, sanitizeSvg } from "@/backend/lib/mvp-runtime";
 import { selectOne } from "@/backend/lib/supabase";
@@ -21,7 +21,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const { id: projectId } = await context.params;
   const input = (await request.json()) as {

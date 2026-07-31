@@ -37,6 +37,22 @@ import type {
 export type StudioUser = {
   displayName: string;
   email: string;
+  signalBalance?: number | null;
+};
+
+type SignalPack = {
+  id: string;
+  label: string;
+  signals: number;
+  priceUsd: number;
+  blurb: string;
+};
+
+type SignalCosts = {
+  generateBatch: number;
+  extraConcept: number;
+  refine: number;
+  vectorize: number;
 };
 
 type SavedProject = {
@@ -568,6 +584,18 @@ function LoopenStudioApp({
   const [isVectorizing, setIsVectorizing] = useState(false);
   const [exportingKey, setExportingKey] = useState("");
   const [isMethodOpen, setIsMethodOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isSignalsOpen, setIsSignalsOpen] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authStatus, setAuthStatus] = useState("");
+  const [authSending, setAuthSending] = useState(false);
+  const [signalBalance, setSignalBalance] = useState<number | null>(
+    user?.signalBalance ?? null,
+  );
+  const [signalPacks, setSignalPacks] = useState<SignalPack[]>([]);
+  const [signalCosts, setSignalCosts] = useState<SignalCosts | null>(null);
+  const [billingEnabled, setBillingEnabled] = useState(false);
+  const [checkoutPackId, setCheckoutPackId] = useState("");
   const [selectedRefinement, setSelectedRefinement] = useState(initialDraft.selectedRefinement);
   const [selectedVector, setSelectedVector] = useState(initialDraft.selectedVector);
   const [productionLocked, setProductionLocked] = useState(initialDraft.productionLocked);
@@ -638,6 +666,104 @@ function LoopenStudioApp({
       dismissOnly: true,
       tone: "danger",
     });
+  }
+
+  function requireStudioAccess() {
+    if (user) return true;
+    setIsAuthOpen(true);
+    setAuthStatus("Enter with email to generate, save and keep work private.");
+    return false;
+  }
+
+  function handlePaymentRequired(error?: string, required?: number) {
+    setIsSignalsOpen(true);
+    setNotice(
+      error ||
+        (required
+          ? `Not enough signals — this move needs ${required}.`
+          : "Not enough signals for this move."),
+    );
+  }
+
+  async function refreshStudioAccount() {
+    try {
+      const response = await apiFetch("/auth/me");
+      if (!response.ok) return;
+      const payload = await readApiJson<{
+        signals?: { balance: number } | null;
+        packs?: SignalPack[];
+        costs?: SignalCosts;
+        billingEnabled?: boolean;
+        warning?: string;
+      }>(response);
+      if (typeof payload.signals?.balance === "number") {
+        setSignalBalance(payload.signals.balance);
+      }
+      if (payload.packs?.length) setSignalPacks(payload.packs);
+      if (payload.costs) setSignalCosts(payload.costs);
+      setBillingEnabled(Boolean(payload.billingEnabled));
+      if (payload.warning) setNotice(payload.warning);
+    } catch {
+      // Wallet endpoint may be unavailable until migration is applied.
+    }
+  }
+
+  async function sendEntryLink(event?: { preventDefault(): void }) {
+    event?.preventDefault();
+    const email = authEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthStatus("Use a real email — the entry link lands there.");
+      return;
+    }
+    setAuthSending(true);
+    setAuthStatus("Sending a private entry link…");
+    try {
+      const response = await apiFetch("/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await readApiJson<{ error?: string; message?: string }>(
+        response,
+      );
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not send the entry link.");
+      }
+      setAuthStatus(
+        payload.message ??
+          "Entry link sent. Open it on this device to unlock the studio.",
+      );
+    } catch (error) {
+      setAuthStatus(
+        error instanceof Error ? error.message : "Could not send the entry link.",
+      );
+    } finally {
+      setAuthSending(false);
+    }
+  }
+
+  async function startSignalCheckout(packId: string) {
+    setCheckoutPackId(packId);
+    try {
+      const response = await apiFetch("/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packId }),
+      });
+      const payload = await readApiJson<{ error?: string; url?: string }>(
+        response,
+      );
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error ?? "Checkout could not start.");
+      }
+      window.location.href = payload.url;
+    } catch (error) {
+      showRequestError(
+        "Signal top-up",
+        error instanceof Error ? error.message : "Checkout could not start.",
+      );
+      setCheckoutPackId("");
+    }
   }
 
   function showJuryReview(concept: GeneratedConcept) {
@@ -728,6 +854,23 @@ function LoopenStudioApp({
       cancelled = true;
     };
   }, [user?.email]);
+
+  useEffect(() => {
+    void refreshStudioAccount();
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash.replace(/^#/, "");
+    if (hash === "enter" || params.has("auth") || signInPath.includes("#enter")) {
+      if (!user) setIsAuthOpen(true);
+    }
+    if (params.get("signals") === "topped") {
+      setNotice("Signals landed. The studio is charged and ready.");
+      setIsSignalsOpen(false);
+      void refreshStudioAccount();
+    }
+    if (params.get("signals") === "cancelled") {
+      setNotice("Top-up cancelled — your balance is unchanged.");
+    }
+  }, [user?.email, signInPath]);
 
   useEffect(() => {
     // While production is locked (Reduce reset), trust local snapshot only —
@@ -1102,10 +1245,7 @@ function LoopenStudioApp({
   }
 
   async function generate() {
-    if (!user) {
-      window.location.href = signInPath;
-      return;
-    }
+    if (!requireStudioAccess()) return;
 
     setIsGenerating(true);
     setNotice(
@@ -1137,15 +1277,25 @@ function LoopenStudioApp({
       });
       const payload = await readApiJson<{
         error?: string;
+        code?: string;
+        required?: number;
         generations?: GeneratedConcept[];
         failures?: string[];
         projectId?: string;
         strategy?: BrandStrategy;
       }>(response);
 
+      if (response.status === 402 || payload.code === "INSUFFICIENT_SIGNALS") {
+        setIsGenerating(false);
+        handlePaymentRequired(payload.error, payload.required);
+        void refreshStudioAccount();
+        return;
+      }
+
       if (!response.ok || !payload.projectId || !payload.generations?.length) {
         throw new Error(payload.error ?? "Generation could not be completed.");
       }
+      void refreshStudioAccount();
 
       setGeneratedConcepts(payload.generations);
       setProjectId(payload.projectId);
@@ -1180,6 +1330,7 @@ function LoopenStudioApp({
 
   async function generateMore() {
     if (!projectId || generatedConcepts.length >= 8) return;
+    if (!requireStudioAccess()) return;
     setIsGeneratingMore(true);
     setNotice("Generating exactly one additional graphic mark with Klein 4B…");
     try {
@@ -1189,15 +1340,23 @@ function LoopenStudioApp({
         body: JSON.stringify({ projectId, actionId: crypto.randomUUID() }),
       });
       const payload = await readApiJson<{
+        code?: string;
+        required?: number;
         error?: string;
         generations?: GeneratedConcept[];
         failures?: string[];
       }>(response);
+      if (response.status === 402 || payload.code === "INSUFFICIENT_SIGNALS") {
+        handlePaymentRequired(payload.error, payload.required);
+        void refreshStudioAccount();
+        return;
+      }
       if (!response.ok || !payload.generations?.length) {
         throw new Error(payload.error ?? "More concepts could not be generated.");
       }
       setGeneratedConcepts((current) => [...current, ...payload.generations!]);
       void auditDiversity([...generatedConcepts, ...payload.generations]);
+      void refreshStudioAccount();
       setNotice(
         payload.failures?.length
           ? `The additional concept could not be completed: ${payload.failures[0]}`
@@ -1247,12 +1406,13 @@ function LoopenStudioApp({
     setSelectedRefinement("");
     setSelectedVector("");
 
+    const refineCost = signalCosts?.refine ?? 2;
     if (!(await requestConfirmation({
-      kicker: "Stage 02 / Paid generation",
+      kicker: `Stage 02 / ${refineCost} signals`,
       title: isRetry ? "Retry refinement with jury notes." : "Architecture becomes identity.",
       body: isRetry
-        ? `Nano Banana Pro will refine again using the last dual-jury critique. Production stages 04–05 stay cleared until SVG is rebuilt.`
-        : `Nano Banana Pro will refine the selected concept. Stages 04–05 (refinement, SVG, lockup and brand system) stay cleared until SVG is rebuilt.`,
+        ? `Pro refine retries with the last dual-jury critique (${refineCost} signals). Production stages 04–05 stay cleared until SVG is rebuilt.`
+        : `Pro refine the selected concept (${refineCost} signals). Stages 04–05 stay cleared until SVG is rebuilt.`,
       confirmLabel: isRetry
         ? "Retry refinement"
         : `Refine ${selectedConceptIds.length} concept${selectedConceptIds.length > 1 ? "s" : ""}`,
@@ -1283,7 +1443,18 @@ function LoopenStudioApp({
       const payload = await readApiJson<{
         assets?: StudioAsset[];
         error?: string;
+        code?: string;
+        required?: number;
       }>(response);
+      if (response.status === 402 || payload.code === "INSUFFICIENT_SIGNALS") {
+        setAssets(previousAssets);
+        setSelectedRefinement(previousRefinement);
+        setSelectedVector(previousVector);
+        setProductionLocked(previousLocked);
+        handlePaymentRequired(payload.error, payload.required);
+        void refreshStudioAccount();
+        return;
+      }
       if (!response.ok || !payload.assets?.length) {
         setAssets(previousAssets);
         setSelectedRefinement(previousRefinement);
@@ -1304,6 +1475,7 @@ function LoopenStudioApp({
         `${payload.assets.length} refined logo${payload.assets.length > 1 ? "s are" : " is"} ready. Reconstruct SVG when you want to unlock the brand system.`,
       );
       void loadHistory();
+      void refreshStudioAccount();
     } catch (error) {
       setAssets(previousAssets);
       setSelectedRefinement(previousRefinement);
@@ -1329,14 +1501,15 @@ function LoopenStudioApp({
     const sourceLabel = useOriginal
       ? vectorSourceGeneration!.directionTitle
       : selectedReduction!.label;
+    const vectorCost = signalCosts?.vectorize ?? 1;
     if (!(await requestConfirmation({
-      kicker: "Stage 03 / Production master",
+      kicker: `Stage 03 / ${vectorCost} signal${vectorCost === 1 ? "" : "s"}`,
       title: useOriginal
         ? "Build SVG from the original concept."
         : "Commit to the geometry.",
       body: useOriginal
-        ? `"${sourceLabel}" (exploration) will be traced into an exact SVG that matches its silhouette. Prefer Refinement when a craft pass exists — it is higher resolution.`
-        : `"${sourceLabel}" will be traced into an exact SVG that matches its silhouette — same mark, sharp vector edges.`,
+        ? `"${sourceLabel}" (exploration) will be traced into an exact SVG that matches its silhouette (${vectorCost} signal). Prefer Refinement when a craft pass exists — it is higher resolution.`
+        : `"${sourceLabel}" will be traced into an exact SVG that matches its silhouette — same mark, sharp vector edges (${vectorCost} signal).`,
       confirmLabel: "Build SVG master",
     }))) return;
     setIsVectorizing(true);
@@ -1358,7 +1531,14 @@ function LoopenStudioApp({
       const payload = await readApiJson<{
         assets?: StudioAsset[];
         error?: string;
+        code?: string;
+        required?: number;
       }>(response);
+      if (response.status === 402 || payload.code === "INSUFFICIENT_SIGNALS") {
+        handlePaymentRequired(payload.error, payload.required);
+        void refreshStudioAccount();
+        return;
+      }
       if (!response.ok || !payload.assets?.length) {
         showRequestError(
           "SVG reconstruction",
@@ -1374,6 +1554,7 @@ function LoopenStudioApp({
       setProductionLocked(false);
       setNotice("Production SVGs are ready. Adjust and export your lockup.");
       void loadHistory();
+      void refreshStudioAccount();
     } catch (error) {
       showRequestError(
         "SVG reconstruction",
@@ -1771,29 +1952,184 @@ function LoopenStudioApp({
           >
             New session
           </button>
+          {user && (
+            <button
+              className="signal-pill"
+              type="button"
+              onClick={() => setIsSignalsOpen(true)}
+              title="Studio signals — prepaid creative energy"
+            >
+              <span className="signal-orb" aria-hidden="true" />
+              {signalBalance === null ? "Signals" : `${signalBalance} signals`}
+            </button>
+          )}
           <button
             className="project-pill"
             type="button"
             onClick={() =>
               user
                 ? setIsHistoryOpen((current) => !current)
-                : (window.location.href = signInPath)
+                : setIsAuthOpen(true)
             }
-            title={user ? "Open project history" : "Sign in to open history"}
+            title={user ? "Open project history" : "Enter the studio"}
           >
             <span className="online-dot" />
-            {user ? `${projects.length} projects` : "Sign in"}
+            {user ? `${projects.length} projects` : "Enter"}
           </button>
         </div>
       </header>
+      {isAuthOpen && (
+        <div className="studio-gate-backdrop" role="presentation" onClick={() => setIsAuthOpen(false)}>
+          <section
+            className="studio-gate"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="studio-gate-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="studio-gate-index">∞</p>
+            <p>01 / Private entry</p>
+            <h2 id="studio-gate-title">
+              Enter the
+              <em> studio.</em>
+            </h2>
+            <div className="studio-gate-copy">
+              <span>How</span>
+              <p>
+                Passwordless. We send a one-time link — no password theatre,
+                no social buttons cluttering the mark.
+              </p>
+            </div>
+            <form className="studio-gate-form" onSubmit={sendEntryLink}>
+              <label>
+                <span className="mini-label">Email</span>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@brand.studio"
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                  required
+                />
+              </label>
+              <div className="studio-gate-actions">
+                <button type="button" onClick={() => setIsAuthOpen(false)}>
+                  Not now
+                </button>
+                <button className="confirm-dialog-primary" type="submit" disabled={authSending}>
+                  {authSending ? "Sending…" : "Send entry link"}
+                  <span>→</span>
+                </button>
+              </div>
+            </form>
+            {authStatus && <p className="studio-gate-status">{authStatus}</p>}
+            <p className="studio-gate-note">
+              First entry includes {signalCosts?.generateBatch ?? 4} welcome signals —
+              enough for one full concept batch.
+            </p>
+          </section>
+        </div>
+      )}
+      {isSignalsOpen && (
+        <div className="studio-gate-backdrop" role="presentation" onClick={() => setIsSignalsOpen(false)}>
+          <section
+            className="signal-vault"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="signal-vault-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="signal-vault-head">
+              <p>Signal vault</p>
+              <button type="button" onClick={() => setIsSignalsOpen(false)} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <h2 id="signal-vault-title">
+              Creative energy,
+              <em> prepaid.</em>
+            </h2>
+            <p className="signal-vault-balance">
+              <strong>{signalBalance ?? "—"}</strong>
+              <span>signals on hand</span>
+            </p>
+            <ul className="signal-cost-list">
+              <li><span>4 concepts</span><b>{signalCosts?.generateBatch ?? 4}</b></li>
+              <li><span>+1 concept</span><b>{signalCosts?.extraConcept ?? 1}</b></li>
+              <li><span>Pro refine</span><b>{signalCosts?.refine ?? 2}</b></li>
+              <li><span>Vector master</span><b>{signalCosts?.vectorize ?? 1}</b></li>
+            </ul>
+            <div className="signal-pack-grid">
+              {(signalPacks.length
+                ? signalPacks
+                : [
+                    {
+                      id: "spark",
+                      label: "Spark",
+                      signals: 12,
+                      priceUsd: 14,
+                      blurb: "One full loop: brief → four concepts → refine → vector.",
+                    },
+                    {
+                      id: "studio",
+                      label: "Studio",
+                      signals: 40,
+                      priceUsd: 39,
+                      blurb: "Room to explore territories and lock a mark properly.",
+                    },
+                    {
+                      id: "atelier",
+                      label: "Atelier",
+                      signals: 120,
+                      priceUsd: 99,
+                      blurb: "A working stock for multiple brands in the same season.",
+                    },
+                  ]
+              ).map((pack) => (
+                <article className="signal-pack" key={pack.id}>
+                  <span>{pack.label}</span>
+                  <strong>{pack.signals}</strong>
+                  <small>signals</small>
+                  <p>{pack.blurb}</p>
+                  <button
+                    type="button"
+                    disabled={!billingEnabled || checkoutPackId === pack.id || !user}
+                    onClick={() => void startSignalCheckout(pack.id)}
+                  >
+                    {!user
+                      ? "Enter first"
+                      : !billingEnabled
+                        ? "Billing soon"
+                        : checkoutPackId === pack.id
+                          ? "Redirecting…"
+                          : `$${pack.priceUsd}`}
+                  </button>
+                </article>
+              ))}
+            </div>
+            {!billingEnabled && (
+              <p className="signal-vault-note">
+                Stripe keys are not configured yet — welcome signals still work for the first loop.
+              </p>
+            )}
+          </section>
+        </div>
+      )}
       {user && isHistoryOpen && (
         <aside className="history-drawer" aria-label="Project history">
           <div className="history-head">
             <div>
               <span>Private workspace</span>
               <strong>{user.displayName}</strong>
+              <small className="history-email">{user.email}</small>
             </div>
             <button type="button" onClick={() => setIsHistoryOpen(false)} aria-label="Close history">×</button>
+          </div>
+          <div className="history-account-row">
+            <button type="button" onClick={() => setIsSignalsOpen(true)}>
+              {signalBalance === null ? "Signals" : `${signalBalance} signals`} ↗
+            </button>
+            <a href="/api/auth/logout">Leave studio</a>
           </div>
           <div className="history-list" ref={historyListRef}>
             {projects.length ? projects.map((project) => (
@@ -2090,7 +2426,7 @@ function LoopenStudioApp({
           </div>
           <div className="generate-row">
             <p>
-              <span>4</span> creative explorations · Flash Image · idea jury · Pro refine later
+              <span>{signalCosts?.generateBatch ?? 4}</span> signals · four explorations · dual jury · Pro refine later
             </p>
             <button
               className="primary-button"
@@ -2102,7 +2438,7 @@ function LoopenStudioApp({
                 ? "Generating logo concepts…"
                 : user
                   ? "Generate 4 logo concepts"
-                  : "Sign in to generate"}
+                  : "Enter to generate"}
               {isGenerating ? (
                 <RequestDrop label="Generating logo concepts" />
               ) : (
@@ -2112,8 +2448,8 @@ function LoopenStudioApp({
           </div>
           {!user && (
             <p className="auth-hint">
-              Sign in to save briefs, generate images and keep each project
-              private.
+              Enter with email to save briefs, spend signals and keep each
+              project private.
             </p>
           )}
           {notice && (

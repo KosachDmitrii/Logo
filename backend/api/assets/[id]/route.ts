@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { getStudioUser } from "@/backend/auth/session";
 import { applyCorsHeaders } from "@/backend/lib/cors";
 import { deleteRows, selectOne, updateRows } from "@/backend/lib/supabase";
 import { getObject, removeObjects } from "@/backend/lib/storage";
@@ -9,7 +9,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user) {
     return Response.json(
       { error: "Authentication required." },
@@ -69,7 +69,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user?.email) {
     return Response.json({ error: "Authentication required." }, { status: 401 });
   }

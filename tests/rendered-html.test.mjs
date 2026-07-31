@@ -14,13 +14,16 @@ test("ships the finished Loopen product surface", async () => {
   ]);
 
   assert.match(layout, /Loopen — Brand systems, not random logos/);
-  assert.match(page, /getChatGPTUser/);
-  assert.match(page, /chatGPTSignInPath/);
+  assert.match(page, /getStudioUser/);
+  assert.match(page, /studioSignInPath/);
+  assert.match(page, /ensureStudioWallet/);
   assert.match(studio, /Generate 4 logo concepts/);
+  assert.match(studio, /studio-gate|Enter the/);
+  assert.match(studio, /signal-pill|signals/);
   assert.match(studio, /02 \/ Category research/);
   assert.match(studio, /Awaiting brief/);
-  assert.match(studio, /\/api\/project-list/);
-  assert.match(studio, /\/api\/generate-concepts/);
+  assert.match(studio, /["'`]\/project-list["'`]/);
+  assert.match(studio, /["'`]\/generate-concepts["'`]/);
   assert.match(studio, /Delete .* project/);
   assert.match(studio, /Download PNG/);
   assert.match(css, /--acid:\s*#ffcf68/);
@@ -61,9 +64,9 @@ test("keeps generation authenticated, persistent, and server-side", async () => 
       readFile(new URL("../backend/lib/supabase.ts", import.meta.url), "utf8"),
     ]);
 
-  assert.match(route, /getChatGPTUser/);
-  assert.match(imageRoute, /getChatGPTUser/);
-  assert.match(selectRoute, /getChatGPTUser/);
+  assert.match(route, /getStudioUser/);
+  assert.match(imageRoute, /getStudioUser/);
+  assert.match(selectRoute, /getStudioUser/);
   assert.match(route, /createCuratedConcepts/);
   assert.match(route, /OPENAI_API_KEY/);
   assert.match(route, /putObject/);
@@ -251,7 +254,7 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(vectorize, /generationId/);
   assert.match(vectorize, /putObject|getObject/);
   assert.doesNotMatch(vectorize, /assessLogoImage|logo_vector_quality_advisory/);
-  assert.match(vectorize, /always deliver the SVG/);
+  assert.match(vectorize, /spendSignals\(userEmail, "vectorize"/);
   assert.doesNotMatch(vectorize, /rejected by the transition jury/);
   assert.doesNotMatch(vectorize, /master\.score < 90/);
   assert.doesNotMatch(vectorize, /not safe to vectorize/);
@@ -285,11 +288,12 @@ test("ships the complete refinement and vector production workflow", async () =>
 });
 
 test("uses a sign-in-free local development identity", async () => {
-  const auth = await readFile(
-    new URL("../backend/auth/chatgpt-auth.ts", import.meta.url),
+  const session = await readFile(
+    new URL("../backend/auth/session.ts", import.meta.url),
     "utf8",
   );
 
-  assert.match(auth, /process\.env\.NODE_ENV !== "production"/);
-  assert.match(auth, /local@loopen\.dev/);
+  assert.match(session, /process\.env\.NODE_ENV !== "production"/);
+  assert.match(session, /ALLOW_LOCAL_STUDIO/);
+  assert.match(session, /local@loopen\.dev/);
 });

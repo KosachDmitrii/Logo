@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { getStudioUser } from "@/backend/auth/session";
 import { directions } from "@/backend/lib/mvp-runtime";
 import { deleteRows, selectOne, selectRows } from "@/backend/lib/supabase";
 import { removeObjects } from "@/backend/lib/storage";
@@ -9,7 +9,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user) {
     return Response.json({ error: "Authentication required." }, { status: 401 });
   }
@@ -125,7 +125,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user) {
     return Response.json({ error: "Authentication required." }, { status: 401 });
   }

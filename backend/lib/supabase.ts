@@ -117,3 +117,25 @@ export async function countRows(
   const range = response.headers.get("content-range") ?? "*/0";
   return Number(range.split("/")[1] ?? 0);
 }
+
+export async function rpc<T>(
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<T> {
+  const { url } = config();
+  const response = await fetch(`${url}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(args),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as
+      | { message?: string; code?: string }
+      | null;
+    throw new Error(body?.message || `Supabase RPC failed (${response.status}).`);
+  }
+  if (response.status === 204) return undefined as T;
+  const text = await response.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
+}

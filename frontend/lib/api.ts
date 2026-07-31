@@ -55,7 +55,10 @@ export function sameOriginApiUrl(url: string): string {
 }
 
 export function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(apiUrl(path), init);
+  return fetch(apiUrl(path), {
+    credentials: "include",
+    ...init,
+  });
 }
 
 /** Parse JSON bodies; surface plain-text/HTML proxy failures as readable errors. */

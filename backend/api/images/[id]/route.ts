@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { getStudioUser } from "@/backend/auth/session";
 import { applyCorsHeaders } from "@/backend/lib/cors";
 import {
   deleteRows,
@@ -14,7 +14,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user) {
     return Response.json(
       { error: "Authentication required." },
@@ -78,7 +78,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user) {
     return Response.json({ error: "Authentication required." }, { status: 401 });
   }

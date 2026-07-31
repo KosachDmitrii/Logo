@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { ensureStudioWallet, getStudioUser } from "@/backend/auth/session";
 import {
   type BrandStrategy,
   directions,
@@ -6,6 +6,18 @@ import {
   hashIdentity,
   validateBrief,
 } from "@/backend/lib/mvp-runtime";
+import {
+  RATE_LIMITS,
+  assertRateLimit,
+  clientIp,
+  RateLimitError,
+} from "@/backend/lib/rate-limit";
+import {
+  InsufficientSignalsError,
+  refundSignals,
+  spendSignals,
+  type SignalAction,
+} from "@/backend/lib/signals";
 import {
   countRows,
   insertRow,
@@ -81,7 +93,7 @@ function fallbackStrategy(brief: ReturnType<typeof validateBrief>): BrandStrateg
 }
 
 export async function GET() {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user) {
     return Response.json({ error: "Authentication required." }, { status: 401 });
   }
@@ -106,7 +118,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user?.email) {
     return Response.json({ error: "Sign in to generate." }, { status: 401 });
   }
@@ -143,24 +155,18 @@ export async function POST(request: Request) {
       ? input.requestId
       : "";
   const now = Date.now();
-  // Cost guard for real users. Skip while Local Studio auth is enabled for
-  // local→Railway iteration (ALLOW_LOCAL_STUDIO=1).
-  if (
-    !existingProjectId &&
-    process.env.NODE_ENV === "production" &&
-    process.env.ALLOW_LOCAL_STUDIO !== "1"
-  ) {
-    const recent = await countRows("logo_projects", {
-      user_email: `eq.${userEmail}`,
-      created_at: `gt.${now - 60 * 60 * 1000}`,
-      status: "neq.failed",
-    });
-    if (recent >= 3) {
-      return Response.json(
-        { error: "Hourly generation limit reached. Try again later." },
-        { status: 429 },
-      );
+  const signalAction: SignalAction = existingProjectId
+    ? "extraConcept"
+    : "generateBatch";
+
+  try {
+    await assertRateLimit(userEmail, RATE_LIMITS.generateUser);
+    await assertRateLimit(clientIp(request), RATE_LIMITS.generateIp);
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      return Response.json({ error: error.message }, { status: 429 });
     }
+    throw error;
   }
 
   let projectId = existingProjectId;
@@ -260,6 +266,30 @@ export async function POST(request: Request) {
     await putObject(actionKey, new Uint8Array(), {
       contentType: "application/octet-stream",
     });
+  }
+
+  try {
+    await ensureStudioWallet(userEmail);
+    await spendSignals(userEmail, signalAction, projectId);
+  } catch (error) {
+    if (error instanceof InsufficientSignalsError) {
+      if (!existingProjectId) {
+        await updateRows(
+          "logo_projects",
+          { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
+          { status: "failed", updated_at: Date.now() },
+        );
+      }
+      return Response.json(
+        {
+          error: error.message,
+          code: error.code,
+          required: error.required,
+        },
+        { status: 402 },
+      );
+    }
+    throw error;
   }
 
   // A reasoning model develops brand-specific territories and art-direction
@@ -407,6 +437,18 @@ export async function POST(request: Request) {
       projectId,
       reason,
     });
+    try {
+      await refundSignals(userEmail, signalAction, projectId);
+    } catch (refundError) {
+      console.error({
+        event: "signal_refund_failed",
+        projectId,
+        reason:
+          refundError instanceof Error
+            ? refundError.message
+            : String(refundError),
+      });
+    }
     await updateRows(
       "logo_projects",
       { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
@@ -417,7 +459,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error: highDemand
-          ? "Gemini image generation is temporarily overloaded. Wait a minute and try again — no concepts were saved."
+          ? "Gemini image generation is temporarily overloaded. Wait a minute and try again — no concepts were saved. Signals were returned."
           : reason || "Professional vector concept generation failed.",
         projectId,
       },

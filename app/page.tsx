@@ -1,10 +1,24 @@
-import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import {
+  getStudioUser,
+  studioSignInPath,
+  ensureStudioWallet,
+} from "@/backend/auth/session";
 import LoopenStudio from "@/frontend/loopen-studio";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
+  let signalBalance: number | null = null;
+
+  if (user) {
+    try {
+      const wallet = await ensureStudioWallet(user.email);
+      signalBalance = wallet.balance;
+    } catch {
+      signalBalance = null;
+    }
+  }
 
   return (
     <LoopenStudio
@@ -13,10 +27,11 @@ export default async function Home() {
           ? {
               displayName: user.displayName,
               email: user.email,
+              signalBalance,
             }
           : null
       }
-      signInPath="/#brief"
+      signInPath={studioSignInPath("/#brief")}
     />
   );
 }

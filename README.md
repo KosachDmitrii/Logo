@@ -33,7 +33,11 @@ Create `.env.local` (see [`.env.example`](.env.example)). For UI-local /
 API-on-Railway you mainly need the proxy lines; API keys live on Railway.
 
 Apply migrations in `backend/supabase/migrations/` to the Supabase project
-(schema + private `logo-files` storage bucket) before starting the app.
+(schema + private `logo-files` storage bucket + studio signals billing)
+before starting the app.
+
+Enable **Supabase Auth → Email** (magic link). Set Site URL / redirect allow-list
+to your app origin and `/auth/callback`.
 
 ```bash
 npm install
@@ -50,8 +54,12 @@ Recommended workflow: UI on localhost, API on Railway.
 
 - Railway runs the Next.js server (API routes + keys + Supabase)
 - Local `npm run dev` serves the studio UI and proxies `/api/*` → Railway
-- On Railway Variables set all secrets from `.env.example` plus
-  `ALLOW_LOCAL_STUDIO=1` (temporary until regular login)
+- On Railway Variables set secrets from `.env.example`, including
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`, and Stripe keys when
+  billing is live
+- Keep `ALLOW_LOCAL_STUDIO=1` only while iterating; remove it before public launch
+  (shared identity). Magic-link auth is the production path
+- Stripe webhook: point to `https://<host>/api/billing/webhook`
 
 Local `.env.local`:
 
@@ -72,6 +80,17 @@ Config-as-code: [`railway.json`](railway.json). Build/start on Railway:
 - Supabase stores project, generation, selection, and asset metadata.
 - Supabase Storage stores generated PNG and SVG bytes.
 - API keys stay server-side and must never use a `NEXT_PUBLIC_` prefix for secrets.
+
+## P0 access model
+
+| Piece | Behavior |
+| --- | --- |
+| Auth | Supabase magic link (`Enter` in the header). Local Studio only in Node dev or with `ALLOW_LOCAL_STUDIO=1` |
+| Signals | Prepaid credits: generate batch 4 · +1 concept 1 · refine 2 · vectorize 1 |
+| Welcome | 4 signals on first wallet (one concept batch) |
+| Packs | Spark / Studio / Atelier via Stripe Checkout |
+| Rate limits | Per-user + per-IP on generate/refine/vectorize/OTP (production) |
+| Ownership | Every project/asset query filters by `user_email` |
 
 # Production quality control
 

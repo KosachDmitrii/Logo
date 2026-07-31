@@ -1,5 +1,15 @@
-import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { ensureStudioWallet, getStudioUser } from "@/backend/auth/session";
 import { getRuntimeEnv } from "@/backend/lib/mvp-runtime";
+import {
+  RATE_LIMITS,
+  assertRateLimit,
+  RateLimitError,
+} from "@/backend/lib/rate-limit";
+import {
+  InsufficientSignalsError,
+  refundSignals,
+  spendSignals,
+} from "@/backend/lib/signals";
 import {
   insertRow,
   selectOne,
@@ -19,7 +29,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const runtime = getRuntimeEnv();
   if (!runtime.OPENAI_API_KEY || !runtime.GEMINI_API_KEY) {
@@ -30,6 +40,28 @@ export async function POST(
   }
 
   const { id: projectId } = await context.params;
+  let signalsSpent = false;
+  try {
+    await assertRateLimit(user.email, RATE_LIMITS.refineUser);
+    await ensureStudioWallet(user.email);
+    await spendSignals(user.email, "refine", projectId);
+    signalsSpent = true;
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      return Response.json({ error: error.message }, { status: 429 });
+    }
+    if (error instanceof InsufficientSignalsError) {
+      return Response.json(
+        {
+          error: error.message,
+          code: error.code,
+          required: error.required,
+        },
+        { status: 402 },
+      );
+    }
+    throw error;
+  }
   const body = (await request.json()) as {
     generationId?: string;
     generationIds?: string[];
@@ -44,6 +76,7 @@ export async function POST(
   ).slice(0, 1);
   const critiquesByGenerationId = body.critiquesByGenerationId ?? {};
   if (!generationIds.length) {
+    if (signalsSpent) await refundSignals(user.email, "refine", projectId);
     return Response.json({ error: "Select one concept." }, { status: 400 });
   }
   const rows = await Promise.all(generationIds.map((generationId) => selectOne<{
@@ -60,6 +93,7 @@ export async function POST(
     user_email: `eq.${user.email}`,
   })));
   if (rows.some((row) => !row)) {
+    if (signalsSpent) await refundSignals(user.email, "refine", projectId);
     return Response.json({ error: "A selected concept was not found." }, { status: 404 });
   }
 
@@ -231,6 +265,20 @@ export async function POST(
   const assets = results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
   const failure = results.find((result) => result.status === "rejected");
   if (!assets.length) {
+    if (signalsSpent) {
+      try {
+        await refundSignals(user.email, "refine", projectId);
+      } catch (refundError) {
+        console.error({
+          event: "signal_refund_failed",
+          projectId,
+          reason:
+            refundError instanceof Error
+              ? refundError.message
+              : String(refundError),
+        });
+      }
+    }
     const reason =
       failure && failure.status === "rejected"
         ? String(
@@ -243,7 +291,7 @@ export async function POST(
     return Response.json(
       {
         error: timedOut
-          ? "Gemini refinement timed out (high demand). Wait a moment and try again — preferably one concept at a time."
+          ? "Gemini refinement timed out (high demand). Wait a moment and try again — preferably one concept at a time. Signals were returned."
           : reason,
       },
       { status: timedOut ? 503 : 502 },

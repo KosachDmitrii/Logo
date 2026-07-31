@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { getStudioUser } from "@/backend/auth/session";
 import { selectOne, updateRows } from "@/backend/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const user = await getChatGPTUser();
+  const user = await getStudioUser();
   if (!user) {
     return Response.json({ error: "Authentication required." }, { status: 401 });
   }

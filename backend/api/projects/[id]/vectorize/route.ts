@@ -1,8 +1,18 @@
-import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
+import { ensureStudioWallet, getStudioUser } from "@/backend/auth/session";
 import {
   getRuntimeEnv,
   sanitizeSvg,
 } from "@/backend/lib/mvp-runtime";
+import {
+  RATE_LIMITS,
+  assertRateLimit,
+  RateLimitError,
+} from "@/backend/lib/rate-limit";
+import {
+  InsufficientSignalsError,
+  refundSignals,
+  spendSignals,
+} from "@/backend/lib/signals";
 import {
   insertRow,
   selectOne,
@@ -186,7 +196,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const user = await getChatGPTUser();
+    const user = await getStudioUser();
     if (!user?.email) {
       return Response.json({ error: "Authentication required." }, { status: 401 });
     }
@@ -266,8 +276,48 @@ export async function POST(
       );
     }
 
+    let signalsSpent = false;
+    try {
+      await assertRateLimit(userEmail, RATE_LIMITS.vectorizeUser);
+      await ensureStudioWallet(userEmail);
+      await spendSignals(userEmail, "vectorize", projectId);
+      signalsSpent = true;
+    } catch (error) {
+      if (error instanceof RateLimitError) {
+        return Response.json({ error: error.message }, { status: 429 });
+      }
+      if (error instanceof InsufficientSignalsError) {
+        return Response.json(
+          {
+            error: error.message,
+            code: error.code,
+            required: error.required,
+          },
+          { status: 402 },
+        );
+      }
+      throw error;
+    }
+
+    const refundIfNeeded = async () => {
+      if (!signalsSpent) return;
+      try {
+        await refundSignals(userEmail, "vectorize", projectId);
+      } catch (refundError) {
+        console.error({
+          event: "signal_refund_failed",
+          projectId,
+          reason:
+            refundError instanceof Error
+              ? refundError.message
+              : String(refundError),
+        });
+      }
+    };
+
     const file = await getObject(source.object_key);
     if (!file) {
+      await refundIfNeeded();
       return Response.json({ error: "Image data not found." }, { status: 404 });
     }
     const bytes = await file.arrayBuffer();
@@ -277,6 +327,7 @@ export async function POST(
     ) {
       const svg = sanitizeSvg(new TextDecoder().decode(bytes));
       if (!svg.includes("<svg") || /<text\b|<image\b|<foreignObject\b/i.test(svg)) {
+        await refundIfNeeded();
         return Response.json(
           { error: "The selected vector failed structural safety checks." },
           { status: 422 },
@@ -348,6 +399,7 @@ export async function POST(
         });
       }
     } else if (source.kind === "refine") {
+      await refundIfNeeded();
       return Response.json(
         {
           error:
@@ -376,6 +428,7 @@ export async function POST(
     }
 
     if (!asset) {
+      await refundIfNeeded();
       if (!runtime.RECRAFT_API_KEY && !runtime.OPENAI_API_KEY) {
         return Response.json(
           {
