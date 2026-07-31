@@ -28,6 +28,8 @@ export default async function Home() {
               displayName: user.displayName,
               email: user.email,
               signalBalance,
+              source: user.source,
+              role: user.role,
             }
           : null
       }

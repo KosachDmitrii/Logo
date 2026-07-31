@@ -57,8 +57,8 @@ Recommended workflow: UI on localhost, API on Railway.
 - On Railway Variables set secrets from `.env.example`, including
   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`, and Stripe keys when
   billing is live
-- Keep `ALLOW_LOCAL_STUDIO=1` only while iterating; remove it before public launch
-  (shared identity). Magic-link auth is the production path
+- Set `ALLOW_LOCAL_STUDIO=0` (or omit) for real magic-link auth locally and on Railway.
+  Use `=1` only as a temporary shared bypass while iterating
 - Stripe webhook: point to `https://<host>/api/billing/webhook`
 
 Local `.env.local`:
@@ -85,7 +85,7 @@ Config-as-code: [`railway.json`](railway.json). Build/start on Railway:
 
 | Piece | Behavior |
 | --- | --- |
-| Auth | Supabase magic link (`Enter` in the header). Local Studio only in Node dev or with `ALLOW_LOCAL_STUDIO=1` |
+| Auth | Supabase magic link (`Enter` in the header). Local Studio only when `ALLOW_LOCAL_STUDIO=1` |
 | Signals | Prepaid credits: generate batch 4 · +1 concept 1 · refine 2 · vectorize 1 |
 | Welcome | 4 signals on first wallet (one concept batch) |
 | Packs | Spark / Studio / Atelier via Stripe Checkout |

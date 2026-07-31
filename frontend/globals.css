@@ -189,6 +189,16 @@ textarea:focus-visible {
   padding: 10px 14px;
 }
 
+.enter-pill {
+  background: var(--acid);
+  border-color: var(--acid);
+  font-weight: 600;
+}
+
+.enter-pill .online-dot {
+  background: var(--ink);
+}
+
 .signal-pill {
   align-items: center;
   background: var(--ink);
@@ -341,11 +351,35 @@ textarea:focus-visible {
   margin: 0;
 }
 
+.studio-gate-modes {
+  display: flex;
+  gap: 0;
+  grid-column: 1 / -1;
+  margin-top: 22px;
+}
+
+.studio-gate-modes button {
+  background: transparent;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  cursor: pointer;
+  flex: 1;
+  font: 10px var(--font-geist-mono), monospace;
+  letter-spacing: 0.06em;
+  padding: 12px 14px;
+  text-transform: uppercase;
+}
+
+.studio-gate-modes button.active {
+  background: var(--ink);
+  color: var(--acid);
+}
+
 .studio-gate-form {
   display: grid;
   gap: 18px;
   grid-column: 1 / -1;
-  margin-top: 28px;
+  margin-top: 18px;
 }
 
 .studio-gate-form label {

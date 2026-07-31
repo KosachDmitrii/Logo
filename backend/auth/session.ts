@@ -3,6 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
+  isAdminRole,
+  roleFromAppMetadata,
+  type StudioRole,
+} from "@/backend/lib/roles";
+import {
   grantWelcomeSignals,
   WELCOME_SIGNALS,
 } from "@/backend/lib/signals";
@@ -13,18 +18,18 @@ export type StudioUser = {
   email: string;
   fullName: string | null;
   source: "supabase" | "local";
+  role: StudioRole;
 };
+
+export { isAdminRole };
 
 const SIGN_IN_PATH = "/#enter";
 const SIGN_OUT_PATH = "/api/auth/logout";
 const CALLBACK_PATH = "/auth/callback";
 
 function allowLocalStudio(): boolean {
-  // Dev always. Production only with explicit temporary flag (shared identity — remove for launch).
-  return (
-    process.env.NODE_ENV !== "production" ||
-    process.env.ALLOW_LOCAL_STUDIO === "1"
-  );
+  // Explicit opt-in only. =0 / unset → real magic-link auth (local and production).
+  return process.env.ALLOW_LOCAL_STUDIO === "1";
 }
 
 function supabasePublicConfig() {
@@ -66,6 +71,7 @@ async function userFromBearer(): Promise<StudioUser | null> {
     email,
     fullName,
     source: "supabase",
+    role: roleFromAppMetadata(data.user.app_metadata),
   };
 }
 
@@ -104,6 +110,7 @@ async function userFromCookies(): Promise<StudioUser | null> {
     email,
     fullName,
     source: "supabase",
+    role: roleFromAppMetadata(data.user.app_metadata),
   };
 }
 
@@ -120,6 +127,7 @@ export async function getStudioUser(): Promise<StudioUser | null> {
       email: "local@loopen.dev",
       fullName: "Local Studio",
       source: "local",
+      role: "user",
     };
   }
 
@@ -159,11 +167,10 @@ export async function ensureStudioWallet(email: string): Promise<{
   // First wallet: welcome spark. Local Node gets a generous iteration balance.
   const { rpc } = await import("@/backend/lib/supabase");
   if (normalized === "local@loopen.dev" && allowLocalStudio()) {
-    const amount = process.env.NODE_ENV !== "production" ? 1000 : WELCOME_SIGNALS;
     const balance = await rpc<number>("grant_studio_signals", {
       p_email: normalized,
-      p_amount: amount,
-      p_reason: process.env.NODE_ENV !== "production" ? "local-dev" : "welcome",
+      p_amount: 1000,
+      p_reason: "local-dev",
       p_ref: "local-studio",
     });
     return { balance, welcomed: true };

@@ -24,6 +24,7 @@ export async function GET() {
         displayName: user.displayName,
         email: user.email,
         source: user.source,
+        role: user.role,
       },
       signals: {
         balance: wallet.balance,
@@ -44,6 +45,7 @@ export async function GET() {
         displayName: user.displayName,
         email: user.email,
         source: user.source,
+        role: user.role,
       },
       signals: { balance: 0, welcomed: false },
       costs: SIGNAL_COSTS,

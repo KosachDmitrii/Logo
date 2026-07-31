@@ -1,4 +1,8 @@
-import { ensureStudioWallet, getStudioUser } from "@/backend/auth/session";
+import {
+  ensureStudioWallet,
+  getStudioUser,
+  isAdminRole,
+} from "@/backend/auth/session";
 import { getRuntimeEnv } from "@/backend/lib/mvp-runtime";
 import {
   RATE_LIMITS,
@@ -43,9 +47,11 @@ export async function POST(
   let signalsSpent = false;
   try {
     await assertRateLimit(user.email, RATE_LIMITS.refineUser);
-    await ensureStudioWallet(user.email);
-    await spendSignals(user.email, "refine", projectId);
-    signalsSpent = true;
+    if (!isAdminRole(user.role)) {
+      await ensureStudioWallet(user.email);
+      await spendSignals(user.email, "refine", projectId);
+      signalsSpent = true;
+    }
   } catch (error) {
     if (error instanceof RateLimitError) {
       return Response.json({ error: error.message }, { status: 429 });

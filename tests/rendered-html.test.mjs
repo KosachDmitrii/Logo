@@ -287,13 +287,16 @@ test("ships the complete refinement and vector production workflow", async () =>
   assert.match(migration, /create table if not exists public\.logo_assets/i);
 });
 
-test("uses a sign-in-free local development identity", async () => {
+test("uses an explicit Local Studio opt-in, not NODE_ENV alone", async () => {
   const session = await readFile(
     new URL("../backend/auth/session.ts", import.meta.url),
     "utf8",
   );
 
-  assert.match(session, /process\.env\.NODE_ENV !== "production"/);
-  assert.match(session, /ALLOW_LOCAL_STUDIO/);
+  assert.match(session, /ALLOW_LOCAL_STUDIO === "1"/);
+  assert.doesNotMatch(
+    session,
+    /NODE_ENV !== "production" \|\|[\s\S]*ALLOW_LOCAL_STUDIO/,
+  );
   assert.match(session, /local@loopen\.dev/);
 });

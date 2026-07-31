@@ -38,6 +38,9 @@ export type StudioUser = {
   displayName: string;
   email: string;
   signalBalance?: number | null;
+  /** local = ALLOW_LOCAL_STUDIO=1 — not a real account */
+  source?: "supabase" | "local";
+  role?: "admin" | "user";
 };
 
 type SignalPack = {
@@ -587,6 +590,8 @@ function LoopenStudioApp({
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSignalsOpen, setIsSignalsOpen] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"password" | "magic">("password");
   const [authStatus, setAuthStatus] = useState("");
   const [authSending, setAuthSending] = useState(false);
   const [signalBalance, setSignalBalance] = useState<number | null>(
@@ -596,6 +601,9 @@ function LoopenStudioApp({
   const [signalCosts, setSignalCosts] = useState<SignalCosts | null>(null);
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [checkoutPackId, setCheckoutPackId] = useState("");
+  /** Local Studio counts as signed-in for API, but still needs Enter for a real account. */
+  const isGuestSession = !user || user.source === "local";
+  const hasWorkspace = Boolean(user);
   const [selectedRefinement, setSelectedRefinement] = useState(initialDraft.selectedRefinement);
   const [selectedVector, setSelectedVector] = useState(initialDraft.selectedVector);
   const [productionLocked, setProductionLocked] = useState(initialDraft.productionLocked);
@@ -742,6 +750,35 @@ function LoopenStudioApp({
     }
   }
 
+  async function signInWithPassword(event?: { preventDefault(): void }) {
+    event?.preventDefault();
+    const email = authEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || authPassword.length < 6) {
+      setAuthStatus("Enter email and password (min 6 characters).");
+      return;
+    }
+    setAuthSending(true);
+    setAuthStatus("Opening the studio…");
+    try {
+      const response = await apiFetch("/auth/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: authPassword }),
+      });
+      const payload = await readApiJson<{ error?: string }>(response);
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Invalid email or password.");
+      }
+      window.location.href = "/#brief";
+      window.location.reload();
+    } catch (error) {
+      setAuthStatus(
+        error instanceof Error ? error.message : "Could not sign in.",
+      );
+      setAuthSending(false);
+    }
+  }
+
   async function startSignalCheckout(packId: string) {
     setCheckoutPackId(packId);
     try {
@@ -860,7 +897,8 @@ function LoopenStudioApp({
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash.replace(/^#/, "");
     if (hash === "enter" || params.has("auth") || signInPath.includes("#enter")) {
-      if (!user) setIsAuthOpen(true);
+      // Open even for Local Studio — that identity is not a real account.
+      if (!user || user.source === "local") setIsAuthOpen(true);
     }
     if (params.get("signals") === "topped") {
       setNotice("Signals landed. The studio is charged and ready.");
@@ -1952,7 +1990,7 @@ function LoopenStudioApp({
           >
             New session
           </button>
-          {user && (
+          {hasWorkspace && (
             <button
               className="signal-pill"
               type="button"
@@ -1963,19 +2001,37 @@ function LoopenStudioApp({
               {signalBalance === null ? "Signals" : `${signalBalance} signals`}
             </button>
           )}
-          <button
-            className="project-pill"
-            type="button"
-            onClick={() =>
-              user
-                ? setIsHistoryOpen((current) => !current)
-                : setIsAuthOpen(true)
-            }
-            title={user ? "Open project history" : "Enter the studio"}
-          >
-            <span className="online-dot" />
-            {user ? `${projects.length} projects` : "Enter"}
-          </button>
+          {isGuestSession && (
+            <button
+              className="project-pill enter-pill"
+              type="button"
+              onClick={() => {
+                setAuthStatus(
+                  user?.source === "local"
+                    ? "Local Studio is temporary. Enter with email for a private account."
+                    : "Enter with email to generate, save and keep work private.",
+                );
+                setIsAuthOpen(true);
+              }}
+              title="Enter with email"
+            >
+              <span className="online-dot" />
+              Enter
+            </button>
+          )}
+          {hasWorkspace && (
+            <button
+              className="project-pill"
+              type="button"
+              onClick={() => setIsHistoryOpen((current) => !current)}
+              title="Open project history"
+            >
+              <span className="online-dot" />
+              {user?.source === "local"
+                ? "Local"
+                : `${projects.length} projects`}
+            </button>
+          )}
         </div>
       </header>
       {isAuthOpen && (
@@ -1996,11 +2052,43 @@ function LoopenStudioApp({
             <div className="studio-gate-copy">
               <span>How</span>
               <p>
-                Passwordless. We send a one-time link — no password theatre,
-                no social buttons cluttering the mark.
+                {user?.source === "local"
+                  ? "You're in Local Studio (shared / temporary). Sign in with your account for a private workspace."
+                  : authMode === "password"
+                    ? "Email + password for your studio account. Or switch to a one-time magic link."
+                    : "Passwordless magic link — we email a private entry key, no password theatre."}
               </p>
             </div>
-            <form className="studio-gate-form" onSubmit={sendEntryLink}>
+            <div className="studio-gate-modes" role="tablist" aria-label="Entry method">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={authMode === "password"}
+                className={authMode === "password" ? "active" : undefined}
+                onClick={() => {
+                  setAuthMode("password");
+                  setAuthStatus("");
+                }}
+              >
+                Password
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={authMode === "magic"}
+                className={authMode === "magic" ? "active" : undefined}
+                onClick={() => {
+                  setAuthMode("magic");
+                  setAuthStatus("");
+                }}
+              >
+                Magic link
+              </button>
+            </div>
+            <form
+              className="studio-gate-form"
+              onSubmit={authMode === "password" ? signInWithPassword : sendEntryLink}
+            >
               <label>
                 <span className="mini-label">Email</span>
                 <input
@@ -2012,20 +2100,41 @@ function LoopenStudioApp({
                   required
                 />
               </label>
+              {authMode === "password" && (
+                <label>
+                  <span className="mini-label">Password</span>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    value={authPassword}
+                    onChange={(event) => setAuthPassword(event.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </label>
+              )}
               <div className="studio-gate-actions">
                 <button type="button" onClick={() => setIsAuthOpen(false)}>
                   Not now
                 </button>
                 <button className="confirm-dialog-primary" type="submit" disabled={authSending}>
-                  {authSending ? "Sending…" : "Send entry link"}
+                  {authSending
+                    ? authMode === "password"
+                      ? "Signing in…"
+                      : "Sending…"
+                    : authMode === "password"
+                      ? "Enter studio"
+                      : "Send entry link"}
                   <span>→</span>
                 </button>
               </div>
             </form>
             {authStatus && <p className="studio-gate-status">{authStatus}</p>}
             <p className="studio-gate-note">
-              First entry includes {signalCosts?.generateBatch ?? 4} welcome signals —
-              enough for one full concept batch.
+              {authMode === "password"
+                ? "Admins enter with password. New accounts can use magic link — first entry includes welcome signals."
+                : `First entry includes ${signalCosts?.generateBatch ?? 4} welcome signals — enough for one full concept batch.`}
             </p>
           </section>
         </div>
@@ -2119,7 +2228,9 @@ function LoopenStudioApp({
         <aside className="history-drawer" aria-label="Project history">
           <div className="history-head">
             <div>
-              <span>Private workspace</span>
+              <span>
+                {user.role === "admin" ? "Admin workspace" : "Private workspace"}
+              </span>
               <strong>{user.displayName}</strong>
               <small className="history-email">{user.email}</small>
             </div>
@@ -2129,7 +2240,22 @@ function LoopenStudioApp({
             <button type="button" onClick={() => setIsSignalsOpen(true)}>
               {signalBalance === null ? "Signals" : `${signalBalance} signals`} ↗
             </button>
-            <a href="/api/auth/logout">Leave studio</a>
+            {user.source === "local" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsHistoryOpen(false);
+                  setAuthStatus(
+                    "Local Studio is temporary. Enter with email for a private account.",
+                  );
+                  setIsAuthOpen(true);
+                }}
+              >
+                Enter with email
+              </button>
+            ) : (
+              <a href="/api/auth/logout">Leave studio</a>
+            )}
           </div>
           <div className="history-list" ref={historyListRef}>
             {projects.length ? projects.map((project) => (
@@ -2446,10 +2572,11 @@ function LoopenStudioApp({
               )}
             </button>
           </div>
-          {!user && (
+          {isGuestSession && (
             <p className="auth-hint">
-              Enter with email to save briefs, spend signals and keep each
-              project private.
+              {user?.source === "local"
+                ? "Local Studio is on — use Enter in the header for a private email account."
+                : "Enter with email to save briefs, spend signals and keep each project private."}
             </p>
           )}
           {notice && (

@@ -1,4 +1,8 @@
-import { ensureStudioWallet, getStudioUser } from "@/backend/auth/session";
+import {
+  ensureStudioWallet,
+  getStudioUser,
+  isAdminRole,
+} from "@/backend/auth/session";
 import {
   getRuntimeEnv,
   sanitizeSvg,
@@ -279,9 +283,11 @@ export async function POST(
     let signalsSpent = false;
     try {
       await assertRateLimit(userEmail, RATE_LIMITS.vectorizeUser);
-      await ensureStudioWallet(userEmail);
-      await spendSignals(userEmail, "vectorize", projectId);
-      signalsSpent = true;
+      if (!isAdminRole(user.role)) {
+        await ensureStudioWallet(userEmail);
+        await spendSignals(userEmail, "vectorize", projectId);
+        signalsSpent = true;
+      }
     } catch (error) {
       if (error instanceof RateLimitError) {
         return Response.json({ error: error.message }, { status: 429 });

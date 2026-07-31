@@ -1,4 +1,8 @@
-import { ensureStudioWallet, getStudioUser } from "@/backend/auth/session";
+import {
+  ensureStudioWallet,
+  getStudioUser,
+  isAdminRole,
+} from "@/backend/auth/session";
 import {
   type BrandStrategy,
   directions,
@@ -268,28 +272,32 @@ export async function POST(request: Request) {
     });
   }
 
-  try {
-    await ensureStudioWallet(userEmail);
-    await spendSignals(userEmail, signalAction, projectId);
-  } catch (error) {
-    if (error instanceof InsufficientSignalsError) {
-      if (!existingProjectId) {
-        await updateRows(
-          "logo_projects",
-          { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
-          { status: "failed", updated_at: Date.now() },
+  let signalsCharged = false;
+  if (!isAdminRole(user.role)) {
+    try {
+      await ensureStudioWallet(userEmail);
+      await spendSignals(userEmail, signalAction, projectId);
+      signalsCharged = true;
+    } catch (error) {
+      if (error instanceof InsufficientSignalsError) {
+        if (!existingProjectId) {
+          await updateRows(
+            "logo_projects",
+            { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
+            { status: "failed", updated_at: Date.now() },
+          );
+        }
+        return Response.json(
+          {
+            error: error.message,
+            code: error.code,
+            required: error.required,
+          },
+          { status: 402 },
         );
       }
-      return Response.json(
-        {
-          error: error.message,
-          code: error.code,
-          required: error.required,
-        },
-        { status: 402 },
-      );
+      throw error;
     }
-    throw error;
   }
 
   // A reasoning model develops brand-specific territories and art-direction
@@ -437,17 +445,19 @@ export async function POST(request: Request) {
       projectId,
       reason,
     });
-    try {
-      await refundSignals(userEmail, signalAction, projectId);
-    } catch (refundError) {
-      console.error({
-        event: "signal_refund_failed",
-        projectId,
-        reason:
-          refundError instanceof Error
-            ? refundError.message
-            : String(refundError),
-      });
+    if (signalsCharged) {
+      try {
+        await refundSignals(userEmail, signalAction, projectId);
+      } catch (refundError) {
+        console.error({
+          event: "signal_refund_failed",
+          projectId,
+          reason:
+            refundError instanceof Error
+              ? refundError.message
+              : String(refundError),
+        });
+      }
     }
     await updateRows(
       "logo_projects",
