@@ -282,7 +282,7 @@ function validatePath(path: string) {
     .trim();
   if (
     value.length < 12 ||
-    value.length > 3000 ||
+    value.length > 8000 ||
     /[<>{}"'`;=&]|url|script|text|image|foreign/i.test(value) ||
     !/^[MmLlHhVvCcSsQqTtAaZz0-9eE+.,\-\s]+$/.test(value) ||
     !/^[Mm]/.test(value) ||

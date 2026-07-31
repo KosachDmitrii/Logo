@@ -1328,15 +1328,15 @@ function LoopenStudioApp({
         ? "Build SVG from the original concept."
         : "Commit to the geometry.",
       body: useOriginal
-        ? `"${sourceLabel}" (exploration) will be rebuilt as SVG paths that match its silhouette. Prefer Refinement when a craft pass exists — Original often drifts more.`
-        : `"${sourceLabel}" will be rebuilt as SVG paths that match its silhouette. Light geometric cleanup only — no new concept.`,
+        ? `"${sourceLabel}" (exploration) will be traced into an exact SVG that matches its silhouette. Prefer Refinement when a craft pass exists — it is higher resolution.`
+        : `"${sourceLabel}" will be traced into an exact SVG that matches its silhouette — same mark, sharp vector edges.`,
       confirmLabel: "Build SVG master",
     }))) return;
     setIsVectorizing(true);
     setNotice(
       useOriginal
-        ? "Rebuilding the original concept as controlled SVG geometry…"
-        : "Rebuilding the selected symbol as controlled SVG geometry…",
+        ? "Tracing the original concept into an exact SVG…"
+        : "Tracing the refinement into an exact SVG…",
     );
     try {
       const response = await apiFetch(`/projects/${projectId}/vectorize`, {

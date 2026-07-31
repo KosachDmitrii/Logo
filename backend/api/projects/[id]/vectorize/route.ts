@@ -27,6 +27,21 @@ type VectorSource = {
   kind: "refine" | "exploration";
 };
 
+type VectorAssetPayload = {
+  id: string;
+  parentId: string;
+  stage: "vector";
+  label: string;
+  provider: string;
+  model: string;
+  contentType: "image/svg+xml";
+  url: string;
+  downloadUrl: string;
+  qualityScore?: number;
+  reviewReason?: string;
+  reviewStatus?: string;
+};
+
 export const dynamic = "force-dynamic";
 
 async function readRecraftSvg(payload: RecraftResponse) {
@@ -37,6 +52,133 @@ async function readRecraftSvg(payload: RecraftResponse) {
   const response = await fetch(url);
   if (!response.ok) throw new Error("Recraft vector could not be downloaded.");
   return response.text();
+}
+
+async function vectorizeWithRecraft(options: {
+  apiKey: string;
+  bytes: ArrayBuffer;
+  projectId: string;
+  userEmail: string;
+  source: VectorSource;
+}): Promise<VectorAssetPayload> {
+  const { apiKey, bytes, projectId, userEmail, source } = options;
+  const form = new FormData();
+  form.append("file", new Blob([bytes], { type: "image/png" }), "source.png");
+  form.append("response_format", "b64_json");
+  form.append("svg_compression", "on");
+  form.append("limit_num_shapes", "on");
+  form.append("max_num_shapes", "64");
+  const response = await fetch(
+    "https://external.api.recraft.ai/v1/images/vectorize",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    },
+  );
+  let payload: RecraftResponse;
+  try {
+    payload = (await response.json()) as RecraftResponse;
+  } catch {
+    throw new Error("Exact vector returned an invalid Recraft response.");
+  }
+  if (!response.ok) {
+    throw new Error(payload.detail || "Exact vector failed.");
+  }
+  const svg = sanitizeSvg(await readRecraftSvg(payload));
+  if (!svg.includes("<svg")) {
+    throw new Error("Exact vector returned an invalid SVG.");
+  }
+  const id = crypto.randomUUID();
+  const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
+  await putObject(objectKey, svg, { contentType: "image/svg+xml" });
+  const label =
+    source.kind === "exploration"
+      ? "Exact vector from original concept"
+      : "Exact vector from refinement";
+  await insertRow("logo_assets", {
+    id,
+    project_id: projectId,
+    user_email: userEmail,
+    parent_id: source.id,
+    stage: "vector",
+    label,
+    provider: "recraft",
+    model: "recraft-vectorize",
+    prompt: "Raster-to-vector silhouette preservation",
+    object_key: objectKey,
+    content_type: "image/svg+xml",
+    created_at: Date.now(),
+  });
+  return {
+    id,
+    parentId: source.id,
+    stage: "vector",
+    label,
+    provider: "recraft",
+    model: "recraft-vectorize",
+    contentType: "image/svg+xml",
+    url: `/api/assets/${id}`,
+    downloadUrl: `/api/assets/${id}?download=1`,
+  };
+}
+
+async function vectorizeWithGpt(options: {
+  apiKey: string;
+  bytes: ArrayBuffer;
+  projectId: string;
+  userEmail: string;
+  source: VectorSource;
+}): Promise<VectorAssetPayload> {
+  const { apiKey, bytes, projectId, userEmail, source } = options;
+  const master = await reconstructArchitecturalLogoSvg(source.brief, apiKey, {
+    base64: arrayBufferToBase64(bytes),
+    mimeType: source.content_type || "image/png",
+  });
+  const svg = sanitizeSvg(master.svg);
+  const id = crypto.randomUUID();
+  const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
+  await putObject(objectKey, svg, {
+    contentType: "image/svg+xml",
+  });
+  const label =
+    source.kind === "exploration"
+      ? "SVG from original concept"
+      : "Geometrically reconstructed SVG master";
+  await insertRow("logo_assets", {
+    id,
+    project_id: projectId,
+    user_email: userEmail,
+    parent_id: source.id,
+    stage: "vector",
+    label,
+    provider: "openai",
+    model: "gpt-5.6-terra",
+    prompt: [
+      `[LOOPEN_GEOMETRIC_RECONSTRUCTION]`,
+      `[LOOPEN_QC:${master.score}]`,
+      `[LOOPEN_STATUS:${master.score >= 75 ? "Recommended" : "Review"}]`,
+      `[LOOPEN_REASON:${encodeURIComponent(master.verdict)}]`,
+      master.rationale,
+    ].join(""),
+    object_key: objectKey,
+    content_type: "image/svg+xml",
+    created_at: Date.now(),
+  });
+  return {
+    id,
+    parentId: source.id,
+    stage: "vector",
+    label,
+    provider: "openai",
+    model: "gpt-5.6-terra",
+    contentType: "image/svg+xml",
+    qualityScore: master.score,
+    reviewReason: master.verdict,
+    reviewStatus: master.score >= 75 ? "Recommended" : "Review",
+    url: `/api/assets/${id}`,
+    downloadUrl: `/api/assets/${id}?download=1`,
+  };
 }
 
 export async function POST(
@@ -181,166 +323,86 @@ export async function POST(
         { status: 201 },
       );
     }
-    if (runtime.OPENAI_API_KEY) {
-      const master = await reconstructArchitecturalLogoSvg(
-        source.brief,
-        runtime.OPENAI_API_KEY,
-        {
-          base64: arrayBufferToBase64(bytes),
-          mimeType: source.content_type || "image/png",
-        },
-      );
-      // Jury/QC is advisory — always deliver the SVG the client paid to build.
-      const svg = sanitizeSvg(master.svg);
-      const id = crypto.randomUUID();
-      const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
-      await putObject(objectKey, svg, {
-        contentType: "image/svg+xml",
-      });
-      await insertRow("logo_assets", {
-        id,
-        project_id: projectId,
-        user_email: userEmail,
-        parent_id: source.id,
-        stage: "vector",
-        label:
-          source.kind === "exploration"
-            ? "SVG from original concept"
-            : "Geometrically reconstructed SVG master",
-        provider: "openai",
-        model: "gpt-5.6-terra",
-        prompt: [
-          `[LOOPEN_GEOMETRIC_RECONSTRUCTION]`,
-          `[LOOPEN_QC:${master.score}]`,
-          `[LOOPEN_STATUS:${master.score >= 75 ? "Recommended" : "Review"}]`,
-          `[LOOPEN_REASON:${encodeURIComponent(master.verdict)}]`,
-          master.rationale,
-        ].join(""),
-        object_key: objectKey,
-        content_type: "image/svg+xml",
-        created_at: Date.now(),
-      });
-      await updateRows(
-        "logo_projects",
-        { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
-        { status: "vectorized", updated_at: Date.now() },
-      );
-      return Response.json(
-        {
-          assets: [{
-            id,
-            parentId: source.id,
-            stage: "vector",
-            label:
-              source.kind === "exploration"
-                ? "SVG from original concept"
-                : "Geometrically reconstructed SVG master",
-            provider: "openai",
-            model: "gpt-5.6-terra",
-            contentType: "image/svg+xml",
-            qualityScore: master.score,
-            reviewReason: master.verdict,
-            reviewStatus: master.score >= 75 ? "Recommended" : "Review",
-            url: `/api/assets/${id}`,
-            downloadUrl: `/api/assets/${id}?download=1`,
-          }],
-        },
-        { status: 201 },
-      );
-    }
-    if (!runtime.RECRAFT_API_KEY) {
-      return Response.json(
-        { error: "Add RECRAFT_API_KEY to vectorize legacy raster refinements." },
-        { status: 503 },
-      );
-    }
-    const jobs = [
-      {
-        endpoint: "vectorize",
-        fileField: "file",
-        label: "Exact vector",
-        model: "recraft-vectorize",
-        fields: {
-          response_format: "b64_json",
-          svg_compression: "on",
-          limit_num_shapes: "on",
-          max_num_shapes: "64",
-        },
-      },
-    ] as const;
 
-    const settled = await Promise.allSettled(
-      jobs.map(async (job) => {
-        const form = new FormData();
-        form.append(job.fileField, new Blob([bytes], { type: "image/png" }), "source.png");
-        Object.entries(job.fields).forEach(([key, value]) => form.append(key, value));
-        const response = await fetch(`https://external.api.recraft.ai/v1/images/${job.endpoint}`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${runtime.RECRAFT_API_KEY}` },
-          body: form,
-        });
-        let payload: RecraftResponse;
-        try {
-          payload = (await response.json()) as RecraftResponse;
-        } catch {
-          throw new Error(`${job.label} returned an invalid Recraft response.`);
-        }
-        if (!response.ok) throw new Error(payload.detail || `${job.label} failed.`);
-        const svg = sanitizeSvg(await readRecraftSvg(payload));
-        if (!svg.includes("<svg")) throw new Error(`${job.label} returned an invalid SVG.`);
-        const id = crypto.randomUUID();
-        const objectKey = `users/assets/${userEmail.length}/${projectId}/${id}.svg`;
-        await putObject(objectKey, svg, { contentType: "image/svg+xml" });
-        await insertRow("logo_assets", {
-          id,
-          project_id: projectId,
-          user_email: userEmail,
-          parent_id: source.id,
-          stage: "vector",
-          label: job.label,
-          provider: "recraft",
-          model: job.model,
-          prompt:
-            "prompt" in job.fields
-              ? job.fields.prompt
-              : "Raster-to-vector preservation",
-          object_key: objectKey,
-          content_type: "image/svg+xml",
-          created_at: Date.now(),
-        });
-        return {
-          id,
-          parentId: source.id,
-          stage: "vector",
-          label: job.label,
-          provider: "recraft",
-          model: job.model,
-          contentType: "image/svg+xml",
-          url: `/api/assets/${id}`,
-          downloadUrl: `/api/assets/${id}?download=1`,
-        };
-      }),
-    );
+    // Recraft exact vectorize preserves the approved raster silhouette.
+    // For refinements, never fall back to GPT — it invents a different mark.
+    // GPT geometric rebuild is fallback only for exploration sources.
+    let asset: VectorAssetPayload | null = null;
+    let lastError: Error | null = null;
 
-    const assets = settled.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
-    const failure = settled.find((result) => result.status === "rejected");
-    if (!assets.length) {
+    if (runtime.RECRAFT_API_KEY) {
+      try {
+        asset = await vectorizeWithRecraft({
+          apiKey: runtime.RECRAFT_API_KEY,
+          bytes,
+          projectId,
+          userEmail,
+          source,
+        });
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.warn({
+          event: "logo_vectorize_recraft_failed",
+          sourceKind: source.kind,
+          reason: lastError.message.slice(0, 240),
+        });
+      }
+    } else if (source.kind === "refine") {
       return Response.json(
         {
           error:
-            failure && failure.status === "rejected"
-              ? String(failure.reason?.message ?? failure.reason)
-              : "Vectorization failed.",
+            "Add RECRAFT_API_KEY to vectorize refinements into an exact SVG that matches the mark.",
+        },
+        { status: 503 },
+      );
+    }
+
+    if (
+      !asset &&
+      source.kind === "exploration" &&
+      runtime.OPENAI_API_KEY
+    ) {
+      try {
+        asset = await vectorizeWithGpt({
+          apiKey: runtime.OPENAI_API_KEY,
+          bytes,
+          projectId,
+          userEmail,
+          source,
+        });
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    if (!asset) {
+      if (!runtime.RECRAFT_API_KEY && !runtime.OPENAI_API_KEY) {
+        return Response.json(
+          {
+            error:
+              "Add RECRAFT_API_KEY (preferred) or OPENAI_API_KEY to vectorize raster logos.",
+          },
+          { status: 503 },
+        );
+      }
+      return Response.json(
+        {
+          error:
+            lastError?.message ??
+            (source.kind === "refine"
+              ? "Exact vectorization of the refinement failed."
+              : "Vectorization failed."),
         },
         { status: 502 },
       );
     }
+
     await updateRows(
       "logo_projects",
       { id: `eq.${projectId}`, user_email: `eq.${userEmail}` },
       { status: "vectorized", updated_at: Date.now() },
     );
-    return Response.json({ assets }, { status: 201 });
+    return Response.json({ assets: [asset] }, { status: 201 });
   } catch (error) {
     console.error({
       event: "logo_vectorize_failed",
