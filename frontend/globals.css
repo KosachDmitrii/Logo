@@ -18,6 +18,8 @@
 }
 
 html {
+  /* Match the dark footer so overscroll / bottom gap is not a paper stripe. */
+  background: var(--ink);
   scroll-behavior: smooth;
 }
 
@@ -3201,8 +3203,10 @@ textarea:focus-visible {
   background: var(--ink);
   color: var(--paper);
   display: grid;
-  min-height: min(820px, 92svh);
+  min-height: min(820px, 100svh);
   padding: 30px 32px 22px;
+  /* Paint past the footer edge so rubber-band overscroll stays ink. */
+  box-shadow: 0 50vh 0 50vh var(--ink);
 }
 
 .footer-signal {
