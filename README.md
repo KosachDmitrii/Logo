@@ -85,7 +85,7 @@ Config-as-code: [`railway.json`](railway.json). Build/start on Railway:
 
 | Piece | Behavior |
 | --- | --- |
-| Auth | Supabase magic link (`Enter` in the header). Local Studio only when `ALLOW_LOCAL_STUDIO=1` |
+| Auth | Roles: `guest` (signed out) · `user` (signed in) · `admin` (elevated). Enter via password or magic link. Local Studio only when `ALLOW_LOCAL_STUDIO=1` |
 | Signals | Prepaid credits: generate batch 4 · +1 concept 1 · refine 2 · vectorize 1 |
 | Welcome | 4 signals on first wallet (one concept batch) |
 | Packs | Spark / Studio / Atelier via Stripe Checkout |

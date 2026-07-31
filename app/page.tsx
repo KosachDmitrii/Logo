@@ -1,5 +1,5 @@
 import {
-  getStudioUser,
+  getStudioSession,
   studioSignInPath,
   ensureStudioWallet,
 } from "@/backend/auth/session";
@@ -8,12 +8,12 @@ import LoopenStudio from "@/frontend/loopen-studio";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const user = await getStudioUser();
+  const session = await getStudioSession();
   let signalBalance: number | null = null;
 
-  if (user) {
+  if (session.user && (session.role === "user" || session.role === "admin")) {
     try {
-      const wallet = await ensureStudioWallet(user.email);
+      const wallet = await ensureStudioWallet(session.user.email);
       signalBalance = wallet.balance;
     } catch {
       signalBalance = null;
@@ -22,14 +22,15 @@ export default async function Home() {
 
   return (
     <LoopenStudio
+      role={session.role}
       user={
-        user
+        session.user
           ? {
-              displayName: user.displayName,
-              email: user.email,
+              displayName: session.user.displayName,
+              email: session.user.email,
               signalBalance,
-              source: user.source,
-              role: user.role,
+              source: session.user.source,
+              role: session.role,
             }
           : null
       }

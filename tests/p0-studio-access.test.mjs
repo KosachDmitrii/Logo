@@ -11,6 +11,7 @@ test("P0 auth uses Supabase session with local-only fallback", async () => {
   ]);
 
   assert.match(session, /getStudioUser/);
+  assert.match(session, /getStudioSession/);
   assert.match(session, /studioSignInPath/);
   assert.match(session, /createServerClient/);
   assert.match(session, /Bearer/);
@@ -19,9 +20,18 @@ test("P0 auth uses Supabase session with local-only fallback", async () => {
   assert.match(session, /ensureStudioWallet/);
   assert.doesNotMatch(session, /chatgpt|oai-authenticated/i);
   assert.match(page, /studioSignInPath/);
+  assert.match(page, /getStudioSession/);
   assert.match(page, /ensureStudioWallet/);
   assert.match(otp, /signInWithOtp/);
   assert.match(callback, /exchangeCodeForSession/);
+
+  const roles = await readFile(
+    new URL("../backend/lib/roles.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(roles, /"guest"/);
+  assert.match(roles, /"user"/);
+  assert.match(roles, /"admin"/);
 });
 
 test("P0 signals billing and hard spend caps are wired", async () => {

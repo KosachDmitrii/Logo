@@ -351,35 +351,62 @@ textarea:focus-visible {
   margin: 0;
 }
 
-.studio-gate-modes {
-  display: flex;
-  gap: 0;
-  grid-column: 1 / -1;
-  margin-top: 22px;
-}
-
-.studio-gate-modes button {
-  background: transparent;
-  border: 1px solid var(--ink);
-  color: var(--ink);
-  cursor: pointer;
-  flex: 1;
-  font: 10px var(--font-geist-mono), monospace;
-  letter-spacing: 0.06em;
-  padding: 12px 14px;
-  text-transform: uppercase;
-}
-
-.studio-gate-modes button.active {
-  background: var(--ink);
-  color: var(--acid);
-}
-
 .studio-gate-form {
   display: grid;
   gap: 18px;
   grid-column: 1 / -1;
-  margin-top: 18px;
+  margin-top: 28px;
+}
+
+.studio-gate-magic {
+  align-items: start;
+  border-top: 1px solid rgba(32, 31, 30, 0.42);
+  display: grid;
+  gap: 8px 18px;
+  grid-template-columns: 1fr auto;
+  margin-top: 4px;
+  padding-top: 18px;
+}
+
+.studio-gate-magic span {
+  font: 9px var(--font-geist-mono), monospace;
+  grid-column: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.studio-gate-magic p {
+  font-size: 13px;
+  grid-column: 1;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.studio-gate-magic button {
+  align-items: center;
+  align-self: center;
+  background: transparent;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font: 10px var(--font-geist-mono), monospace;
+  gap: 12px;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  letter-spacing: 0.05em;
+  padding: 16px 18px;
+  text-transform: uppercase;
+}
+
+.studio-gate-magic button:hover {
+  background: var(--ink);
+  color: var(--acid);
+}
+
+.studio-gate-magic button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .studio-gate-form label {
@@ -3922,6 +3949,17 @@ textarea:focus-visible {
     grid-column: 1;
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .studio-gate-magic {
+    grid-template-columns: 1fr;
+  }
+
+  .studio-gate-magic button {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: space-between;
+    width: 100%;
   }
 
   .signal-cost-list {

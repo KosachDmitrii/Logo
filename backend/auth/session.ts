@@ -4,6 +4,8 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   isAdminRole,
+  isAuthenticatedRole,
+  isGuestRole,
   roleFromAppMetadata,
   type StudioRole,
 } from "@/backend/lib/roles";
@@ -18,10 +20,17 @@ export type StudioUser = {
   email: string;
   fullName: string | null;
   source: "supabase" | "local";
+  /** guest = not signed in · user = signed in · admin = elevated */
   role: StudioRole;
 };
 
-export { isAdminRole };
+export type StudioSession = {
+  user: StudioUser | null;
+  role: StudioRole;
+};
+
+export { isAdminRole, isAuthenticatedRole, isGuestRole };
+export type { StudioRole };
 
 const SIGN_IN_PATH = "/#enter";
 const SIGN_OUT_PATH = "/api/auth/logout";
@@ -127,16 +136,44 @@ export async function getStudioUser(): Promise<StudioUser | null> {
       email: "local@loopen.dev",
       fullName: "Local Studio",
       source: "local",
-      role: "user",
+      // Temporary bypass identity — not a real signed-in account.
+      role: "guest",
     };
   }
 
   return null;
 }
 
+/**
+ * UI/session role for the page.
+ * Local Studio bypass must NOT appear as a signed-in workspace after logout —
+ * it only exists inside API getStudioUser() when ALLOW_LOCAL_STUDIO=1.
+ */
+export async function getStudioSession(): Promise<StudioSession> {
+  const fromBearer = await userFromBearer();
+  if (fromBearer) {
+    return {
+      user: fromBearer,
+      role: fromBearer.role === "admin" ? "admin" : "user",
+    };
+  }
+
+  const fromCookies = await userFromCookies();
+  if (fromCookies) {
+    return {
+      user: fromCookies,
+      role: fromCookies.role === "admin" ? "admin" : "user",
+    };
+  }
+
+  return { user: null, role: "guest" };
+}
+
 export async function requireStudioUser(returnTo = "/#brief"): Promise<StudioUser> {
-  const user = await getStudioUser();
-  if (user) return user;
+  const session = await getStudioSession();
+  if (session.user && isAuthenticatedRole(session.role)) return session.user;
+  // Local Studio bypass may still hold a working email for API iteration.
+  if (session.user?.source === "local" && allowLocalStudio()) return session.user;
   redirect(studioSignInPath(returnTo));
 }
 

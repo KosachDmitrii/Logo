@@ -1,14 +1,15 @@
-import { getStudioUser, ensureStudioWallet } from "@/backend/auth/session";
+import { getStudioSession, ensureStudioWallet } from "@/backend/auth/session";
 import { SIGNAL_COSTS, SIGNAL_PACKS, WELCOME_SIGNALS } from "@/backend/lib/signals";
 import { stripeConfigured } from "@/backend/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const user = await getStudioUser();
-  if (!user) {
+  const session = await getStudioSession();
+  if (!session.user || session.role === "guest") {
     return Response.json({
       user: null,
+      role: "guest" as const,
       signals: null,
       costs: SIGNAL_COSTS,
       packs: SIGNAL_PACKS,
@@ -17,6 +18,7 @@ export async function GET() {
     });
   }
 
+  const user = session.user;
   try {
     const wallet = await ensureStudioWallet(user.email);
     return Response.json({
@@ -24,8 +26,9 @@ export async function GET() {
         displayName: user.displayName,
         email: user.email,
         source: user.source,
-        role: user.role,
+        role: session.role,
       },
+      role: session.role,
       signals: {
         balance: wallet.balance,
         welcomed: wallet.welcomed,
@@ -45,8 +48,9 @@ export async function GET() {
         displayName: user.displayName,
         email: user.email,
         source: user.source,
-        role: user.role,
+        role: session.role,
       },
+      role: session.role,
       signals: { balance: 0, welcomed: false },
       costs: SIGNAL_COSTS,
       packs: SIGNAL_PACKS,

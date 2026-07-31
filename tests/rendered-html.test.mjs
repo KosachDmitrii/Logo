@@ -14,9 +14,10 @@ test("ships the finished Loopen product surface", async () => {
   ]);
 
   assert.match(layout, /Loopen — Brand systems, not random logos/);
-  assert.match(page, /getStudioUser/);
+  assert.match(page, /getStudioSession/);
   assert.match(page, /studioSignInPath/);
   assert.match(page, /ensureStudioWallet/);
+  assert.match(page, /role=\{session\.role\}/);
   assert.match(studio, /Generate 4 logo concepts/);
   assert.match(studio, /studio-gate|Enter the/);
   assert.match(studio, /signal-pill|signals/);

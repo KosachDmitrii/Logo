@@ -74,9 +74,10 @@ export async function POST(request: Request) {
       });
     }
 
-    const role = roleFromAppMetadata(data.user.app_metadata);
+    const role = roleFromAppMetadata(data.user.app_metadata); // user | admin
     return Response.json({
       ok: true,
+      role,
       user: {
         displayName:
           typeof data.user.user_metadata?.full_name === "string"
