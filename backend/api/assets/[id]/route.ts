@@ -1,7 +1,7 @@
 import { getChatGPTUser } from "@/backend/auth/chatgpt-auth";
 import { applyCorsHeaders } from "@/backend/lib/cors";
-import { selectOne } from "@/backend/lib/supabase";
-import { getObject } from "@/backend/lib/storage";
+import { deleteRows, selectOne, updateRows } from "@/backend/lib/supabase";
+import { getObject, removeObjects } from "@/backend/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -63,4 +63,41 @@ export async function GET(
     );
   }
   return new Response(Buffer.from(object.body), { headers });
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const user = await getChatGPTUser();
+  if (!user?.email) {
+    return Response.json({ error: "Authentication required." }, { status: 401 });
+  }
+  const { id } = await context.params;
+  const asset = await selectOne<{
+    id: string;
+    object_key: string;
+    project_id: string;
+    stage: string;
+  }>("logo_assets", {
+    select: "id,object_key,project_id,stage",
+    id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
+  if (!asset) {
+    return Response.json({ error: "Asset not found." }, { status: 404 });
+  }
+
+  await deleteRows("logo_assets", {
+    id: `eq.${id}`,
+    user_email: `eq.${user.email}`,
+  });
+  await removeObjects([asset.object_key]);
+  await updateRows(
+    "logo_projects",
+    { id: `eq.${asset.project_id}`, user_email: `eq.${user.email}` },
+    { updated_at: Date.now() },
+  );
+
+  return Response.json({ ok: true, id: asset.id, stage: asset.stage });
 }

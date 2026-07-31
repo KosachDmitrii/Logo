@@ -1514,6 +1514,44 @@ function LoopenStudioApp({
     setNotice("Concept deleted. No replacement was generated.");
   }
 
+  async function deleteAsset(asset: StudioAsset) {
+    const confirmed = await requestConfirmation({
+      kicker: "Permanent action / SVG",
+      title: `Delete ${asset.label}?`,
+      body: "This production SVG will be permanently removed from the project. Reconstruct again if you need a new master.",
+      confirmLabel: "Delete SVG",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
+    const response = await apiFetch(`/assets/${asset.id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      showRequestError(
+        "Delete SVG",
+        payload?.error ?? "SVG could not be deleted.",
+      );
+      return;
+    }
+
+    const remaining = assets.filter((item) => item.id !== asset.id);
+    const remainingVectors = remaining.filter((item) => item.stage === "vector");
+    setAssets(remaining);
+    if (selectedVector === asset.id) {
+      setSelectedVector(remainingVectors[0]?.id ?? "");
+      if (!remainingVectors.length) setProductionLocked(false);
+    }
+    if (selectedRefinement === asset.id) {
+      const remainingRefines = remaining.filter((item) => item.stage === "refine");
+      setSelectedRefinement(remainingRefines[0]?.id ?? "");
+    }
+    setNotice(`${asset.label} deleted.`);
+  }
+
   async function selectGeneratedConcept(generationId: string) {
     const generation = generatedConcepts.find((item) => item.id === generationId);
     if (!generation || !projectId) return;
@@ -2462,11 +2500,19 @@ function LoopenStudioApp({
           <div className="stage-index"><span>02</span><strong>Vector</strong></div>
           <div className="asset-grid vector-grid">
             {vectors.length ? vectors.map((asset) => (
-              <button
-                type="button"
+              <article
                 className={selectedVector === asset.id ? "asset-card active" : "asset-card"}
                 key={asset.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedVector === asset.id}
                 onClick={() => setSelectedVector(asset.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedVector(asset.id);
+                  }
+                }}
               >
                 <img
                   src={resolveMediaUrl(asset.url)}
@@ -2474,7 +2520,20 @@ function LoopenStudioApp({
                 />
                 <span>{asset.label}</span>
                 <small>{asset.model}</small>
-              </button>
+                <div className="asset-card-actions">
+                  <button
+                    className="delete-asset"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void deleteAsset(asset);
+                    }}
+                    aria-label={`Delete ${asset.label}`}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
             )) : (
               <div className="empty-stage">
                 <strong>Geometric SVG master</strong>

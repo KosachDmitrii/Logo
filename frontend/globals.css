@@ -1624,6 +1624,33 @@ textarea:focus-visible {
   text-transform: uppercase;
 }
 
+.asset-card-actions {
+  border-top: 1px solid var(--line);
+  display: flex;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  justify-content: flex-end;
+  letter-spacing: 0.04em;
+  margin-top: 8px;
+  padding-top: 10px;
+  text-transform: uppercase;
+}
+
+.delete-asset {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  text-transform: inherit;
+}
+
+.delete-asset:hover {
+  color: #a22920;
+}
+
 .asset-card .vector-source-toggle {
   margin-top: 8px;
   width: 100%;
