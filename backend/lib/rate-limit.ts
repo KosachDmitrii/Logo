@@ -53,6 +53,10 @@ export const RATE_LIMITS = {
   generateIp: { action: "generate:ip", limit: 20 },
   refineUser: { action: "refine:user", limit: 20 },
   vectorizeUser: { action: "vectorize:user", limit: 20 },
-  otpIp: { action: "otp:ip", limit: 8 },
+  // Magic links are also capped by Supabase email rate limits (~few/hour).
+  otpIp: { action: "otp:ip", limit: 30 },
+  passwordIp: { action: "password:ip", limit: 40 },
+  registerIp: { action: "register:ip", limit: 20 },
+  forgotIp: { action: "forgot:ip", limit: 10 },
   checkoutUser: { action: "checkout:user", limit: 10 },
 } as const satisfies Record<string, RateLimitRule>;

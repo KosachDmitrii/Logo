@@ -7,18 +7,27 @@ import {
   clientIp,
   RateLimitError,
 } from "@/backend/lib/rate-limit";
-import { siteUrl } from "@/backend/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    await assertRateLimit(clientIp(request), RATE_LIMITS.otpIp);
+    await assertRateLimit(clientIp(request), RATE_LIMITS.passwordIp);
 
-    const body = (await request.json()) as { email?: string };
-    const email = body.email?.trim().toLowerCase() ?? "";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json({ error: "Enter a valid email." }, { status: 400 });
+    const body = (await request.json()) as { password?: string };
+    const password = body.password ?? "";
+    if (
+      password.length < 8 ||
+      !/[A-Za-z]/.test(password) ||
+      !/\d/.test(password)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Password must be at least 8 characters and include a letter and a number.",
+        },
+        { status: 400 },
+      );
     }
 
     const url = process.env.SUPABASE_URL?.replace(/\/$/, "");
@@ -30,8 +39,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // SSR client stores the PKCE code verifier in cookies on this response.
-    // The same browser must open the magic link for exchange to succeed.
     const cookieStore = await cookies();
     const pendingCookies: {
       name: string;
@@ -53,37 +60,36 @@ export async function POST(request: Request) {
       },
     });
 
-    const origin = siteUrl(request);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${origin}/auth/callback`,
-        shouldCreateUser: true,
-      },
-    });
-    if (error) {
-      console.error({ event: "auth_otp_failed", reason: error.message });
-      const rateLimited = /rate limit/i.test(error.message);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError || !user) {
       return NextResponse.json(
         {
-          error: rateLimited
-            ? "Too many magic-link emails. Wait ~1 hour, or sign in with password."
-            : "Could not send the entry link. Try again in a moment.",
+          error:
+            "Reset session expired. Request a new forgot-password email and open the link again.",
         },
-        { status: rateLimited ? 429 : 502 },
+        { status: 401 },
+      );
+    }
+
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      console.error({ event: "auth_update_password_failed", reason: error.message });
+      return NextResponse.json(
+        { error: "Could not update the password. Try again." },
+        { status: 502 },
       );
     }
 
     const response = NextResponse.json({
       ok: true,
-      message:
-        "Entry link sent. Open it in this same browser — the studio is waiting.",
+      message: "Password updated. The studio is yours again.",
     });
-
     for (const { name, value, options } of pendingCookies) {
       response.cookies.set(name, value, options);
     }
-
     return response;
   } catch (error) {
     if (error instanceof RateLimitError) {

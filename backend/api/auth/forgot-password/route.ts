@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    await assertRateLimit(clientIp(request), RATE_LIMITS.otpIp);
+    await assertRateLimit(clientIp(request), RATE_LIMITS.forgotIp);
 
     const body = (await request.json()) as { email?: string };
     const email = body.email?.trim().toLowerCase() ?? "";
@@ -30,8 +30,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // SSR client stores the PKCE code verifier in cookies on this response.
-    // The same browser must open the magic link for exchange to succeed.
     const cookieStore = await cookies();
     const pendingCookies: {
       name: string;
@@ -54,36 +52,32 @@ export async function POST(request: Request) {
     });
 
     const origin = siteUrl(request);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${origin}/auth/callback`,
-        shouldCreateUser: true,
-      },
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/callback?next=${encodeURIComponent("/?reset=1")}`,
     });
+
     if (error) {
-      console.error({ event: "auth_otp_failed", reason: error.message });
+      console.error({ event: "auth_forgot_failed", reason: error.message });
       const rateLimited = /rate limit/i.test(error.message);
       return NextResponse.json(
         {
           error: rateLimited
-            ? "Too many magic-link emails. Wait ~1 hour, or sign in with password."
-            : "Could not send the entry link. Try again in a moment.",
+            ? "Too many reset emails. Wait a bit, then try again."
+            : "Could not send the reset email. Try again in a moment.",
         },
         { status: rateLimited ? 429 : 502 },
       );
     }
 
+    // Always succeed from the client’s view to avoid email enumeration.
     const response = NextResponse.json({
       ok: true,
       message:
-        "Entry link sent. Open it in this same browser — the studio is waiting.",
+        "If that email has a studio account, a reset link is on its way. Open it in this browser.",
     });
-
     for (const { name, value, options } of pendingCookies) {
       response.cookies.set(name, value, options);
     }
-
     return response;
   } catch (error) {
     if (error instanceof RateLimitError) {

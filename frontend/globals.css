@@ -243,11 +243,13 @@ textarea:focus-visible {
 }
 
 .studio-gate-backdrop {
+  align-items: safe center;
   background: rgba(32, 31, 30, 0.72);
   display: grid;
   inset: 0;
-  padding: 24px;
-  place-items: center;
+  justify-items: center;
+  overflow-y: auto;
+  padding: 16px;
   position: fixed;
   z-index: 1100;
   backdrop-filter: blur(10px);
@@ -268,8 +270,12 @@ textarea:focus-visible {
   background: var(--acid);
   box-shadow: 18px 18px 0 rgba(0, 0, 0, 0.2);
   color: var(--ink);
+  max-height: calc(100dvh - 32px);
   max-width: 720px;
-  padding: 28px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px 24px;
   position: relative;
   width: min(100%, 720px);
   animation: gate-rise 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -288,8 +294,8 @@ textarea:focus-visible {
 
 .studio-gate {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  min-height: 520px;
+  grid-template-columns: 56px minmax(0, 1fr);
+  min-height: 0;
 }
 
 .studio-gate-index {
@@ -297,30 +303,30 @@ textarea:focus-visible {
   border: 1px solid currentColor;
   border-radius: 50%;
   display: grid;
-  font: 22px/1 var(--font-geist-mono), monospace;
-  height: 54px;
+  font: 18px/1 var(--font-geist-mono), monospace;
+  height: 44px;
   justify-content: center;
   margin: 0;
   place-items: center;
-  width: 54px;
+  width: 44px;
 }
 
 .studio-gate > p:nth-of-type(2) {
   align-self: start;
   font: 9px var(--font-geist-mono), monospace;
   grid-column: 2;
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   text-transform: uppercase;
 }
 
 .studio-gate h2,
 .signal-vault h2 {
-  font-size: clamp(44px, 7vw, 78px);
+  font-size: clamp(36px, 5.5vw, 64px);
   font-weight: 500;
   grid-column: 1 / -1;
   letter-spacing: -0.075em;
   line-height: 0.9;
-  margin: 48px 0 28px;
+  margin: 20px 0 16px;
 }
 
 .studio-gate h2 em,
@@ -331,10 +337,10 @@ textarea:focus-visible {
 .studio-gate-copy {
   border-top: 1px solid rgba(32, 31, 30, 0.42);
   display: grid;
-  gap: 24px;
+  gap: 16px;
   grid-column: 2;
-  grid-template-columns: 90px 1fr;
-  padding-top: 18px;
+  grid-template-columns: 72px 1fr;
+  padding-top: 12px;
 }
 
 .studio-gate-copy span {
@@ -353,78 +359,157 @@ textarea:focus-visible {
 
 .studio-gate-form {
   display: grid;
-  gap: 18px;
+  gap: 12px;
   grid-column: 1 / -1;
-  margin-top: 28px;
+  margin-top: 16px;
 }
 
-.studio-gate-magic {
-  align-items: start;
-  border-top: 1px solid rgba(32, 31, 30, 0.42);
-  display: grid;
-  gap: 8px 18px;
-  grid-template-columns: 1fr auto;
-  margin-top: 4px;
-  padding-top: 18px;
-}
-
-.studio-gate-magic span {
-  font: 9px var(--font-geist-mono), monospace;
-  grid-column: 1;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.studio-gate-magic p {
-  font-size: 13px;
-  grid-column: 1;
-  line-height: 1.45;
-  margin: 0;
-}
-
-.studio-gate-magic button {
+.studio-gate-switch {
   align-items: center;
-  align-self: center;
+  border-top: 1px solid rgba(32, 31, 30, 0.42);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  justify-content: space-between;
+  margin-top: 2px;
+  padding-top: 12px;
+}
+
+.studio-gate-switch button {
   background: transparent;
-  border: 1px solid var(--ink);
+  border: 0;
   color: var(--ink);
   cursor: pointer;
-  display: flex;
   font: 10px var(--font-geist-mono), monospace;
-  gap: 12px;
-  grid-column: 2;
-  grid-row: 1 / span 2;
   letter-spacing: 0.05em;
-  padding: 16px 18px;
+  padding: 0;
+  text-decoration: underline;
   text-transform: uppercase;
+  text-underline-offset: 3px;
 }
 
-.studio-gate-magic button:hover {
-  background: var(--ink);
-  color: var(--acid);
+.studio-gate-switch button:hover {
+  opacity: 0.7;
 }
 
-.studio-gate-magic button:disabled {
+.studio-gate-switch button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
-.studio-gate-form label {
+.studio-gate-form label,
+.studio-gate-field {
   display: grid;
-  gap: 8px;
+  gap: 5px;
+}
+
+.studio-gate-name-row {
+  display: grid;
+  align-items: start;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 560px) {
+  .studio-gate-name-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .studio-gate-form input {
   background: rgba(255, 255, 255, 0.42);
   border: 1px solid rgba(32, 31, 30, 0.35);
-  font-size: 18px;
+  font-size: 16px;
   letter-spacing: -0.02em;
-  padding: 16px 18px;
+  padding: 11px 14px;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
   width: 100%;
 }
 
 .studio-gate-form input::placeholder {
   color: rgba(32, 31, 30, 0.45);
+}
+
+.studio-gate-form input:focus-visible {
+  background: rgba(255, 255, 255, 0.62);
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(32, 31, 30, 0.12);
+  outline: none;
+}
+
+.studio-gate-field.is-invalid input {
+  background: rgba(255, 236, 232, 0.9);
+  border-color: #9a3412;
+  box-shadow: 0 0 0 3px rgba(154, 52, 18, 0.12);
+}
+
+.studio-gate-password {
+  position: relative;
+}
+
+.studio-gate-password.has-toggle:has(.studio-gate-password-toggle) input {
+  padding-right: 48px;
+}
+
+.studio-gate-password-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: rgba(32, 31, 30, 0.62);
+  cursor: pointer;
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  touch-action: none;
+  transform: translateY(-50%);
+  user-select: none;
+  -webkit-user-select: none;
+  width: 36px;
+}
+
+.studio-gate-password-toggle:hover {
+  color: var(--ink);
+}
+
+.studio-gate-password-toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.studio-gate-field.is-invalid .studio-gate-password-toggle {
+  color: #9a3412;
+}
+
+.studio-gate-field-error {
+  color: #9a3412;
+  font: 11px/1.35 var(--font-geist-mono), monospace;
+  letter-spacing: 0.01em;
+  margin: 0;
+  animation: gate-field-error 180ms ease;
+}
+
+.studio-gate-field-hint {
+  color: rgba(32, 31, 30, 0.62);
+  font: 11px/1.35 var(--font-geist-mono), monospace;
+  margin: 0;
+}
+
+@keyframes gate-field-error {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .studio-gate-actions {
@@ -439,14 +524,14 @@ textarea:focus-visible {
   color: var(--ink);
   cursor: pointer;
   font: 10px var(--font-geist-mono), monospace;
-  padding: 16px 18px;
+  padding: 12px 16px;
   text-transform: uppercase;
 }
 
 .studio-gate-status,
 .studio-gate-note {
   grid-column: 1 / -1;
-  margin-top: 18px;
+  margin-top: 10px;
 }
 
 .studio-gate-note {
@@ -1093,6 +1178,13 @@ textarea:focus-visible {
   text-transform: uppercase;
 }
 
+.mini-label .req-mark {
+  color: inherit;
+  font-weight: inherit;
+  letter-spacing: 0;
+  margin-left: 1px;
+}
+
 .direction-row p {
   font-size: 13px;
   line-height: 1.45;
@@ -1344,7 +1436,8 @@ textarea:focus-visible {
 }
 
 .confirm-dialog-primary span {
-  font-size: 18px;
+  padding-left: 4px;
+  font-size: 10px;
 }
 
 .method-backdrop {
@@ -3951,15 +4044,9 @@ textarea:focus-visible {
     gap: 8px;
   }
 
-  .studio-gate-magic {
-    grid-template-columns: 1fr;
-  }
-
-  .studio-gate-magic button {
-    grid-column: 1;
-    grid-row: auto;
-    justify-content: space-between;
-    width: 100%;
+  .studio-gate-switch {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .signal-cost-list {

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    await assertRateLimit(clientIp(request), RATE_LIMITS.otpIp);
+    await assertRateLimit(clientIp(request), RATE_LIMITS.passwordIp);
 
     const body = (await request.json()) as {
       email?: string;
@@ -21,9 +21,9 @@ export async function POST(request: Request) {
     };
     const email = body.email?.trim().toLowerCase() ?? "";
     const password = body.password ?? "";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 6) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || !password) {
       return Response.json(
-        { error: "Enter email and password (min 6 characters)." },
+        { error: "Enter email and password." },
         { status: 400 },
       );
     }
@@ -56,9 +56,17 @@ export async function POST(request: Request) {
       password,
     });
     if (error || !data.user?.email) {
+      const needsConfirmation = /not confirmed|confirm/i.test(
+        error?.message ?? "",
+      );
       return Response.json(
-        { error: "Invalid email or password." },
-        { status: 401 },
+        {
+          error: needsConfirmation
+            ? "Confirm your email first — check your inbox, or resend the link."
+            : "Invalid email or password.",
+          needsConfirmation,
+        },
+        { status: needsConfirmation ? 403 : 401 },
       );
     }
 

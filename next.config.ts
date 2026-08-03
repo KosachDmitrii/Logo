@@ -3,7 +3,9 @@ import type { NextConfig } from "next";
 const apiProxyTarget = process.env.API_PROXY_TARGET?.replace(/\/+$/, "");
 
 if (apiProxyTarget) {
-  console.info(`[next.config] Proxying /api/* → ${apiProxyTarget}/api/*`);
+  console.info(
+    `[next.config] Proxying studio /api/* → ${apiProxyTarget}/api/* (auth stays local for magic-link cookies)`,
+  );
 }
 
 const nextConfig: NextConfig = {
@@ -17,12 +19,33 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     if (!apiProxyTarget) return [];
-    // beforeFiles: otherwise local app/api route handlers win and Railway is never hit.
+    // Auth must stay on the same origin as the browser (PKCE cookies + /auth/callback).
+    // Studio generation/history still hit Railway.
     return {
       beforeFiles: [
         {
-          source: "/api/:path*",
-          destination: `${apiProxyTarget}/api/:path*`,
+          source: "/api/project-list",
+          destination: `${apiProxyTarget}/api/project-list`,
+        },
+        {
+          source: "/api/generate-concepts",
+          destination: `${apiProxyTarget}/api/generate-concepts`,
+        },
+        {
+          source: "/api/projects",
+          destination: `${apiProxyTarget}/api/projects`,
+        },
+        {
+          source: "/api/projects/:path*",
+          destination: `${apiProxyTarget}/api/projects/:path*`,
+        },
+        {
+          source: "/api/images/:path*",
+          destination: `${apiProxyTarget}/api/images/:path*`,
+        },
+        {
+          source: "/api/assets/:path*",
+          destination: `${apiProxyTarget}/api/assets/:path*`,
         },
       ],
     };

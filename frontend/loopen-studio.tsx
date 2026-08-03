@@ -15,6 +15,14 @@ import {
   resolveMediaUrl,
   sameOriginApiUrl,
 } from "./lib/api";
+import {
+  type AuthFieldErrors,
+  type AuthFieldKey,
+  type AuthFormValues,
+  hasAuthErrors,
+  validateAuthField,
+  validateAuthForm,
+} from "./lib/auth-validation";
 import { buildLockupSvg } from "./lib/lockup-export";
 import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
 import {
@@ -593,10 +601,26 @@ function LoopenStudioApp({
   const [isMethodOpen, setIsMethodOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSignalsOpen, setIsSignalsOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<
+    "signin" | "signup" | "forgot" | "reset" | "confirm"
+  >("signin");
   const [authEmail, setAuthEmail] = useState("");
+  const [authFirstName, setAuthFirstName] = useState("");
+  const [authLastName, setAuthLastName] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authPasswordConfirm, setAuthPasswordConfirm] = useState("");
+  const [authPasswordVisible, setAuthPasswordVisible] = useState(false);
+  const [authErrors, setAuthErrors] = useState<AuthFieldErrors>({});
+  const [authTouched, setAuthTouched] = useState<
+    Partial<Record<AuthFieldKey, boolean>>
+  >({});
+  const [authSubmitAttempted, setAuthSubmitAttempted] = useState(false);
   const [authStatus, setAuthStatus] = useState("");
-  const [authSending, setAuthSending] = useState<"password" | "magic" | "">("");
+  const [authSending, setAuthSending] = useState<
+    "signin" | "signup" | "forgot" | "reset" | "resend" | ""
+  >("");
+  const [authResendReadyAt, setAuthResendReadyAt] = useState(0);
+  const [authResendWaitSec, setAuthResendWaitSec] = useState(0);
   const [signalBalance, setSignalBalance] = useState<number | null>(
     user?.signalBalance ?? null,
   );
@@ -680,10 +704,125 @@ function LoopenStudioApp({
     });
   }
 
+  function startAuthResendCooldown(seconds = 60) {
+    setAuthResendReadyAt(Date.now() + seconds * 1000);
+    setAuthResendWaitSec(seconds);
+  }
+
+  function authFormValues(): AuthFormValues {
+    return {
+      firstName: authFirstName,
+      lastName: authLastName,
+      email: authEmail,
+      password: authPassword,
+      passwordConfirm: authPasswordConfirm,
+    };
+  }
+
+  function clearAuthFieldErrors() {
+    setAuthErrors({});
+    setAuthTouched({});
+    setAuthSubmitAttempted(false);
+  }
+
+  function showAuthFieldError(field: AuthFieldKey): string | undefined {
+    if (!authSubmitAttempted && !authTouched[field]) return undefined;
+    return authErrors[field];
+  }
+
+  function updateAuthField(field: AuthFieldKey, value: string) {
+    const nextValues = authFormValues();
+    if (field === "firstName") {
+      setAuthFirstName(value);
+      nextValues.firstName = value;
+    } else if (field === "lastName") {
+      setAuthLastName(value);
+      nextValues.lastName = value;
+    } else if (field === "email") {
+      setAuthEmail(value);
+      nextValues.email = value;
+    } else if (field === "password") {
+      setAuthPassword(value);
+      nextValues.password = value;
+      if (!value) setAuthPasswordVisible(false);
+    } else {
+      setAuthPasswordConfirm(value);
+      nextValues.passwordConfirm = value;
+    }
+
+    if (authSubmitAttempted || authTouched[field]) {
+      const message = validateAuthField(field, nextValues, authMode);
+      setAuthErrors((current) => {
+        const next = { ...current };
+        if (message) next[field] = message;
+        else delete next[field];
+        return next;
+      });
+    }
+    if (
+      field === "password" &&
+      (authSubmitAttempted || authTouched.passwordConfirm) &&
+      (authMode === "signup" || authMode === "reset")
+    ) {
+      const confirmMessage = validateAuthField(
+        "passwordConfirm",
+        nextValues,
+        authMode,
+      );
+      setAuthErrors((current) => {
+        const next = { ...current };
+        if (confirmMessage) next.passwordConfirm = confirmMessage;
+        else delete next.passwordConfirm;
+        return next;
+      });
+    }
+  }
+
+  function blurAuthField(field: AuthFieldKey) {
+    setAuthTouched((current) => ({ ...current, [field]: true }));
+    const message = validateAuthField(field, authFormValues(), authMode);
+    setAuthErrors((current) => {
+      const next = { ...current };
+      if (message) next[field] = message;
+      else delete next[field];
+      return next;
+    });
+  }
+
+  function runAuthValidation(): boolean {
+    const errors = validateAuthForm(authMode, authFormValues());
+    setAuthSubmitAttempted(true);
+    setAuthErrors(errors);
+    return !hasAuthErrors(errors);
+  }
+
+  function openAuthGate(
+    mode: "signin" | "signup" | "forgot" | "reset" | "confirm" = "signin",
+    status = "",
+  ) {
+    setAuthMode(mode);
+    setAuthStatus(status);
+    setAuthPassword("");
+    setAuthPasswordConfirm("");
+    setAuthPasswordVisible(false);
+    clearAuthFieldErrors();
+    if (mode !== "signup") {
+      setAuthFirstName("");
+      setAuthLastName("");
+    }
+    if (mode !== "confirm") {
+      setAuthResendReadyAt(0);
+      setAuthResendWaitSec(0);
+    }
+    setIsAuthOpen(true);
+  }
+
   function requireStudioAccess() {
     if (user) return true;
-    setIsAuthOpen(true);
-    setAuthStatus("Enter with email to generate, save and keep work private.");
+    openAuthGate(
+      "signin",
+      "Enter with email to generate, save and keep work private.",
+    );
     return false;
   }
 
@@ -720,47 +859,14 @@ function LoopenStudioApp({
     }
   }
 
-  async function sendEntryLink() {
-    const email = authEmail.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setAuthStatus("Use a real email — the magic link lands there.");
-      return;
-    }
-    setAuthSending("magic");
-    setAuthStatus("Sending a private entry link…");
-    try {
-      const response = await apiFetch("/auth/otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const payload = await readApiJson<{ error?: string; message?: string }>(
-        response,
-      );
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Could not send the entry link.");
-      }
-      setAuthStatus(
-        payload.message ??
-          "Entry link sent. Open it on this device to unlock the studio.",
-      );
-    } catch (error) {
-      setAuthStatus(
-        error instanceof Error ? error.message : "Could not send the entry link.",
-      );
-    } finally {
-      setAuthSending("");
-    }
-  }
-
   async function signInWithPassword(event?: { preventDefault(): void }) {
     event?.preventDefault();
-    const email = authEmail.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || authPassword.length < 6) {
-      setAuthStatus("Enter email and password (min 6 characters).");
+    if (!runAuthValidation()) {
+      setAuthStatus("Check the highlighted fields and try again.");
       return;
     }
-    setAuthSending("password");
+    const email = authEmail.trim().toLowerCase();
+    setAuthSending("signin");
     setAuthStatus("Opening the studio…");
     try {
       const response = await apiFetch("/auth/password", {
@@ -768,9 +874,26 @@ function LoopenStudioApp({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password: authPassword }),
       });
-      const payload = await readApiJson<{ error?: string }>(response);
+      const payload = await readApiJson<{
+        error?: string;
+        needsConfirmation?: boolean;
+      }>(response);
       if (!response.ok) {
-        throw new Error(payload.error ?? "Invalid email or password.");
+        if (payload.needsConfirmation) {
+          openAuthGate(
+            "confirm",
+            payload.error ??
+              "Confirm your email first — check your inbox, or resend the link.",
+          );
+          setAuthSending("");
+          return;
+        }
+        setAuthErrors({
+          password: payload.error ?? "Invalid email or password.",
+        });
+        setAuthStatus(payload.error ?? "Invalid email or password.");
+        setAuthSending("");
+        return;
       }
       window.location.href = "/#brief";
       window.location.reload();
@@ -780,6 +903,175 @@ function LoopenStudioApp({
       );
       setAuthSending("");
     }
+  }
+
+  async function registerWithPassword(event?: { preventDefault(): void }) {
+    event?.preventDefault();
+    if (!runAuthValidation()) {
+      setAuthStatus("Check the highlighted fields and try again.");
+      return;
+    }
+    const email = authEmail.trim().toLowerCase();
+    const firstName = authFirstName.trim();
+    const lastName = authLastName.trim();
+    setAuthSending("signup");
+    setAuthStatus("Creating your studio account…");
+    try {
+      const response = await apiFetch("/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password: authPassword,
+          firstName,
+          lastName,
+        }),
+      });
+      const payload = await readApiJson<{
+        error?: string;
+        message?: string;
+        needsConfirmation?: boolean;
+      }>(response);
+      if (!response.ok) {
+        setAuthStatus(payload.error ?? "Could not create the account.");
+        setAuthSending("");
+        return;
+      }
+      if (payload.needsConfirmation) {
+        setAuthPassword("");
+        setAuthPasswordConfirm("");
+        openAuthGate(
+          "confirm",
+          payload.message ??
+            "Account created. Confirm the email we just sent, then enter the studio.",
+        );
+        startAuthResendCooldown(60);
+        setAuthSending("");
+        return;
+      }
+      window.location.href = "/#brief";
+      window.location.reload();
+    } catch (error) {
+      setAuthStatus(
+        error instanceof Error ? error.message : "Could not create the account.",
+      );
+      setAuthSending("");
+    }
+  }
+
+  async function resendConfirmationEmail() {
+    if (authResendWaitSec > 0 || authSending === "resend") return;
+    if (!runAuthValidation()) {
+      setAuthStatus("Enter a valid email to resend confirmation.");
+      return;
+    }
+    const email = authEmail.trim().toLowerCase();
+    setAuthSending("resend");
+    setAuthStatus("Resending confirmation…");
+    try {
+      const response = await apiFetch("/auth/resend-confirmation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await readApiJson<{ error?: string; message?: string }>(
+        response,
+      );
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not resend confirmation.");
+      }
+      startAuthResendCooldown(60);
+      setAuthStatus(
+        payload.message ??
+          "Confirmation email sent. Wait a minute before requesting another.",
+      );
+    } catch (error) {
+      setAuthStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not resend confirmation.",
+      );
+    } finally {
+      setAuthSending("");
+    }
+  }
+
+  async function requestPasswordReset(event?: { preventDefault(): void }) {
+    event?.preventDefault();
+    if (!runAuthValidation()) {
+      setAuthStatus("Enter a valid email to reset access.");
+      return;
+    }
+    const email = authEmail.trim().toLowerCase();
+    setAuthSending("forgot");
+    setAuthStatus("Sending a reset link…");
+    try {
+      const response = await apiFetch("/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = await readApiJson<{ error?: string; message?: string }>(
+        response,
+      );
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not send the reset email.");
+      }
+      setAuthStatus(
+        payload.message ??
+          "If that email has an account, a reset link is on its way.",
+      );
+    } catch (error) {
+      setAuthStatus(
+        error instanceof Error ? error.message : "Could not send the reset email.",
+      );
+    } finally {
+      setAuthSending("");
+    }
+  }
+
+  async function updateStudioPassword(event?: { preventDefault(): void }) {
+    event?.preventDefault();
+    if (!runAuthValidation()) {
+      setAuthStatus("Check the highlighted fields and try again.");
+      return;
+    }
+    setAuthSending("reset");
+    setAuthStatus("Saving your new password…");
+    try {
+      const response = await apiFetch("/auth/update-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: authPassword }),
+      });
+      const payload = await readApiJson<{ error?: string; message?: string }>(
+        response,
+      );
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not update the password.");
+      }
+      window.location.href = "/#brief";
+      window.location.reload();
+    } catch (error) {
+      setAuthStatus(
+        error instanceof Error ? error.message : "Could not update the password.",
+      );
+      setAuthSending("");
+    }
+  }
+
+  function submitAuthForm(event: { preventDefault(): void }) {
+    event.preventDefault();
+    if (authMode === "signup") return void registerWithPassword();
+    if (authMode === "forgot") return void requestPasswordReset();
+    if (authMode === "reset") return void updateStudioPassword();
+    return void signInWithPassword();
+  }
+
+  function suppressNativeAuthValidation(
+    event: { preventDefault(): void },
+  ) {
+    event.preventDefault();
   }
 
   async function startSignalCheckout(packId: string) {
@@ -896,12 +1188,59 @@ function LoopenStudioApp({
   }, [user?.email]);
 
   useEffect(() => {
+    if (!authResendReadyAt) {
+      setAuthResendWaitSec(0);
+      return;
+    }
+    const tick = () => {
+      const left = Math.max(
+        0,
+        Math.ceil((authResendReadyAt - Date.now()) / 1000),
+      );
+      setAuthResendWaitSec(left);
+      if (left === 0) setAuthResendReadyAt(0);
+    };
+    tick();
+    const id = window.setInterval(tick, 400);
+    return () => window.clearInterval(id);
+  }, [authResendReadyAt]);
+
+  useEffect(() => {
     void refreshStudioAccount();
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash.replace(/^#/, "");
-    if (hash === "enter" || params.has("auth") || signInPath.includes("#enter")) {
-      // Open even for Local Studio — that identity is not a real account.
-      if (!user || user.source === "local") setIsAuthOpen(true);
+    const authError = params.get("auth");
+    const wantsReset = params.get("reset") === "1";
+    if (wantsReset) {
+      openAuthGate(
+        "reset",
+        "Choose a new password for this studio account.",
+      );
+    } else if (authError === "confirmed") {
+      if (isGuestSession) {
+        openAuthGate(
+          "signin",
+          "Email confirmed. Sign in with your password to enter the studio.",
+        );
+      } else {
+        setNotice("Email confirmed. Welcome to the studio.");
+      }
+    } else if (
+      authError === "failed" ||
+      authError === "missing" ||
+      authError === "config"
+    ) {
+      openAuthGate(
+        "signin",
+        authError === "config"
+          ? "Auth is not configured on this host."
+          : "That link expired or was opened in a different browser. Sign in, or request a new confirmation email.",
+      );
+    } else if (
+      (hash === "enter" || params.has("auth") || signInPath.includes("#enter")) &&
+      isGuestSession
+    ) {
+      openAuthGate("signin");
     }
     if (params.get("signals") === "topped") {
       setNotice("Signals landed. The studio is charged and ready.");
@@ -911,7 +1250,7 @@ function LoopenStudioApp({
     if (params.get("signals") === "cancelled") {
       setNotice("Top-up cancelled — your balance is unchanged.");
     }
-  }, [user?.email, signInPath]);
+  }, [user?.email, signInPath, isGuestSession]);
 
   useEffect(() => {
     // While production is locked (Reduce reset), trust local snapshot only —
@@ -2008,12 +2347,12 @@ function LoopenStudioApp({
             <button
               className="project-pill enter-pill"
               type="button"
-              onClick={() => {
-                setAuthStatus(
-                  "Enter with email and password, or request a magic link.",
-                );
-                setIsAuthOpen(true);
-              }}
+              onClick={() =>
+                openAuthGate(
+                  "signin",
+                  "Sign in or create an account to generate and save work.",
+                )
+              }
               title="Enter with email"
             >
               <span className="online-dot" />
@@ -2034,7 +2373,11 @@ function LoopenStudioApp({
         </div>
       </header>
       {isAuthOpen && (
-        <div className="studio-gate-backdrop" role="presentation" onClick={() => setIsAuthOpen(false)}>
+        <div
+          className="studio-gate-backdrop"
+          role="presentation"
+          onClick={() => setIsAuthOpen(false)}
+        >
           <section
             className="studio-gate"
             role="dialog"
@@ -2043,71 +2386,447 @@ function LoopenStudioApp({
             onClick={(event) => event.stopPropagation()}
           >
             <p className="studio-gate-index">∞</p>
-            <p>01 / Private entry</p>
+            <p>
+              {authMode === "signup"
+                ? "02 / New account"
+                : authMode === "confirm"
+                  ? "02 / Confirm email"
+                  : authMode === "forgot"
+                    ? "03 / Reset access"
+                    : authMode === "reset"
+                      ? "04 / New password"
+                      : "01 / Private entry"}
+            </p>
             <h2 id="studio-gate-title">
-              Enter the
-              <em> studio.</em>
+              {authMode === "signup" ? (
+                <>
+                  Join the
+                  <em> studio.</em>
+                </>
+              ) : authMode === "confirm" ? (
+                <>
+                  Confirm your
+                  <em> email.</em>
+                </>
+              ) : authMode === "forgot" ? (
+                <>
+                  Reset your
+                  <em> access.</em>
+                </>
+              ) : authMode === "reset" ? (
+                <>
+                  Set a new
+                  <em> password.</em>
+                </>
+              ) : (
+                <>
+                  Enter the
+                  <em> studio.</em>
+                </>
+              )}
             </h2>
             <div className="studio-gate-copy">
               <span>How</span>
               <p>
-                Sign in with email + password, or request a one-time magic link —
-                both paths open the same private studio.
+                {authMode === "signup"
+                  ? "Create an email + password account. We’ll send a confirmation link before first entry."
+                  : authMode === "confirm"
+                    ? "Open the confirmation link in this browser. After that, sign in with your password."
+                    : authMode === "forgot"
+                      ? "We’ll email a reset link. Open it in this browser, then choose a new password."
+                      : authMode === "reset"
+                        ? "You’re signed in via the reset link. Pick a password you’ll remember."
+                        : "Sign in with email + password. New here? Create an account below."}
               </p>
             </div>
-            <form className="studio-gate-form" onSubmit={signInWithPassword}>
-              <label>
-                <span className="mini-label">Email</span>
-                <input
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@brand.studio"
-                  value={authEmail}
-                  onChange={(event) => setAuthEmail(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                <span className="mini-label">Password</span>
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  value={authPassword}
-                  onChange={(event) => setAuthPassword(event.target.value)}
-                  minLength={6}
-                />
-              </label>
+            <form
+              className="studio-gate-form"
+              onSubmit={submitAuthForm}
+              noValidate
+              // Kill leftover browser constraint bubbles if any field gets a
+              // required/pattern attribute from autocomplete tooling.
+              onInvalid={suppressNativeAuthValidation}
+            >
+              {authMode === "signup" && (
+                <div className="studio-gate-name-row">
+                  <label
+                    className={`studio-gate-field${showAuthFieldError("firstName") ? " is-invalid" : ""}`}
+                    htmlFor="studio-auth-first-name"
+                  >
+                    <span className="mini-label">
+                      First name <span className="req-mark" aria-hidden="true">*</span>
+                    </span>
+                    <input
+                      id="studio-auth-first-name"
+                      type="text"
+                      autoComplete="given-name"
+                      placeholder="Ada"
+                      value={authFirstName}
+                      onChange={(event) =>
+                        updateAuthField("firstName", event.target.value)
+                      }
+                      onBlur={() => blurAuthField("firstName")}
+                      onInvalid={suppressNativeAuthValidation}
+                      maxLength={80}
+                      aria-invalid={Boolean(showAuthFieldError("firstName"))}
+                      aria-describedby={
+                        showAuthFieldError("firstName")
+                          ? "studio-auth-first-name-error"
+                          : undefined
+                      }
+                    />
+                    {showAuthFieldError("firstName") && (
+                      <span
+                        className="studio-gate-field-error"
+                        id="studio-auth-first-name-error"
+                        role="alert"
+                      >
+                        {showAuthFieldError("firstName")}
+                      </span>
+                    )}
+                  </label>
+                  <label
+                    className={`studio-gate-field${showAuthFieldError("lastName") ? " is-invalid" : ""}`}
+                    htmlFor="studio-auth-last-name"
+                  >
+                    <span className="mini-label">
+                      Last name <span className="req-mark" aria-hidden="true">*</span>
+                    </span>
+                    <input
+                      id="studio-auth-last-name"
+                      type="text"
+                      autoComplete="family-name"
+                      placeholder="Lovelace"
+                      value={authLastName}
+                      onChange={(event) =>
+                        updateAuthField("lastName", event.target.value)
+                      }
+                      onBlur={() => blurAuthField("lastName")}
+                      onInvalid={suppressNativeAuthValidation}
+                      maxLength={80}
+                      aria-invalid={Boolean(showAuthFieldError("lastName"))}
+                      aria-describedby={
+                        showAuthFieldError("lastName")
+                          ? "studio-auth-last-name-error"
+                          : undefined
+                      }
+                    />
+                    {showAuthFieldError("lastName") && (
+                      <span
+                        className="studio-gate-field-error"
+                        id="studio-auth-last-name-error"
+                        role="alert"
+                      >
+                        {showAuthFieldError("lastName")}
+                      </span>
+                    )}
+                  </label>
+                </div>
+              )}
+              {authMode !== "reset" && (
+                <label
+                  className={`studio-gate-field${showAuthFieldError("email") ? " is-invalid" : ""}`}
+                  htmlFor="studio-auth-email"
+                >
+                  <span className="mini-label">
+                    Email <span className="req-mark" aria-hidden="true">*</span>
+                  </span>
+                  <input
+                    id="studio-auth-email"
+                    type="text"
+                    autoComplete="email"
+                    inputMode="email"
+                    placeholder="you@brand.studio"
+                    value={authEmail}
+                    onChange={(event) =>
+                      updateAuthField("email", event.target.value)
+                    }
+                    onBlur={() => blurAuthField("email")}
+                    onInvalid={suppressNativeAuthValidation}
+                    readOnly={authMode === "confirm"}
+                    aria-invalid={Boolean(showAuthFieldError("email"))}
+                    aria-describedby={
+                      showAuthFieldError("email")
+                        ? "studio-auth-email-error"
+                        : undefined
+                    }
+                  />
+                  {showAuthFieldError("email") && (
+                    <span
+                      className="studio-gate-field-error"
+                      id="studio-auth-email-error"
+                      role="alert"
+                    >
+                      {showAuthFieldError("email")}
+                    </span>
+                  )}
+                </label>
+              )}
+              {authMode !== "forgot" && authMode !== "confirm" && (
+                <label
+                  className={`studio-gate-field${showAuthFieldError("password") ? " is-invalid" : ""}`}
+                  htmlFor="studio-auth-password"
+                >
+                  <span className="mini-label">
+                    {authMode === "reset" ? "New password" : "Password"}{" "}
+                    <span className="req-mark" aria-hidden="true">*</span>
+                  </span>
+                  <div
+                    className={`studio-gate-password${authMode === "signin" ? " has-toggle" : ""}`}
+                  >
+                    <input
+                      id="studio-auth-password"
+                      type={
+                        authMode === "signin" && authPasswordVisible
+                          ? "text"
+                          : "password"
+                      }
+                      autoComplete={
+                        authMode === "signin"
+                          ? "current-password"
+                          : "new-password"
+                      }
+                      placeholder="••••••••"
+                      value={authPassword}
+                      onChange={(event) =>
+                        updateAuthField("password", event.target.value)
+                      }
+                      onBlur={() => blurAuthField("password")}
+                      onInvalid={suppressNativeAuthValidation}
+                      aria-invalid={Boolean(showAuthFieldError("password"))}
+                      aria-describedby={
+                        showAuthFieldError("password")
+                          ? "studio-auth-password-error"
+                          : authMode === "signup" || authMode === "reset"
+                            ? "studio-auth-password-hint"
+                            : undefined
+                      }
+                    />
+                    {authMode === "signin" && authPassword.length > 0 && (
+                      <button
+                        type="button"
+                        className="studio-gate-password-toggle"
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          setAuthPasswordVisible(true);
+                        }}
+                        onPointerUp={() => setAuthPasswordVisible(false)}
+                        onPointerLeave={() => setAuthPasswordVisible(false)}
+                        onPointerCancel={() => setAuthPasswordVisible(false)}
+                        onBlur={() => setAuthPasswordVisible(false)}
+                        onContextMenu={(event) => event.preventDefault()}
+                        aria-label="Hold to show password"
+                        tabIndex={0}
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="18"
+                          height="18"
+                          aria-hidden="true"
+                        >
+                          {authPasswordVisible ? (
+                            <>
+                              <path
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.7"
+                                strokeLinecap="round"
+                                d="M3.5 3.5l17 17"
+                              />
+                              <path
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.7"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9.9 9.9A3 3 0 0 0 12 15a3 3 0 0 0 2.1-.9M7.1 7.3C5.2 8.4 3.7 10 2.8 12c1.8 4 5.3 6.5 9.2 6.5 1.5 0 2.9-.4 4.2-1.1M10.6 5.3A10.4 10.4 0 0 1 12 5.5c3.9 0 7.4 2.5 9.2 6.5-.6 1.3-1.5 2.5-2.6 3.4"
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <path
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.7"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M2.8 12C4.6 8 8.1 5.5 12 5.5S19.4 8 21.2 12c-1.8 4-5.3 6.5-9.2 6.5S4.6 16 2.8 12Z"
+                              />
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="3"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.7"
+                              />
+                            </>
+                          )}
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  {(authMode === "signup" || authMode === "reset") &&
+                    !showAuthFieldError("password") && (
+                      <span
+                        className="studio-gate-field-hint"
+                        id="studio-auth-password-hint"
+                      >
+                        At least 8 characters, with a letter and a number.
+                      </span>
+                    )}
+                  {showAuthFieldError("password") && (
+                    <span
+                      className="studio-gate-field-error"
+                      id="studio-auth-password-error"
+                      role="alert"
+                    >
+                      {showAuthFieldError("password")}
+                    </span>
+                  )}
+                </label>
+              )}
+              {(authMode === "signup" || authMode === "reset") && (
+                <label
+                  className={`studio-gate-field${showAuthFieldError("passwordConfirm") ? " is-invalid" : ""}`}
+                  htmlFor="studio-auth-password-confirm"
+                >
+                  <span className="mini-label">
+                    Confirm password{" "}
+                    <span className="req-mark" aria-hidden="true">*</span>
+                  </span>
+                  <input
+                    id="studio-auth-password-confirm"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    value={authPasswordConfirm}
+                    onChange={(event) =>
+                      updateAuthField("passwordConfirm", event.target.value)
+                    }
+                    onBlur={() => blurAuthField("passwordConfirm")}
+                    onInvalid={suppressNativeAuthValidation}
+                    aria-invalid={Boolean(
+                      showAuthFieldError("passwordConfirm"),
+                    )}
+                    aria-describedby={
+                      showAuthFieldError("passwordConfirm")
+                        ? "studio-auth-password-confirm-error"
+                        : undefined
+                    }
+                  />
+                  {showAuthFieldError("passwordConfirm") && (
+                    <span
+                      className="studio-gate-field-error"
+                      id="studio-auth-password-confirm-error"
+                      role="alert"
+                    >
+                      {showAuthFieldError("passwordConfirm")}
+                    </span>
+                  )}
+                </label>
+              )}
               <div className="studio-gate-actions">
                 <button type="button" onClick={() => setIsAuthOpen(false)}>
                   Not now
                 </button>
-                <button
-                  className="confirm-dialog-primary"
-                  type="submit"
-                  disabled={Boolean(authSending)}
-                >
-                  {authSending === "password" ? "Signing in…" : "Enter studio"}
-                  <span>→</span>
-                </button>
+                {authMode === "confirm" ? (
+                  <button
+                    className="confirm-dialog-primary"
+                    type="button"
+                    disabled={Boolean(authSending) || authResendWaitSec > 0}
+                    onClick={() => void resendConfirmationEmail()}
+                  >
+                    {authSending === "resend"
+                      ? "Sending…"
+                      : authResendWaitSec > 0
+                        ? `Resend in ${authResendWaitSec}s`
+                        : "Resend email"}
+                    <span>↗</span>
+                  </button>
+                ) : (
+                  <button
+                    className="confirm-dialog-primary"
+                    type="submit"
+                    formNoValidate
+                    disabled={Boolean(authSending)}
+                  >
+                    {authSending === "signin"
+                      ? "Signing in…"
+                      : authSending === "signup"
+                        ? "Creating…"
+                        : authSending === "forgot"
+                          ? "Sending…"
+                          : authSending === "reset"
+                            ? "Saving…"
+                            : authMode === "signup"
+                              ? "Create account"
+                              : authMode === "forgot"
+                                ? "Send reset link"
+                                : authMode === "reset"
+                                  ? "Save password"
+                                  : "Enter studio"}
+                    <span>→</span>
+                  </button>
+                )}
               </div>
-              <div className="studio-gate-magic">
-                <span>Or magic link</span>
-                <p>No password — we email a private entry key to the address above.</p>
-                <button
-                  type="button"
-                  disabled={Boolean(authSending)}
-                  onClick={() => void sendEntryLink()}
-                >
-                  {authSending === "magic" ? "Sending…" : "Send entry link"}
-                  <span>↗</span>
-                </button>
+              <div className="studio-gate-switch">
+                {authMode === "signin" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openAuthGate("signup")}
+                      disabled={Boolean(authSending)}
+                    >
+                      Create account
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openAuthGate("forgot")}
+                      disabled={Boolean(authSending)}
+                    >
+                      Forgot password
+                    </button>
+                  </>
+                )}
+                {authMode === "signup" && (
+                  <button
+                    type="button"
+                    onClick={() => openAuthGate("signin")}
+                    disabled={Boolean(authSending)}
+                  >
+                    Already have an account? Sign in
+                  </button>
+                )}
+                {authMode === "confirm" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openAuthGate(
+                        "signin",
+                        "After confirming, sign in with your password.",
+                      )
+                    }
+                    disabled={Boolean(authSending)}
+                  >
+                    I confirmed — sign in
+                  </button>
+                )}
+                {(authMode === "forgot" || authMode === "reset") && (
+                  <button
+                    type="button"
+                    onClick={() => openAuthGate("signin")}
+                    disabled={Boolean(authSending)}
+                  >
+                    Back to sign in
+                  </button>
+                )}
               </div>
             </form>
             {authStatus && <p className="studio-gate-status">{authStatus}</p>}
             <p className="studio-gate-note">
-              First magic-link entry includes {signalCosts?.generateBatch ?? 4}{" "}
-              welcome signals — enough for one full concept batch.
+              First entry includes {signalCosts?.generateBatch ?? 4} welcome
+              signals — enough for one full concept batch.
             </p>
           </section>
         </div>
