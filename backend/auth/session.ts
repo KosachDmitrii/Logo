@@ -14,6 +14,10 @@ import {
   WELCOME_SIGNALS,
 } from "@/backend/lib/signals";
 import { selectOne } from "@/backend/lib/supabase";
+import {
+  prefsFromMetadata,
+  type StudioEmailPrefs,
+} from "@/backend/auth/supabase-route";
 
 export type StudioUser = {
   displayName: string;
@@ -22,6 +26,9 @@ export type StudioUser = {
   source: "supabase" | "local";
   /** guest = not signed in · user = signed in · admin = elevated */
   role: StudioRole;
+  firstName?: string;
+  lastName?: string;
+  prefs?: StudioEmailPrefs;
 };
 
 export type StudioSession = {
@@ -75,10 +82,21 @@ async function userFromBearer(): Promise<StudioUser | null> {
     typeof data.user.user_metadata?.full_name === "string"
       ? data.user.user_metadata.full_name
       : null;
+  const firstName =
+    typeof data.user.user_metadata?.first_name === "string"
+      ? data.user.user_metadata.first_name
+      : "";
+  const lastName =
+    typeof data.user.user_metadata?.last_name === "string"
+      ? data.user.user_metadata.last_name
+      : "";
   return {
     displayName: fullName ?? displayFromEmail(email),
     email,
     fullName,
+    firstName,
+    lastName,
+    prefs: prefsFromMetadata(data.user.user_metadata),
     source: "supabase",
     role: roleFromAppMetadata(data.user.app_metadata),
   };
@@ -114,10 +132,21 @@ async function userFromCookies(): Promise<StudioUser | null> {
     typeof data.user.user_metadata?.full_name === "string"
       ? data.user.user_metadata.full_name
       : null;
+  const firstName =
+    typeof data.user.user_metadata?.first_name === "string"
+      ? data.user.user_metadata.first_name
+      : "";
+  const lastName =
+    typeof data.user.user_metadata?.last_name === "string"
+      ? data.user.user_metadata.last_name
+      : "";
   return {
     displayName: fullName ?? displayFromEmail(email),
     email,
     fullName,
+    firstName,
+    lastName,
+    prefs: prefsFromMetadata(data.user.user_metadata),
     source: "supabase",
     role: roleFromAppMetadata(data.user.app_metadata),
   };

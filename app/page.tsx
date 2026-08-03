@@ -31,6 +31,16 @@ export default async function Home() {
               signalBalance,
               source: session.user.source,
               role: session.role,
+              firstName: session.user.firstName,
+              lastName: session.user.lastName,
+              prefs: session.user.prefs
+                ? {
+                    productUpdates: session.user.prefs.productUpdates,
+                    signalReceipts: session.user.prefs.signalReceipts,
+                    teamLaunch: session.user.prefs.teamLaunch,
+                    briefLocale: session.user.prefs.briefLocale,
+                  }
+                : undefined,
             }
           : null
       }

@@ -84,7 +84,7 @@ function fallbackStrategy(brief: ReturnType<typeof validateBrief>): BrandStrateg
         : "No competitors supplied — manual category review is still recommended",
       `Avoid ${brief.avoid || "literal category symbols and stock-logo geometry"}`,
     ],
-    differentiation: `${brief.coreIdea} should become one ownable visual mechanism rather than a literal illustration of ${brief.industry}.`,
+    differentiation: `${brief.coreIdea} should become one ownable visual mechanism rather than a literal illustration of ${brief.industry}. Brief language preference: ${brief.briefLocale ?? "en"}.`,
     typography:
       brief.logoType === "wordmark" || brief.logoType === "combination"
         ? "Begin with a restrained grotesk wordmark, then custom-draw distinctive letter details and spacing."

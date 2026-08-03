@@ -1,3 +1,5 @@
+export type BriefLocale = "en" | "ru" | "he" | "de" | "fr" | "es";
+
 export type LogoBrief = {
   audience: string;
   avoid: string;
@@ -14,8 +16,29 @@ export type LogoBrief = {
   positioning: string;
   usage: string;
   visualDirection: string;
+  /** Language for strategy copy / naming cues in generation. */
+  briefLocale?: BriefLocale;
   strategy?: BrandStrategy;
 };
+
+const BRIEF_LOCALES: BriefLocale[] = ["en", "ru", "he", "de", "fr", "es"];
+
+export function briefLocaleLabel(locale: BriefLocale): string {
+  switch (locale) {
+    case "ru":
+      return "Russian";
+    case "he":
+      return "Hebrew";
+    case "de":
+      return "German";
+    case "fr":
+      return "French";
+    case "es":
+      return "Spanish";
+    default:
+      return "English";
+  }
+}
 
 export type BrandStrategy = {
   categoryCodes: string[];
@@ -141,6 +164,7 @@ Brand: ${brief.brandName}
 Core idea: ${brief.coreIdea}
 Industry: ${brief.industry}
 What the company does: ${brief.companyDescription}
+Brief language: ${briefLocaleLabel(brief.briefLocale ?? "en")} — write naming/strategy cues in this language when text appears; keep the logo mark itself free of letters unless the direction requires a monogram.
 Positioning: ${brief.positioning || "premium, differentiated, contemporary"}
 Personality: ${brief.personalities.join(", ") || "intelligent, clear, memorable"}
 Selected direction: ${directionTitle}
@@ -211,6 +235,9 @@ export function validateBrief(value: unknown): LogoBrief {
         .filter(Boolean)
         .slice(0, 6)
     : [];
+  const briefLocale = BRIEF_LOCALES.includes(input.briefLocale as BriefLocale)
+    ? (input.briefLocale as BriefLocale)
+    : "en";
 
   if (!brandName || !coreIdea || !industry || !companyDescription) {
     throw new Error(
@@ -234,6 +261,7 @@ export function validateBrief(value: unknown): LogoBrief {
     positioning,
     usage,
     visualDirection,
+    briefLocale,
   };
 }
 

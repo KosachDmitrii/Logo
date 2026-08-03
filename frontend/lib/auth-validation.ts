@@ -1,3 +1,5 @@
+import { t, type AppLocale } from "./i18n";
+
 export type AuthFieldKey =
   | "firstName"
   | "lastName"
@@ -29,57 +31,64 @@ export const AUTH_PASSWORD_MIN = 8;
 
 export function validateName(
   value: string,
-  label: "First name" | "Last name",
+  fieldLabel: string,
+  locale: AppLocale = "en",
 ): string | null {
   const trimmed = value.trim();
-  if (!trimmed) return `${label} is required.`;
-  if (trimmed.length < 2) return `${label} needs at least 2 characters.`;
-  if (trimmed.length > 80) return `${label} is too long.`;
+  if (!trimmed) return t(locale, "val.required", { field: fieldLabel });
+  if (trimmed.length < 2) return t(locale, "val.min2", { field: fieldLabel });
+  if (trimmed.length > 80) return t(locale, "val.tooLong", { field: fieldLabel });
   if (!NAME_RE.test(trimmed)) {
-    return `${label} can only use letters, spaces, hyphens and apostrophes.`;
+    return t(locale, "val.nameChars", { field: fieldLabel });
   }
   return null;
 }
 
-export function validateEmail(value: string): string | null {
+export function validateEmail(
+  value: string,
+  locale: AppLocale = "en",
+): string | null {
   const email = value.trim();
-  if (!email) return "Email is required.";
-  if (email.length > 254) return "Email is too long.";
-  if (!EMAIL_RE.test(email)) return "Enter a valid email address.";
+  if (!email) return t(locale, "val.emailRequired");
+  if (email.length > 254) return t(locale, "val.emailLong");
+  if (!EMAIL_RE.test(email)) return t(locale, "val.emailInvalid");
   return null;
 }
 
 export function validatePassword(
   value: string,
-  options: { required?: boolean; minLength?: number; create?: boolean } = {},
+  options: {
+    required?: boolean;
+    minLength?: number;
+    create?: boolean;
+    locale?: AppLocale;
+  } = {},
 ): string | null {
   const {
     required = true,
     minLength = AUTH_PASSWORD_MIN,
     create = false,
+    locale = "en",
   } = options;
-  if (!value) return required ? "Password is required." : null;
+  if (!value) return required ? t(locale, "val.passwordRequired") : null;
   if (value.length < minLength) {
-    return `Password must be at least ${minLength} characters.`;
+    return t(locale, "val.passwordMin", { n: minLength });
   }
   if (create) {
-    if (!/[A-Za-z]/.test(value)) {
-      return "Password needs at least one letter.";
-    }
-    if (!/\d/.test(value)) {
-      return "Password needs at least one number.";
-    }
+    if (!/[A-Za-z]/.test(value)) return t(locale, "val.passwordLetter");
+    if (!/\d/.test(value)) return t(locale, "val.passwordNumber");
   }
-  if (value.length > 128) return "Password is too long.";
+  if (value.length > 128) return t(locale, "val.passwordLong");
   return null;
 }
 
 export function validatePasswordConfirm(
   password: string,
   confirm: string,
+  locale: AppLocale = "en",
 ): string | null {
-  if (!confirm) return "Confirm your password.";
-  if (confirm !== password) return "Passwords do not match.";
+  if (!confirm) return t(locale, "val.passwordConfirm");
+  if (confirm !== password) return t(locale, "val.passwordMatch");
   return null;
 }
 
@@ -87,28 +96,34 @@ export function validateAuthField(
   field: AuthFieldKey,
   values: AuthFormValues,
   mode: AuthFormMode,
+  locale: AppLocale = "en",
 ): string | null {
   switch (field) {
     case "firstName":
       return mode === "signup"
-        ? validateName(values.firstName, "First name")
+        ? validateName(values.firstName, t(locale, "field.firstName"), locale)
         : null;
     case "lastName":
       return mode === "signup"
-        ? validateName(values.lastName, "Last name")
+        ? validateName(values.lastName, t(locale, "field.lastName"), locale)
         : null;
     case "email":
       if (mode === "reset") return null;
-      return validateEmail(values.email);
+      return validateEmail(values.email, locale);
     case "password":
       if (mode === "forgot" || mode === "confirm") return null;
       return validatePassword(values.password, {
         create: mode === "signup" || mode === "reset",
         minLength: mode === "signin" ? 1 : AUTH_PASSWORD_MIN,
+        locale,
       });
     case "passwordConfirm":
       if (mode !== "signup" && mode !== "reset") return null;
-      return validatePasswordConfirm(values.password, values.passwordConfirm);
+      return validatePasswordConfirm(
+        values.password,
+        values.passwordConfirm,
+        locale,
+      );
     default:
       return null;
   }
@@ -117,6 +132,7 @@ export function validateAuthField(
 export function validateAuthForm(
   mode: AuthFormMode,
   values: AuthFormValues,
+  locale: AppLocale = "en",
 ): AuthFieldErrors {
   const fields: AuthFieldKey[] =
     mode === "signup"
@@ -131,7 +147,7 @@ export function validateAuthForm(
 
   const errors: AuthFieldErrors = {};
   for (const field of fields) {
-    const message = validateAuthField(field, values, mode);
+    const message = validateAuthField(field, values, mode, locale);
     if (message) errors[field] = message;
   }
   return errors;

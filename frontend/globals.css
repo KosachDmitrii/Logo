@@ -689,6 +689,320 @@ textarea:focus-visible {
   text-transform: uppercase;
 }
 
+.workspace-tabs {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.workspace-tabs button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  font: 10px var(--font-geist-mono), monospace;
+  letter-spacing: 0.08em;
+  padding: 12px 10px;
+  text-transform: uppercase;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.workspace-tabs button.is-active,
+.workspace-tabs button:hover {
+  background: var(--acid);
+  border-color: var(--acid);
+  color: var(--ink);
+}
+
+.workspace-empty {
+  display: grid;
+  gap: 14px;
+  padding: 8px 0 12px;
+}
+
+.workspace-empty-kicker {
+  color: rgba(255, 255, 255, 0.45);
+  font: 9px var(--font-geist-mono), monospace;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.workspace-empty h3 {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.workspace-empty p {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.workspace-empty-cta,
+.workspace-new-project {
+  align-items: center;
+  background: var(--acid);
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  font: 11px var(--font-geist-mono), monospace;
+  gap: 12px;
+  justify-content: space-between;
+  letter-spacing: 0.06em;
+  padding: 16px 18px;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.workspace-new-project {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--acid);
+  margin-bottom: 4px;
+  width: 100%;
+}
+
+.workspace-new-project:hover {
+  background: var(--acid);
+  border-color: var(--acid);
+  color: var(--ink);
+}
+
+.workspace-account {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.workspace-account::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-acc-block {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.workspace-acc-trigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  font: 11px var(--font-geist-mono), monospace;
+  justify-content: space-between;
+  letter-spacing: 0.06em;
+  padding: 16px 0;
+  text-transform: uppercase;
+  width: 100%;
+}
+
+.workspace-acc-trigger b {
+  color: var(--acid);
+  font-weight: 500;
+}
+
+.workspace-acc-trigger.is-open {
+  color: var(--acid);
+}
+
+.workspace-acc-panel {
+  display: grid;
+  gap: 12px;
+  padding: 0 0 18px;
+}
+
+.workspace-acc-panel label {
+  display: grid;
+  gap: 6px;
+}
+
+.workspace-acc-panel label span {
+  color: rgba(255, 255, 255, 0.45);
+  font: 9px var(--font-geist-mono), monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.workspace-acc-panel input[type="text"],
+.workspace-acc-panel input[type="email"],
+.workspace-acc-panel input[type="password"],
+.workspace-select {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: white;
+  font-size: 15px;
+  padding: 12px 14px;
+  width: 100%;
+}
+
+.workspace-locale-panel .creative-select {
+  width: 100%;
+}
+
+.workspace-locale-panel .creative-select .mini-label {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.workspace-locale-panel .creative-select-trigger {
+  border-bottom-color: rgba(255, 255, 255, 0.28);
+  color: white;
+  font-size: 15px;
+}
+
+.workspace-locale-panel .creative-select-menu {
+  background: var(--acid);
+  border-color: rgba(32, 31, 30, 0.42);
+  color: var(--ink);
+  min-width: 100%;
+}
+
+.workspace-locale-panel .creative-select-menu button {
+  background: var(--acid);
+}
+
+.workspace-locale-panel .creative-select-menu button:hover,
+.workspace-locale-panel .creative-select-menu button[aria-selected="true"] {
+  background: #e6c45c;
+}
+
+.workspace-support-link {
+  align-items: center;
+  border: 1px solid var(--acid);
+  color: var(--acid);
+  display: inline-flex;
+  font: 11px var(--font-geist-mono), monospace;
+  gap: 12px;
+  justify-content: space-between;
+  letter-spacing: 0.05em;
+  padding: 14px 16px;
+  text-decoration: none;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.workspace-support-link:hover {
+  background: var(--acid);
+  color: var(--ink);
+}
+
+.workspace-acc-panel input:focus-visible {
+  border-color: var(--acid);
+  outline: none;
+}
+
+.workspace-acc-panel button {
+  background: transparent;
+  border: 1px solid var(--acid);
+  color: var(--acid);
+  cursor: pointer;
+  font: 10px var(--font-geist-mono), monospace;
+  justify-self: start;
+  letter-spacing: 0.06em;
+  padding: 12px 16px;
+  text-transform: uppercase;
+}
+
+.workspace-acc-panel button:hover:not(:disabled) {
+  background: var(--acid);
+  color: var(--ink);
+}
+
+.workspace-acc-panel button:disabled {
+  opacity: 0.45;
+}
+
+.workspace-acc-panel p {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.workspace-acc-panel p em {
+  color: var(--acid);
+  font-style: normal;
+}
+
+.workspace-toggle {
+  align-items: center;
+  display: flex !important;
+  gap: 12px;
+  grid-template-columns: none;
+}
+
+.workspace-toggle input {
+  accent-color: var(--acid);
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.workspace-toggle span {
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-size: 13px !important;
+  letter-spacing: 0.02em !important;
+  text-transform: none !important;
+}
+
+.workspace-billing-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workspace-billing-list li {
+  align-items: baseline;
+  background: rgba(255, 255, 255, 0.06);
+  display: grid;
+  gap: 4px 12px;
+  grid-template-columns: 1fr auto;
+  padding: 12px 14px;
+}
+
+.workspace-billing-list span {
+  color: rgba(255, 255, 255, 0.45);
+  font: 9px var(--font-geist-mono), monospace;
+  grid-column: 1 / -1;
+  text-transform: uppercase;
+}
+
+.workspace-billing-list strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.workspace-billing-list b {
+  color: var(--acid);
+  font: 12px var(--font-geist-mono), monospace;
+}
+
+.workspace-acc-danger button {
+  border-color: #ff6b5f;
+  color: #ff6b5f;
+}
+
+.workspace-acc-danger button:hover:not(:disabled) {
+  background: #ff6b5f;
+  color: white;
+}
+
 .history-drawer {
   background: var(--ink);
   box-shadow: -24px 0 70px rgba(0, 0, 0, 0.26);
@@ -1103,8 +1417,9 @@ textarea:focus-visible {
 .field-row textarea {
   background: transparent;
   border: 0;
-  font-size: 28px;
-  letter-spacing: -0.045em;
+  color: var(--ink);
+  font: inherit;
+  letter-spacing: -0.01em;
   outline: none;
   padding: 0;
   resize: none;
@@ -1113,12 +1428,11 @@ textarea:focus-visible {
 
 .field-row input::placeholder,
 .field-row textarea::placeholder {
-  color: rgba(17, 17, 15, 0.32);
+  color: rgba(17, 17, 15, 0.34);
 }
 
 .field-row textarea {
-  font-size: 22px;
-  line-height: 1.25;
+  line-height: 1.4;
 }
 
 .personality-row {
@@ -3815,6 +4129,12 @@ textarea:focus-visible {
   margin-top: 60px;
 }
 
+.footer-brand {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
 .footer-wordmark {
   color: inherit;
   font-size: clamp(76px, 12vw, 190px);
@@ -3822,12 +4142,33 @@ textarea:focus-visible {
   letter-spacing: -0.095em;
   line-height: 0.7;
   text-decoration: none;
+  width: fit-content;
 }
 
 .footer-wordmark span {
   color: var(--acid);
   font-size: 12px;
   vertical-align: top;
+}
+
+.footer-credit {
+  color: rgba(255, 255, 255, 0.42);
+  font: 10px/1.4 var(--font-geist-mono), monospace;
+  letter-spacing: 0.08em;
+  margin: 0;
+  padding: 0 10px;
+  max-width: 28em;
+  text-transform: uppercase;
+}
+
+.footer-credit em {
+  color: rgba(255, 255, 255, 0.72);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  text-transform: none;
 }
 
 .footer-meta {
@@ -4571,7 +4912,7 @@ textarea:focus-visible {
     margin-top: 70px;
   }
 
-  .footer-wordmark {
+  .footer-brand {
     grid-column: 1 / -1;
     margin-bottom: 50px;
   }

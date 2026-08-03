@@ -23,6 +23,14 @@ import {
   validateAuthField,
   validateAuthForm,
 } from "./lib/auth-validation";
+import {
+  applyDocumentLocale,
+  detectBrowserLocale,
+  normalizeAppLocale,
+  studioPlaceStamp,
+  t,
+  type AppLocale,
+} from "./lib/i18n";
 import { buildLockupSvg } from "./lib/lockup-export";
 import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
 import {
@@ -44,13 +52,72 @@ import type {
 
 export type StudioRole = "guest" | "user" | "admin";
 
+export type BriefLocale = AppLocale;
+
+export type StudioEmailPrefs = {
+  productUpdates: boolean;
+  signalReceipts: boolean;
+  teamLaunch: boolean;
+  briefLocale: BriefLocale;
+};
+
+type StudioEmailPrefsPayload = Omit<StudioEmailPrefs, "briefLocale"> & {
+  briefLocale?: BriefLocale | null;
+};
+
+const BRIEF_LOCALE_OPTIONS: { value: BriefLocale; label: string }[] = [
+  { value: "en", label: "English" },
+  { value: "ru", label: "Русский" },
+  { value: "he", label: "עברית" },
+  { value: "de", label: "Deutsch" },
+  { value: "fr", label: "Français" },
+  { value: "es", label: "Español" },
+];
+
+const LOCALE_STORAGE_KEY = "loopen.briefLocale";
+
+function readStoredLocale(): BriefLocale {
+  if (typeof window === "undefined") return "en";
+  try {
+    const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (stored) return normalizeAppLocale(stored);
+  } catch {
+    // ignore storage failures
+  }
+  return detectBrowserLocale();
+}
+
+function persistLocale(locale: BriefLocale) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+const SUPPORT_EMAIL =
+  process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "hello@loopen.dev";
+
 export type StudioUser = {
   displayName: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
+  prefs?: StudioEmailPrefsPayload;
   signalBalance?: number | null;
   /** local = ALLOW_LOCAL_STUDIO=1 — not a real account */
   source?: "supabase" | "local";
   role?: StudioRole;
+};
+
+type BillingHistoryEntry = {
+  id: string;
+  delta: number;
+  reason: string;
+  ref: string | null;
+  createdAt: number;
+  label: string;
 };
 
 type SignalPack = {
@@ -547,6 +614,9 @@ function RequestDrop({ label = "Working" }: { label?: string }) {
   );
 }
 
+const STUDIO_ORIGIN = "Tel Aviv";
+const STUDIO_AUTHOR = "Dmitrii Kosach";
+
 function LoopenStudioApp({
   signInPath,
   user,
@@ -594,6 +664,55 @@ function LoopenStudioApp({
   const [assets, setAssets] = useState(initialDraft.assets);
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [workspacePane, setWorkspacePane] = useState<"projects" | "account">(
+    "projects",
+  );
+  const [accountSection, setAccountSection] = useState<
+    | "profile"
+    | "password"
+    | "email"
+    | "locale"
+    | "billing"
+    | "team"
+    | "support"
+    | "delete"
+    | null
+  >(null);
+  const [profileFirstName, setProfileFirstName] = useState("");
+  const [profileLastName, setProfileLastName] = useState("");
+  const [profileStatus, setProfileStatus] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [passwordCurrent, setPasswordCurrent] = useState("");
+  const [passwordNext, setPasswordNext] = useState("");
+  const [passwordNextConfirm, setPasswordNextConfirm] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [emailPrefs, setEmailPrefs] = useState<StudioEmailPrefs>(() => {
+    const fromUser = user?.prefs?.briefLocale;
+    const briefLocale = fromUser
+      ? normalizeAppLocale(fromUser)
+      : readStoredLocale();
+    if (fromUser) persistLocale(briefLocale);
+    return {
+      productUpdates: user?.prefs?.productUpdates ?? true,
+      signalReceipts: user?.prefs?.signalReceipts ?? true,
+      teamLaunch: user?.prefs?.teamLaunch ?? false,
+      briefLocale,
+    };
+  });
+  const locale = emailPrefs.briefLocale;
+  const [localeStatus, setLocaleStatus] = useState("");
+  const [localeSaving, setLocaleSaving] = useState(false);
+  const [prefsStatus, setPrefsStatus] = useState("");
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [billingHistory, setBillingHistory] = useState<BillingHistoryEntry[]>(
+    [],
+  );
+  const [billingHistoryStatus, setBillingHistoryStatus] = useState("");
+  const [billingHistoryLoading, setBillingHistoryLoading] = useState(false);
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
+  const [deleteStatus, setDeleteStatus] = useState("");
+  const [deleteSaving, setDeleteSaving] = useState(false);
   const [deletingProjectId, setDeletingProjectId] = useState("");
   const [isRefining, setIsRefining] = useState(false);
   const [isVectorizing, setIsVectorizing] = useState(false);
@@ -657,6 +776,14 @@ function LoopenStudioApp({
   const confirmResolver = useRef<((confirmed: boolean) => void) | null>(null);
   const historyListRef = useRef<HTMLDivElement>(null);
   const sessionReady = true;
+  const studioStamp = useMemo(
+    () => studioPlaceStamp(STUDIO_ORIGIN),
+    [],
+  );
+
+  useEffect(() => {
+    applyDocumentLocale(locale);
+  }, [locale]);
 
   useEffect(() => {
     if (!isHistoryOpen) return;
@@ -695,10 +822,10 @@ function LoopenStudioApp({
     confirmResolver.current?.(false);
     confirmResolver.current = null;
     setConfirmDialog({
-      kicker: `${stage} / Request failed`,
-      title: "The process stopped.",
+      kicker: t(locale, "confirm.requestFailed.kicker", { stage }),
+      title: t(locale, "confirm.requestFailed.title"),
       body: message,
-      confirmLabel: "Return to studio",
+      confirmLabel: t(locale, "confirm.returnStudio"),
       dismissOnly: true,
       tone: "danger",
     });
@@ -751,7 +878,7 @@ function LoopenStudioApp({
     }
 
     if (authSubmitAttempted || authTouched[field]) {
-      const message = validateAuthField(field, nextValues, authMode);
+      const message = validateAuthField(field, nextValues, authMode, locale);
       setAuthErrors((current) => {
         const next = { ...current };
         if (message) next[field] = message;
@@ -768,6 +895,7 @@ function LoopenStudioApp({
         "passwordConfirm",
         nextValues,
         authMode,
+        locale,
       );
       setAuthErrors((current) => {
         const next = { ...current };
@@ -780,7 +908,12 @@ function LoopenStudioApp({
 
   function blurAuthField(field: AuthFieldKey) {
     setAuthTouched((current) => ({ ...current, [field]: true }));
-    const message = validateAuthField(field, authFormValues(), authMode);
+    const message = validateAuthField(
+      field,
+      authFormValues(),
+      authMode,
+      locale,
+    );
     setAuthErrors((current) => {
       const next = { ...current };
       if (message) next[field] = message;
@@ -790,7 +923,7 @@ function LoopenStudioApp({
   }
 
   function runAuthValidation(): boolean {
-    const errors = validateAuthForm(authMode, authFormValues());
+    const errors = validateAuthForm(authMode, authFormValues(), locale);
     setAuthSubmitAttempted(true);
     setAuthErrors(errors);
     return !hasAuthErrors(errors);
@@ -819,10 +952,7 @@ function LoopenStudioApp({
 
   function requireStudioAccess() {
     if (user) return true;
-    openAuthGate(
-      "signin",
-      "Enter with email to generate, save and keep work private.",
-    );
+    openAuthGate("signin", t(locale, "auth.requireAccess"));
     return false;
   }
 
@@ -831,8 +961,8 @@ function LoopenStudioApp({
     setNotice(
       error ||
         (required
-          ? `Not enough signals — this move needs ${required}.`
-          : "Not enough signals for this move."),
+          ? t(locale, "notice.insufficientSignalsNeed", { n: required })
+          : t(locale, "notice.insufficientSignals")),
     );
   }
 
@@ -841,6 +971,7 @@ function LoopenStudioApp({
       const response = await apiFetch("/auth/me");
       if (!response.ok) return;
       const payload = await readApiJson<{
+        user?: StudioUser | null;
         signals?: { balance: number } | null;
         packs?: SignalPack[];
         costs?: SignalCosts;
@@ -853,21 +984,305 @@ function LoopenStudioApp({
       if (payload.packs?.length) setSignalPacks(payload.packs);
       if (payload.costs) setSignalCosts(payload.costs);
       setBillingEnabled(Boolean(payload.billingEnabled));
+      if (payload.user?.prefs) {
+        const prefs = payload.user.prefs as StudioEmailPrefsPayload;
+        setEmailPrefs((current) => {
+          // Only adopt locale when the Auth user actually has brief_locale set.
+          // Never fall back to a stale default that would wipe the UI language.
+          const briefLocale = prefs.briefLocale
+            ? normalizeAppLocale(prefs.briefLocale)
+            : current.briefLocale;
+          const next: StudioEmailPrefs = {
+            productUpdates: prefs.productUpdates ?? current.productUpdates,
+            signalReceipts: prefs.signalReceipts ?? current.signalReceipts,
+            teamLaunch: prefs.teamLaunch ?? current.teamLaunch,
+            briefLocale,
+          };
+          persistLocale(next.briefLocale);
+          return next;
+        });
+      }
+      if (payload.user) {
+        setProfileFirstName(payload.user.firstName ?? "");
+        setProfileLastName(payload.user.lastName ?? "");
+      }
       if (payload.warning) setNotice(payload.warning);
     } catch {
       // Wallet endpoint may be unavailable until migration is applied.
     }
   }
 
+  function openWorkspace(pane: "projects" | "account" = "projects") {
+    setWorkspacePane(pane);
+    setAccountSection(null);
+    setIsHistoryOpen(true);
+    void refreshStudioAccount();
+  }
+
+  async function saveProfileName(event?: { preventDefault(): void }) {
+    event?.preventDefault();
+    const firstName = profileFirstName.trim();
+    const lastName = profileLastName.trim();
+    if (firstName.length < 2 || lastName.length < 2) {
+      setProfileStatus(t(locale, "workspace.profile.needNames"));
+      return;
+    }
+    setProfileSaving(true);
+    setProfileStatus(t(locale, "workspace.profile.saving"));
+    try {
+      const response = await apiFetch("/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName, lastName }),
+      });
+      const payload = await readApiJson<{
+        error?: string;
+        user?: { displayName?: string; firstName?: string; lastName?: string };
+      }>(response);
+      if (!response.ok) {
+        throw new Error(
+          payload.error ?? t(locale, "workspace.profile.failed"),
+        );
+      }
+      setProfileStatus(t(locale, "workspace.profile.updated"));
+      if (payload.user?.displayName) {
+        // Soft refresh — full reload keeps cookies/session simple.
+        window.location.reload();
+        return;
+      }
+    } catch (error) {
+      setProfileStatus(
+        error instanceof Error
+          ? error.message
+          : t(locale, "workspace.profile.failed"),
+      );
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function saveAccountPassword(event?: { preventDefault(): void }) {
+    event?.preventDefault();
+    if (passwordNext.length < 8 || !/[A-Za-z]/.test(passwordNext) || !/\d/.test(passwordNext)) {
+      setPasswordStatus(t(locale, "workspace.password.rules"));
+      return;
+    }
+    if (passwordNext !== passwordNextConfirm) {
+      setPasswordStatus(t(locale, "workspace.password.mismatch"));
+      return;
+    }
+    setPasswordSaving(true);
+    setPasswordStatus(t(locale, "workspace.password.updatingLong"));
+    try {
+      const response = await apiFetch("/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: passwordCurrent,
+          newPassword: passwordNext,
+        }),
+      });
+      const payload = await readApiJson<{ error?: string; message?: string }>(
+        response,
+      );
+      if (!response.ok) {
+        throw new Error(
+          payload.error ?? t(locale, "workspace.password.failed"),
+        );
+      }
+      setPasswordCurrent("");
+      setPasswordNext("");
+      setPasswordNextConfirm("");
+      setPasswordStatus(
+        payload.message ?? t(locale, "workspace.password.updated"),
+      );
+    } catch (error) {
+      setPasswordStatus(
+        error instanceof Error
+          ? error.message
+          : t(locale, "workspace.password.failed"),
+      );
+    } finally {
+      setPasswordSaving(false);
+    }
+  }
+
+  async function saveEmailPrefs(next: StudioEmailPrefs) {
+    setEmailPrefs(next);
+    setPrefsSaving(true);
+    setPrefsStatus(t(locale, "workspace.prefs.saving"));
+    try {
+      const response = await apiFetch("/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        // Locale has its own saver — don't stamp it on every email toggle.
+        body: JSON.stringify({
+          productUpdates: next.productUpdates,
+          signalReceipts: next.signalReceipts,
+          teamLaunch: next.teamLaunch,
+        }),
+      });
+      const payload = await readApiJson<{
+        error?: string;
+        user?: { prefs?: StudioEmailPrefs };
+      }>(response);
+      if (!response.ok) {
+        throw new Error(payload.error ?? t(locale, "workspace.prefs.failed"));
+      }
+      if (payload.user?.prefs) {
+        const prefs = payload.user.prefs as StudioEmailPrefsPayload;
+        setEmailPrefs((current) => ({
+          productUpdates: prefs.productUpdates ?? current.productUpdates,
+          signalReceipts: prefs.signalReceipts ?? current.signalReceipts,
+          teamLaunch: prefs.teamLaunch ?? current.teamLaunch,
+          briefLocale: prefs.briefLocale ?? current.briefLocale,
+        }));
+      }
+      setPrefsStatus(t(locale, "workspace.prefs.saved"));
+    } catch (error) {
+      setPrefsStatus(
+        error instanceof Error
+          ? error.message
+          : t(locale, "workspace.prefs.failed"),
+      );
+      void refreshStudioAccount();
+    } finally {
+      setPrefsSaving(false);
+    }
+  }
+
+  async function saveBriefLocale(briefLocale: BriefLocale) {
+    const previous = emailPrefs.briefLocale;
+    const next = { ...emailPrefs, briefLocale };
+    setEmailPrefs(next);
+    persistLocale(briefLocale);
+    applyDocumentLocale(briefLocale);
+    setLocaleSaving(true);
+    setLocaleStatus("…");
+    try {
+      const response = await apiFetch("/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ briefLocale }),
+      });
+      const payload = await readApiJson<{
+        error?: string;
+        user?: { prefs?: StudioEmailPrefsPayload };
+      }>(response);
+      if (!response.ok) {
+        throw new Error(
+          payload.error ?? t(previous, "workspace.locale.failed"),
+        );
+      }
+      const saved =
+        payload.user?.prefs?.briefLocale &&
+        normalizeAppLocale(payload.user.prefs.briefLocale);
+      if (!saved || saved !== briefLocale) {
+        throw new Error(t(previous, "workspace.locale.notSaved"));
+      }
+      setEmailPrefs((current) => ({
+        ...current,
+        productUpdates:
+          payload.user?.prefs?.productUpdates ?? current.productUpdates,
+        signalReceipts:
+          payload.user?.prefs?.signalReceipts ?? current.signalReceipts,
+        teamLaunch: payload.user?.prefs?.teamLaunch ?? current.teamLaunch,
+        briefLocale: saved,
+      }));
+      persistLocale(saved);
+      setLocaleStatus(t(saved, "workspace.locale.saved"));
+    } catch (error) {
+      setEmailPrefs((current) => ({ ...current, briefLocale: previous }));
+      persistLocale(previous);
+      applyDocumentLocale(previous);
+      setLocaleStatus(
+        error instanceof Error
+          ? error.message
+          : t(previous, "workspace.locale.failed"),
+      );
+      void refreshStudioAccount();
+    } finally {
+      setLocaleSaving(false);
+    }
+  }
+
+  async function loadBillingHistory() {
+    setBillingHistoryLoading(true);
+    setBillingHistoryStatus("");
+    try {
+      const response = await apiFetch("/billing/history");
+      const payload = await readApiJson<{
+        error?: string;
+        entries?: BillingHistoryEntry[];
+      }>(response);
+      if (!response.ok) {
+        throw new Error(
+          payload.error ?? t(locale, "workspace.billing.loadFailed"),
+        );
+      }
+      setBillingHistory(payload.entries ?? []);
+      if (!(payload.entries ?? []).length) {
+        setBillingHistoryStatus(t(locale, "workspace.billing.empty"));
+      }
+    } catch (error) {
+      setBillingHistory([]);
+      setBillingHistoryStatus(
+        error instanceof Error
+          ? error.message
+          : t(locale, "workspace.billing.loadFailed"),
+      );
+    } finally {
+      setBillingHistoryLoading(false);
+    }
+  }
+
+  async function deleteStudioAccount(event?: { preventDefault(): void }) {
+    event?.preventDefault();
+    if (deleteConfirmEmail.trim().toLowerCase() !== user?.email.toLowerCase()) {
+      setDeleteStatus(t(locale, "workspace.delete.typeEmail"));
+      return;
+    }
+    const confirmed = await requestConfirmation({
+      kicker: t(locale, "confirm.deleteAccount.kicker"),
+      title: t(locale, "confirm.deleteAccount.title"),
+      body: t(locale, "confirm.deleteAccount.body"),
+      confirmLabel: t(locale, "confirm.deleteAccount.cta"),
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
+    setDeleteSaving(true);
+    setDeleteStatus(t(locale, "workspace.delete.deletingLong"));
+    try {
+      const response = await apiFetch("/auth/account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmEmail: deleteConfirmEmail.trim() }),
+      });
+      const payload = await readApiJson<{ error?: string }>(response);
+      if (!response.ok) {
+        throw new Error(payload.error ?? t(locale, "workspace.delete.failed"));
+      }
+      window.location.href = "/";
+    } catch (error) {
+      setDeleteStatus(
+        error instanceof Error
+          ? error.message
+          : t(locale, "workspace.delete.failed"),
+      );
+      setDeleteSaving(false);
+    }
+  }
+
   async function signInWithPassword(event?: { preventDefault(): void }) {
     event?.preventDefault();
     if (!runAuthValidation()) {
-      setAuthStatus("Check the highlighted fields and try again.");
+      setAuthStatus(t(locale, "auth.checkFields"));
       return;
     }
     const email = authEmail.trim().toLowerCase();
     setAuthSending("signin");
-    setAuthStatus("Opening the studio…");
+    setAuthStatus(t(locale, "auth.status.opening"));
     try {
       const response = await apiFetch("/auth/password", {
         method: "POST",
@@ -882,16 +1297,15 @@ function LoopenStudioApp({
         if (payload.needsConfirmation) {
           openAuthGate(
             "confirm",
-            payload.error ??
-              "Confirm your email first — check your inbox, or resend the link.",
+            payload.error ?? t(locale, "auth.status.confirmFirst"),
           );
           setAuthSending("");
           return;
         }
         setAuthErrors({
-          password: payload.error ?? "Invalid email or password.",
+          password: payload.error ?? t(locale, "auth.status.invalidCreds"),
         });
-        setAuthStatus(payload.error ?? "Invalid email or password.");
+        setAuthStatus(payload.error ?? t(locale, "auth.status.invalidCreds"));
         setAuthSending("");
         return;
       }
@@ -899,7 +1313,9 @@ function LoopenStudioApp({
       window.location.reload();
     } catch (error) {
       setAuthStatus(
-        error instanceof Error ? error.message : "Could not sign in.",
+        error instanceof Error
+          ? error.message
+          : t(locale, "auth.status.signInFailed"),
       );
       setAuthSending("");
     }
@@ -908,14 +1324,14 @@ function LoopenStudioApp({
   async function registerWithPassword(event?: { preventDefault(): void }) {
     event?.preventDefault();
     if (!runAuthValidation()) {
-      setAuthStatus("Check the highlighted fields and try again.");
+      setAuthStatus(t(locale, "auth.checkFields"));
       return;
     }
     const email = authEmail.trim().toLowerCase();
     const firstName = authFirstName.trim();
     const lastName = authLastName.trim();
     setAuthSending("signup");
-    setAuthStatus("Creating your studio account…");
+    setAuthStatus(t(locale, "auth.status.creating"));
     try {
       const response = await apiFetch("/auth/register", {
         method: "POST",
@@ -933,7 +1349,9 @@ function LoopenStudioApp({
         needsConfirmation?: boolean;
       }>(response);
       if (!response.ok) {
-        setAuthStatus(payload.error ?? "Could not create the account.");
+        setAuthStatus(
+          payload.error ?? t(locale, "auth.status.createFailed"),
+        );
         setAuthSending("");
         return;
       }
@@ -942,8 +1360,7 @@ function LoopenStudioApp({
         setAuthPasswordConfirm("");
         openAuthGate(
           "confirm",
-          payload.message ??
-            "Account created. Confirm the email we just sent, then enter the studio.",
+          payload.message ?? t(locale, "auth.status.createdConfirm"),
         );
         startAuthResendCooldown(60);
         setAuthSending("");
@@ -953,7 +1370,9 @@ function LoopenStudioApp({
       window.location.reload();
     } catch (error) {
       setAuthStatus(
-        error instanceof Error ? error.message : "Could not create the account.",
+        error instanceof Error
+          ? error.message
+          : t(locale, "auth.status.createFailed"),
       );
       setAuthSending("");
     }
@@ -962,12 +1381,12 @@ function LoopenStudioApp({
   async function resendConfirmationEmail() {
     if (authResendWaitSec > 0 || authSending === "resend") return;
     if (!runAuthValidation()) {
-      setAuthStatus("Enter a valid email to resend confirmation.");
+      setAuthStatus(t(locale, "auth.status.resendNeedEmail"));
       return;
     }
     const email = authEmail.trim().toLowerCase();
     setAuthSending("resend");
-    setAuthStatus("Resending confirmation…");
+    setAuthStatus(t(locale, "auth.status.resending"));
     try {
       const response = await apiFetch("/auth/resend-confirmation", {
         method: "POST",
@@ -978,18 +1397,17 @@ function LoopenStudioApp({
         response,
       );
       if (!response.ok) {
-        throw new Error(payload.error ?? "Could not resend confirmation.");
+        throw new Error(
+          payload.error ?? t(locale, "auth.status.resendFailed"),
+        );
       }
       startAuthResendCooldown(60);
-      setAuthStatus(
-        payload.message ??
-          "Confirmation email sent. Wait a minute before requesting another.",
-      );
+      setAuthStatus(payload.message ?? t(locale, "auth.status.resendSent"));
     } catch (error) {
       setAuthStatus(
         error instanceof Error
           ? error.message
-          : "Could not resend confirmation.",
+          : t(locale, "auth.status.resendFailed"),
       );
     } finally {
       setAuthSending("");
@@ -999,12 +1417,12 @@ function LoopenStudioApp({
   async function requestPasswordReset(event?: { preventDefault(): void }) {
     event?.preventDefault();
     if (!runAuthValidation()) {
-      setAuthStatus("Enter a valid email to reset access.");
+      setAuthStatus(t(locale, "auth.status.resetNeedEmail"));
       return;
     }
     const email = authEmail.trim().toLowerCase();
     setAuthSending("forgot");
-    setAuthStatus("Sending a reset link…");
+    setAuthStatus(t(locale, "auth.status.sendingReset"));
     try {
       const response = await apiFetch("/auth/forgot-password", {
         method: "POST",
@@ -1015,15 +1433,16 @@ function LoopenStudioApp({
         response,
       );
       if (!response.ok) {
-        throw new Error(payload.error ?? "Could not send the reset email.");
+        throw new Error(
+          payload.error ?? t(locale, "auth.status.resetSendFailed"),
+        );
       }
-      setAuthStatus(
-        payload.message ??
-          "If that email has an account, a reset link is on its way.",
-      );
+      setAuthStatus(payload.message ?? t(locale, "auth.status.resetSent"));
     } catch (error) {
       setAuthStatus(
-        error instanceof Error ? error.message : "Could not send the reset email.",
+        error instanceof Error
+          ? error.message
+          : t(locale, "auth.status.resetSendFailed"),
       );
     } finally {
       setAuthSending("");
@@ -1033,11 +1452,11 @@ function LoopenStudioApp({
   async function updateStudioPassword(event?: { preventDefault(): void }) {
     event?.preventDefault();
     if (!runAuthValidation()) {
-      setAuthStatus("Check the highlighted fields and try again.");
+      setAuthStatus(t(locale, "auth.checkFields"));
       return;
     }
     setAuthSending("reset");
-    setAuthStatus("Saving your new password…");
+    setAuthStatus(t(locale, "auth.status.savingPassword"));
     try {
       const response = await apiFetch("/auth/update-password", {
         method: "POST",
@@ -1048,13 +1467,17 @@ function LoopenStudioApp({
         response,
       );
       if (!response.ok) {
-        throw new Error(payload.error ?? "Could not update the password.");
+        throw new Error(
+          payload.error ?? t(locale, "auth.status.updatePasswordFailed"),
+        );
       }
       window.location.href = "/#brief";
       window.location.reload();
     } catch (error) {
       setAuthStatus(
-        error instanceof Error ? error.message : "Could not update the password.",
+        error instanceof Error
+          ? error.message
+          : t(locale, "auth.status.updatePasswordFailed"),
       );
       setAuthSending("");
     }
@@ -1086,13 +1509,15 @@ function LoopenStudioApp({
         response,
       );
       if (!response.ok || !payload.url) {
-        throw new Error(payload.error ?? "Checkout could not start.");
+        throw new Error(payload.error ?? t(locale, "signals.checkoutFailed"));
       }
       window.location.href = payload.url;
     } catch (error) {
       showRequestError(
-        "Signal top-up",
-        error instanceof Error ? error.message : "Checkout could not start.",
+        t(locale, "signals.checkoutStage"),
+        error instanceof Error
+          ? error.message
+          : t(locale, "signals.checkoutFailed"),
       );
       setCheckoutPackId("");
     }
@@ -1102,10 +1527,12 @@ function LoopenStudioApp({
     confirmResolver.current?.(false);
     confirmResolver.current = null;
     setConfirmDialog({
-      kicker: `Dual jury / ${concept.reviewStatus ?? "Review"}`,
+      kicker: t(locale, "confirm.jury.kicker", {
+        status: concept.reviewStatus ?? t(locale, "concepts.reviewStatus"),
+      }),
       title: concept.directionTitle,
-      body: concept.reviewReason ?? "The jury has not returned a written critique for this direction.",
-      confirmLabel: "Return to concepts",
+      body: concept.reviewReason ?? t(locale, "confirm.jury.noCritique"),
+      confirmLabel: t(locale, "confirm.jury.return"),
       dismissOnly: true,
     });
   }
@@ -1160,12 +1587,13 @@ function LoopenStudioApp({
       ]),
     ).values(),
   );
+  const brandNameFallback = t(locale, "prod.wordmarkPh");
   const displayBrandName =
     wordmarkCase === "upper"
-      ? (wordmarkName || brandName || "Brand name").toUpperCase()
+      ? (wordmarkName || brandName || brandNameFallback).toUpperCase()
       : wordmarkCase === "lower"
-        ? (wordmarkName || brandName || "Brand name").toLowerCase()
-        : wordmarkName || brandName || "Brand name";
+        ? (wordmarkName || brandName || brandNameFallback).toLowerCase()
+        : wordmarkName || brandName || brandNameFallback;
   const markScaleFactor = Math.min(4, Math.max(0.7, markScale / 100));
   // Same base for horizontal/icon so "Icon only" doesn't jump to a huge orphan size.
   const markSizePx = Math.round(
@@ -1212,18 +1640,15 @@ function LoopenStudioApp({
     const authError = params.get("auth");
     const wantsReset = params.get("reset") === "1";
     if (wantsReset) {
-      openAuthGate(
-        "reset",
-        "Choose a new password for this studio account.",
-      );
+      openAuthGate("reset", t(locale, "auth.reset.copy"));
     } else if (authError === "confirmed") {
       if (isGuestSession) {
         openAuthGate(
           "signin",
-          "Email confirmed. Sign in with your password to enter the studio.",
+          t(locale, "auth.status.emailConfirmedSignIn"),
         );
       } else {
-        setNotice("Email confirmed. Welcome to the studio.");
+        setNotice(t(locale, "notice.emailConfirmed"));
       }
     } else if (
       authError === "failed" ||
@@ -1234,7 +1659,7 @@ function LoopenStudioApp({
         "signin",
         authError === "config"
           ? "Auth is not configured on this host."
-          : "That link expired or was opened in a different browser. Sign in, or request a new confirmation email.",
+          : t(locale, "auth.status.linkExpired"),
       );
     } else if (
       (hash === "enter" || params.has("auth") || signInPath.includes("#enter")) &&
@@ -1243,12 +1668,12 @@ function LoopenStudioApp({
       openAuthGate("signin");
     }
     if (params.get("signals") === "topped") {
-      setNotice("Signals landed. The studio is charged and ready.");
+      setNotice(t(locale, "notice.signalsLanded"));
       setIsSignalsOpen(false);
       void refreshStudioAccount();
     }
     if (params.get("signals") === "cancelled") {
-      setNotice("Top-up cancelled — your balance is unchanged.");
+      setNotice(t(locale, "notice.topUpCancelled"));
     }
   }, [user?.email, signInPath, isGuestSession]);
 
@@ -1418,7 +1843,7 @@ function LoopenStudioApp({
   }
 
   async function openProject(id: string) {
-    setNotice("Loading saved project…");
+    setNotice(t(locale, "notice.loadingProject"));
     const response = await apiFetch(`/projects/${id}`);
     const payload = (await response.json()) as {
       error?: string;
@@ -1476,16 +1901,20 @@ function LoopenStudioApp({
     setSelectedVector(latestVector?.id ?? "");
     setProductionLocked(false);
     setIsHistoryOpen(false);
-    setNotice(`${payload.project.brandName} project loaded.`);
+    setNotice(
+      t(locale, "notice.projectLoaded", { name: payload.project.brandName }),
+    );
     document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth" });
   }
 
   async function deleteProject(project: SavedProject) {
     const confirmed = await requestConfirmation({
-      kicker: "Permanent action / Project",
-      title: `Erase ${project.brandName}?`,
-      body: "The brief, logo concepts, refinements and production assets will be permanently removed. This cannot be undone.",
-      confirmLabel: "Delete project",
+      kicker: t(locale, "confirm.deleteProject.kicker"),
+      title: t(locale, "confirm.deleteProject.title", {
+        name: project.brandName,
+      }),
+      body: t(locale, "confirm.deleteProject.body"),
+      confirmLabel: t(locale, "confirm.deleteProject.cta"),
       tone: "danger",
     });
     if (!confirmed) return;
@@ -1500,7 +1929,7 @@ function LoopenStudioApp({
         error?: string;
       } | null;
       showRequestError(
-        "Delete project",
+        t(locale, "confirm.deleteProject.cta"),
         payload?.error ?? "Project could not be deleted.",
       );
       return;
@@ -1523,7 +1952,9 @@ function LoopenStudioApp({
       setStrategy(null);
       clearStudioSession();
     }
-    setNotice(`${project.brandName} was permanently deleted.`);
+    setNotice(
+      t(locale, "notice.projectDeleted", { name: project.brandName }),
+    );
   }
 
   function togglePersonality(item: string) {
@@ -1553,18 +1984,18 @@ function LoopenStudioApp({
     setPersonalities([]);
     setDescriptor("");
     setStrategy(null);
-    setNotice("Blank brief — fill in your own details.");
+    setNotice(t(locale, "notice.blankBrief"));
   }
 
   async function resetStudioToFresh() {
     const confirmed = await requestConfirmation({
-      kicker: "Session / Fresh start",
-      title: "Reset the studio to first open?",
-      body: "This clears the brief, concepts, refinements, SVG and lockup settings in this tab. Saved projects in history stay on the server.",
-      confirmLabel: "Reset studio",
+      kicker: t(locale, "confirm.reset.kicker"),
+      title: t(locale, "confirm.reset.title"),
+      body: t(locale, "confirm.reset.body"),
+      confirmLabel: t(locale, "confirm.reset.cta"),
       tone: "danger",
     });
-    if (!confirmed) return;
+    if (!confirmed) return false;
 
     clearBriefTemplate();
     setSelectedConcept("continuous");
@@ -1597,8 +2028,25 @@ function LoopenStudioApp({
     setMarkScale(100);
     setConfirmDialog(null);
     clearStudioSession();
-    setNotice("Studio reset — as if you opened Loopen for the first time.");
+    setNotice(t(locale, "notice.studioReset"));
     window.scrollTo({ top: 0, behavior: "smooth" });
+    return true;
+  }
+
+  function startBriefFromWorkspace() {
+    setIsHistoryOpen(false);
+    setWorkspacePane("projects");
+    window.requestAnimationFrame(() => {
+      document.getElementById("brief")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
+  async function startNewProjectFromWorkspace() {
+    const reset = await resetStudioToFresh();
+    if (!reset) return;
+    window.requestAnimationFrame(() => {
+      document.getElementById("brief")?.scrollIntoView({ behavior: "smooth" });
+    });
   }
 
   function applyBriefTemplate(template: BriefTemplate) {
@@ -1620,7 +2068,7 @@ function LoopenStudioApp({
     setPersonalities(template.personalities);
     setDescriptor(template.descriptor);
     setStrategy(null);
-    setNotice(`${template.label} brief loaded — review or generate.`);
+    setNotice(t(locale, "notice.templateLoaded", { name: template.label }));
     document.getElementById("brief")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -1628,9 +2076,7 @@ function LoopenStudioApp({
     if (!requireStudioAccess()) return;
 
     setIsGenerating(true);
-    setNotice(
-      "Designing four original flat logo directions. This can take up to two minutes…",
-    );
+    setNotice(t(locale, "notice.generating"));
 
     try {
       const response = await apiFetch("/generate-concepts", {
@@ -1653,6 +2099,7 @@ function LoopenStudioApp({
           visualDirection,
           usage,
           avoid,
+          briefLocale: emailPrefs.briefLocale,
         }),
       });
       const payload = await readApiJson<{
@@ -1673,7 +2120,7 @@ function LoopenStudioApp({
       }
 
       if (!response.ok || !payload.projectId || !payload.generations?.length) {
-        throw new Error(payload.error ?? "Generation could not be completed.");
+        throw new Error(payload.error ?? t(locale, "notice.genFailed"));
       }
       void refreshStudioAccount();
 
@@ -1689,8 +2136,10 @@ function LoopenStudioApp({
       setIsGenerating(false);
       setNotice(
         payload.failures?.length || payload.generations.length < 4
-          ? `${payload.generations.length} of 4 directions passed the professional jury. Weak concepts were withheld.`
-          : "All 4 logo concepts generated, reviewed and saved.",
+          ? t(locale, "notice.genPartial", {
+              n: payload.generations.length,
+            })
+          : t(locale, "notice.genComplete"),
       );
       void auditDiversity(payload.generations);
       void loadHistory();
@@ -1703,7 +2152,7 @@ function LoopenStudioApp({
         "Logo concepts",
         error instanceof Error
           ? error.message
-          : "Generation could not be completed.",
+          : t(locale, "notice.genFailed"),
       );
     }
   }
@@ -1712,7 +2161,7 @@ function LoopenStudioApp({
     if (!projectId || generatedConcepts.length >= 8) return;
     if (!requireStudioAccess()) return;
     setIsGeneratingMore(true);
-    setNotice("Generating exactly one additional graphic mark with Klein 4B…");
+    setNotice(t(locale, "notice.moreGenerating"));
     try {
       const response = await apiFetch("/generate-concepts", {
         method: "POST",
@@ -1732,22 +2181,24 @@ function LoopenStudioApp({
         return;
       }
       if (!response.ok || !payload.generations?.length) {
-        throw new Error(payload.error ?? "More concepts could not be generated.");
+        throw new Error(payload.error ?? t(locale, "notice.moreFailed"));
       }
       setGeneratedConcepts((current) => [...current, ...payload.generations!]);
       void auditDiversity([...generatedConcepts, ...payload.generations]);
       void refreshStudioAccount();
       setNotice(
         payload.failures?.length
-          ? `The additional concept could not be completed: ${payload.failures[0]}`
-          : "One additional concept is ready.",
+          ? t(locale, "notice.moreFailedDetail", {
+              detail: payload.failures[0],
+            })
+          : t(locale, "notice.moreReady"),
       );
     } catch (error) {
       showRequestError(
         "Additional study",
         error instanceof Error
           ? error.message
-          : "More concepts could not be generated.",
+          : t(locale, "notice.moreFailed"),
       );
     } finally {
       setIsGeneratingMore(false);
@@ -1756,7 +2207,7 @@ function LoopenStudioApp({
 
   async function refineSelected() {
     if (!projectId || !selectedConceptIds.length) {
-      setNotice("Select one concept before refinement.");
+      setNotice(t(locale, "notice.selectBeforeRefine"));
       return;
     }
     const critiquesByGenerationId: Record<string, string> = {};
@@ -1788,14 +2239,16 @@ function LoopenStudioApp({
 
     const refineCost = signalCosts?.refine ?? 2;
     if (!(await requestConfirmation({
-      kicker: `Stage 02 / ${refineCost} signals`,
-      title: isRetry ? "Retry refinement with jury notes." : "Architecture becomes identity.",
+      kicker: t(locale, "confirm.refine.kicker", { n: refineCost }),
+      title: isRetry
+        ? t(locale, "confirm.refine.retryTitle")
+        : t(locale, "confirm.refine.title"),
       body: isRetry
-        ? `Pro refine retries with the last dual-jury critique (${refineCost} signals). Production stages 04–05 stay cleared until SVG is rebuilt.`
-        : `Pro refine the selected concept (${refineCost} signals). Stages 04–05 stay cleared until SVG is rebuilt.`,
+        ? t(locale, "confirm.refine.retryBody", { n: refineCost })
+        : t(locale, "confirm.refine.body", { n: refineCost }),
       confirmLabel: isRetry
-        ? "Retry refinement"
-        : `Refine ${selectedConceptIds.length} concept${selectedConceptIds.length > 1 ? "s" : ""}`,
+        ? t(locale, "confirm.refine.retryCta")
+        : t(locale, "confirm.refine.cta", { n: selectedConceptIds.length }),
     }))) {
       setAssets(previousAssets);
       setSelectedRefinement(previousRefinement);
@@ -1807,8 +2260,8 @@ function LoopenStudioApp({
     setIsRefining(true);
     setNotice(
       isRetry
-        ? `Retrying refinement with previous jury critique…`
-        : `Refining selected logo concept…`,
+        ? t(locale, "notice.retryingRefine")
+        : t(locale, "notice.refining"),
     );
     document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth", block: "start" });
     try {
@@ -1841,8 +2294,8 @@ function LoopenStudioApp({
         setSelectedVector(previousVector);
         setProductionLocked(previousLocked);
         showRequestError(
-          "Logo refinement",
-          payload.error ?? "Refinement could not be completed.",
+          t(locale, "prod.stage.refine"),
+          payload.error ?? t(locale, "notice.refineFailed"),
         );
         return;
       }
@@ -1852,7 +2305,7 @@ function LoopenStudioApp({
       setSelectedVector("");
       setVectorSourceMode("refine");
       setNotice(
-        `${payload.assets.length} refined logo${payload.assets.length > 1 ? "s are" : " is"} ready. Reconstruct SVG when you want to unlock the brand system.`,
+        t(locale, "notice.refineReady", { n: payload.assets.length }),
       );
       void loadHistory();
       void refreshStudioAccount();
@@ -1862,10 +2315,10 @@ function LoopenStudioApp({
       setSelectedVector(previousVector);
       setProductionLocked(previousLocked);
       showRequestError(
-        "Logo refinement",
+        t(locale, "prod.stage.refine"),
         error instanceof Error
           ? error.message
-          : "Refinement could not be completed.",
+          : t(locale, "notice.refineFailed"),
       );
     } finally {
       setIsRefining(false);
@@ -1874,7 +2327,7 @@ function LoopenStudioApp({
 
   async function vectorizeSelected() {
     if (!projectId || !canReconstruct) {
-      setNotice("Select a concept or refinement before vectorization.");
+      setNotice(t(locale, "notice.selectBeforeVector"));
       return;
     }
     const useOriginal = preferOriginal && Boolean(vectorSourceGeneration);
@@ -1883,20 +2336,20 @@ function LoopenStudioApp({
       : selectedReduction!.label;
     const vectorCost = signalCosts?.vectorize ?? 1;
     if (!(await requestConfirmation({
-      kicker: `Stage 03 / ${vectorCost} signal${vectorCost === 1 ? "" : "s"}`,
+      kicker: t(locale, "confirm.vector.kicker", { n: vectorCost }),
       title: useOriginal
-        ? "Build SVG from the original concept."
-        : "Commit to the geometry.",
+        ? t(locale, "confirm.vector.originalTitle")
+        : t(locale, "confirm.vector.title"),
       body: useOriginal
-        ? `"${sourceLabel}" (exploration) will be traced into an exact SVG that matches its silhouette (${vectorCost} signal). Prefer Refinement when a craft pass exists — it is higher resolution.`
-        : `"${sourceLabel}" will be traced into an exact SVG that matches its silhouette — same mark, sharp vector edges (${vectorCost} signal).`,
-      confirmLabel: "Build SVG master",
+        ? t(locale, "confirm.vector.originalBody", { label: sourceLabel })
+        : t(locale, "confirm.vector.body", { label: sourceLabel }),
+      confirmLabel: t(locale, "confirm.vector.cta"),
     }))) return;
     setIsVectorizing(true);
     setNotice(
       useOriginal
-        ? "Tracing the original concept into an exact SVG…"
-        : "Tracing the refinement into an exact SVG…",
+        ? t(locale, "notice.tracingOriginal")
+        : t(locale, "notice.tracingRefine"),
     );
     try {
       const response = await apiFetch(`/projects/${projectId}/vectorize`, {
@@ -1922,7 +2375,7 @@ function LoopenStudioApp({
       if (!response.ok || !payload.assets?.length) {
         showRequestError(
           "SVG reconstruction",
-          payload.error ?? "Vectorization could not be completed.",
+          payload.error ?? t(locale, "notice.vectorFailed"),
         );
         return;
       }
@@ -1932,7 +2385,7 @@ function LoopenStudioApp({
       ]);
       setSelectedVector(payload.assets[0].id);
       setProductionLocked(false);
-      setNotice("Production SVGs are ready. Adjust and export your lockup.");
+      setNotice(t(locale, "notice.svgReady"));
       void loadHistory();
       void refreshStudioAccount();
     } catch (error) {
@@ -1940,7 +2393,7 @@ function LoopenStudioApp({
         "SVG reconstruction",
         error instanceof Error
           ? error.message
-          : "Vectorization could not be completed.",
+          : t(locale, "notice.vectorFailed"),
       );
     } finally {
       setIsVectorizing(false);
@@ -1953,7 +2406,7 @@ function LoopenStudioApp({
     rasterSize?: number,
   ) {
     if (!projectId || !selectedVector) {
-      setNotice("Choose a vector result before export.");
+      setNotice(t(locale, "notice.chooseVectorExport"));
       return;
     }
     const requestKey = `${format}-${layout}-${rasterSize ?? "master"}`;
@@ -1967,7 +2420,7 @@ function LoopenStudioApp({
         } | null;
         showRequestError(
           "Asset export",
-          payload?.error ?? "Vector asset could not be loaded.",
+          payload?.error ?? t(locale, "notice.assetLoadFailed"),
         );
         return;
       }
@@ -2023,11 +2476,17 @@ function LoopenStudioApp({
       link.download = `${brandName}-${layout}${rasterSize ? `-${rasterSize}` : ""}.${format}`;
       link.click();
       URL.revokeObjectURL(url);
-      setNotice(`Production ${format.toUpperCase()} downloaded.`);
+      setNotice(
+        t(locale, "notice.exportDownloaded", {
+          format: format.toUpperCase(),
+        }),
+      );
     } catch (error) {
       showRequestError(
         "Asset export",
-        error instanceof Error ? error.message : "Export could not be created.",
+        error instanceof Error
+          ? error.message
+          : t(locale, "notice.exportFailed"),
       );
     } finally {
       setExportingKey("");
@@ -2036,7 +2495,7 @@ function LoopenStudioApp({
 
   function printBrandGuide() {
     if (!projectId || !selectedVector) {
-      setNotice("Choose a vector result before creating the brand guide.");
+      setNotice(t(locale, "notice.chooseVectorGuide"));
       return;
     }
     window.open(
@@ -2046,15 +2505,17 @@ function LoopenStudioApp({
       "_blank",
       "noopener,noreferrer",
     );
-    setNotice("Brand guide opened. Choose Print → Save as PDF.");
+    setNotice(t(locale, "notice.guideOpened"));
   }
 
   async function deleteConcept(generation: GeneratedConcept) {
     const confirmed = await requestConfirmation({
-      kicker: "Permanent action / Concept",
-      title: `Delete ${generation.directionTitle}?`,
-      body: "This concept and any linked assets will be permanently removed. No replacement will be generated.",
-      confirmLabel: "Delete concept",
+      kicker: t(locale, "confirm.deleteConcept.kicker"),
+      title: t(locale, "confirm.deleteConcept.title", {
+        title: generation.directionTitle,
+      }),
+      body: t(locale, "confirm.deleteConcept.body"),
+      confirmLabel: t(locale, "confirm.deleteConcept.cta"),
       tone: "danger",
     });
     if (!confirmed) return;
@@ -2067,7 +2528,7 @@ function LoopenStudioApp({
         error?: string;
       } | null;
       showRequestError(
-        "Delete concept",
+        t(locale, "confirm.deleteConcept.cta"),
         payload?.error ?? "Concept could not be deleted.",
       );
       return;
@@ -2079,15 +2540,15 @@ function LoopenStudioApp({
     setSelectedConceptIds((current) =>
       current.filter((id) => id !== generation.id),
     );
-    setNotice("Concept deleted. No replacement was generated.");
+    setNotice(t(locale, "notice.conceptDeleted"));
   }
 
   async function deleteAsset(asset: StudioAsset) {
     const confirmed = await requestConfirmation({
-      kicker: "Permanent action / SVG",
-      title: `Delete ${asset.label}?`,
-      body: "This production SVG will be permanently removed from the project. Reconstruct again if you need a new master.",
-      confirmLabel: "Delete SVG",
+      kicker: t(locale, "confirm.deleteSvg.kicker"),
+      title: t(locale, "confirm.deleteSvg.title", { label: asset.label }),
+      body: t(locale, "confirm.deleteSvg.body"),
+      confirmLabel: t(locale, "confirm.deleteSvg.cta"),
       tone: "danger",
     });
     if (!confirmed) return;
@@ -2100,7 +2561,7 @@ function LoopenStudioApp({
         error?: string;
       } | null;
       showRequestError(
-        "Delete SVG",
+        t(locale, "confirm.deleteSvg.cta"),
         payload?.error ?? "SVG could not be deleted.",
       );
       return;
@@ -2117,7 +2578,7 @@ function LoopenStudioApp({
       const remainingRefines = remaining.filter((item) => item.stage === "refine");
       setSelectedRefinement(remainingRefines[0]?.id ?? "");
     }
-    setNotice(`${asset.label} deleted.`);
+    setNotice(t(locale, "notice.assetDeleted", { label: asset.label }));
   }
 
   async function selectGeneratedConcept(generationId: string) {
@@ -2127,7 +2588,11 @@ function LoopenStudioApp({
     const alreadySelected = selectedConceptIds.includes(generation.id);
     if (alreadySelected) {
       setSelectedConceptIds([]);
-      setNotice(`${generation.directionTitle} removed from the refinement shortlist.`);
+      setNotice(
+        t(locale, "notice.removedFromShortlist", {
+          title: generation.directionTitle,
+        }),
+      );
       return;
     }
     setSelectedConceptIds([generation.id]);
@@ -2140,8 +2605,10 @@ function LoopenStudioApp({
 
     setNotice(
       response.ok
-        ? `${generation.directionTitle} selected for refinement.`
-        : "The direction is selected locally, but could not be saved.",
+        ? t(locale, "notice.selectedForRefine", {
+            title: generation.directionTitle,
+          })
+        : t(locale, "notice.selectLocalOnly"),
     );
   }
 
@@ -2190,12 +2657,10 @@ function LoopenStudioApp({
         }
       }
       setDiversityWarning(
-        closest < 28
-          ? "Similarity warning: at least two concepts have a closely related silhouette. Review them manually; Loopen will not regenerate without your action."
-          : "",
+        closest < 28 ? t(locale, "concepts.diversity.warn") : "",
       );
     } catch {
-      setDiversityWarning("Automatic silhouette comparison was unavailable. Review variety manually.");
+      setDiversityWarning(t(locale, "concepts.diversity.unavailable"));
     }
   }
 
@@ -2217,48 +2682,49 @@ function LoopenStudioApp({
           >
             <header>
               <a href="#top" onClick={() => setIsMethodOpen(false)}>LOOPEN®</a>
-              <span>Method / 01—05</span>
+              <span>{t(locale, "method.index")}</span>
               <button type="button" onClick={() => setIsMethodOpen(false)}>
-                Close <i>×</i>
+                {t(locale, "method.close")} <i>×</i>
               </button>
             </header>
             <div className="method-intro">
-              <p>Our point of view</p>
+              <p>{t(locale, "method.pov")}</p>
               <h2 id="method-title">
-                Direction before
+                {t(locale, "method.title.1")}
                 <br />
-                <em>decoration.</em>
+                <em>{t(locale, "method.title.2")}</em>
               </h2>
-              <p>
-                AI expands the field. Strategy sets the boundaries. Independent
-                juries remove noise. Human selection makes the identity specific.
-              </p>
+              <p>{t(locale, "method.intro")}</p>
             </div>
             <div className="method-steps">
-              {[
-                ["01", "Brand signal", "The client defines meaning, audience, position, constraints and color intent before form exists.", "Human + GPT"],
-                ["02", "Category refusal", "The system identifies repeated category codes, competitor ownership and the visual territory the brand should avoid.", "GPT strategy"],
-                ["03", "Distinct territories", "Gemini creates four genuinely different flat logo concepts from separate brand ideas—not multiple seeds of one shape.", "Gemini image"],
-                ["04", "Refinement + jury", "Selected concepts receive a focused craft pass. Gemini and GPT judge idea, distinction, optical quality and 24 px clarity independently.", "Dual jury"],
-                ["05", "Production master", "Only an approved logo is rebuilt as controlled SVG geometry, paired with a separate wordmark and tested across contexts.", "GPT + human"],
-              ].map(([number, title, body, owner]) => (
+              {(
+                [
+                  ["01", "method.step01"],
+                  ["02", "method.step02"],
+                  ["03", "method.step03"],
+                  ["04", "method.step04"],
+                  ["05", "method.step05"],
+                ] as const
+              ).map(([number, stepKey]) => (
                 <section key={number}>
                   <span>{number}</span>
-                  <h3>{title}</h3>
-                  <p>{body}</p>
-                  <b>{owner}</b>
+                  <h3>{t(locale, `${stepKey}.title`)}</h3>
+                  <p>{t(locale, `${stepKey}.body`)}</p>
+                  <b>{t(locale, `${stepKey}.owner`)}</b>
                 </section>
               ))}
             </div>
             <footer>
               <blockquote>
-                AI should multiply <em>directions,</em> not multiply noise.
+                {t(locale, "manifesto.quote.1")}{" "}
+                <em>{t(locale, "manifesto.quote.2")}</em>{" "}
+                {t(locale, "manifesto.quote.3")}
               </blockquote>
               <button type="button" onClick={() => {
                 setIsMethodOpen(false);
                 document.getElementById("brief")?.scrollIntoView({ behavior: "smooth" });
               }}>
-                Start with the brief <span>↘</span>
+                {t(locale, "method.cta")} <span>↘</span>
               </button>
             </footer>
           </article>
@@ -2282,7 +2748,7 @@ function LoopenStudioApp({
             <p>{confirmDialog.kicker}</p>
             <h2 id="confirm-dialog-title">{confirmDialog.title}</h2>
             <div className="confirm-dialog-copy">
-              <span>Decision</span>
+              <span>{t(locale, "confirm.decision")}</span>
               <p>{confirmDialog.body}</p>
             </div>
             <div className="confirm-dialog-actions">
@@ -2297,7 +2763,7 @@ function LoopenStudioApp({
               ) : (
                 <>
                   <button type="button" onClick={() => resolveConfirmation(false)}>
-                    Keep exploring
+                    {t(locale, "confirm.keepExploring")}
                   </button>
                   <button
                     type="button"
@@ -2313,16 +2779,20 @@ function LoopenStudioApp({
         </div>
       )}
       <header className="site-header">
-        <a className="wordmark" href="#top" aria-label="Loopen home">
+        <a
+          className="wordmark"
+          href="#top"
+          aria-label={`LOOPEN — ${t(locale, "nav.homeAria")}`}
+        >
           <span className="wordmark-glyph" aria-hidden="true">
             ∞
           </span>
           LOOPEN
         </a>
-        <nav className="top-nav" aria-label="Main navigation">
-          <a href="#brief">Studio</a>
-          <a href="#manifesto">Method</a>
-          <a href="#manifesto">About</a>
+        <nav className="top-nav" aria-label={t(locale, "nav.mainAria")}>
+          <a href="#brief">{t(locale, "nav.studio")}</a>
+          <a href="#manifesto">{t(locale, "nav.method")}</a>
+          <a href="#manifesto">{t(locale, "nav.about")}</a>
         </nav>
         <div className="header-actions">
           <button
@@ -2330,17 +2800,19 @@ function LoopenStudioApp({
             type="button"
             onClick={() => void resetStudioToFresh()}
           >
-            New session
+            {t(locale, "nav.newSession")}
           </button>
           {hasWorkspace && (
             <button
               className="signal-pill"
               type="button"
               onClick={() => setIsSignalsOpen(true)}
-              title="Studio signals — prepaid creative energy"
+              title={t(locale, "nav.signalsTitle")}
             >
               <span className="signal-orb" aria-hidden="true" />
-              {signalBalance === null ? "Signals" : `${signalBalance} signals`}
+              {signalBalance === null
+                ? t(locale, "nav.signals")
+                : t(locale, "nav.signalsCount", { n: signalBalance })}
             </button>
           )}
           {isGuestSession && (
@@ -2350,24 +2822,27 @@ function LoopenStudioApp({
               onClick={() =>
                 openAuthGate(
                   "signin",
-                  "Sign in or create an account to generate and save work.",
+                  t(locale, "auth.signin.copy"),
                 )
               }
-              title="Enter with email"
+              title={t(locale, "nav.enter")}
             >
               <span className="online-dot" />
-              Enter
+              {t(locale, "nav.enter")}
             </button>
           )}
           {hasWorkspace && (
             <button
               className="project-pill"
               type="button"
-              onClick={() => setIsHistoryOpen((current) => !current)}
-              title="Open project history"
+              onClick={() => {
+                if (isHistoryOpen) setIsHistoryOpen(false);
+                else openWorkspace("projects");
+              }}
+              title={t(locale, "workspace.private")}
             >
               <span className="online-dot" />
-              {`${projects.length} projects`}
+              {`${projects.length} ${t(locale, "nav.projects")}`}
             </button>
           )}
         </div>
@@ -2388,55 +2863,55 @@ function LoopenStudioApp({
             <p className="studio-gate-index">∞</p>
             <p>
               {authMode === "signup"
-                ? "02 / New account"
+                ? t(locale, "auth.signup.kicker")
                 : authMode === "confirm"
-                  ? "02 / Confirm email"
+                  ? t(locale, "auth.confirm.kicker")
                   : authMode === "forgot"
-                    ? "03 / Reset access"
+                    ? t(locale, "auth.forgot.kicker")
                     : authMode === "reset"
-                      ? "04 / New password"
-                      : "01 / Private entry"}
+                      ? t(locale, "auth.reset.kicker")
+                      : t(locale, "auth.signin.kicker")}
             </p>
             <h2 id="studio-gate-title">
               {authMode === "signup" ? (
                 <>
-                  Join the
-                  <em> studio.</em>
+                  {t(locale, "auth.signup.title.1")}
+                  <em> {t(locale, "auth.signup.title.2")}</em>
                 </>
               ) : authMode === "confirm" ? (
                 <>
-                  Confirm your
-                  <em> email.</em>
+                  {t(locale, "auth.confirm.title.1")}
+                  <em> {t(locale, "auth.confirm.title.2")}</em>
                 </>
               ) : authMode === "forgot" ? (
                 <>
-                  Reset your
-                  <em> access.</em>
+                  {t(locale, "auth.forgot.title.1")}
+                  <em> {t(locale, "auth.forgot.title.2")}</em>
                 </>
               ) : authMode === "reset" ? (
                 <>
-                  Set a new
-                  <em> password.</em>
+                  {t(locale, "auth.reset.title.1")}
+                  <em> {t(locale, "auth.reset.title.2")}</em>
                 </>
               ) : (
                 <>
-                  Enter the
-                  <em> studio.</em>
+                  {t(locale, "auth.signin.title.1")}
+                  <em> {t(locale, "auth.signin.title.2")}</em>
                 </>
               )}
             </h2>
             <div className="studio-gate-copy">
-              <span>How</span>
+              <span>{t(locale, "auth.how")}</span>
               <p>
                 {authMode === "signup"
-                  ? "Create an email + password account. We’ll send a confirmation link before first entry."
+                  ? t(locale, "auth.signup.copy")
                   : authMode === "confirm"
-                    ? "Open the confirmation link in this browser. After that, sign in with your password."
+                    ? t(locale, "auth.confirm.copy")
                     : authMode === "forgot"
-                      ? "We’ll email a reset link. Open it in this browser, then choose a new password."
+                      ? t(locale, "auth.forgot.copy")
                       : authMode === "reset"
-                        ? "You’re signed in via the reset link. Pick a password you’ll remember."
-                        : "Sign in with email + password. New here? Create an account below."}
+                        ? t(locale, "auth.reset.copy")
+                        : t(locale, "auth.signin.copy")}
               </p>
             </div>
             <form
@@ -2454,7 +2929,8 @@ function LoopenStudioApp({
                     htmlFor="studio-auth-first-name"
                   >
                     <span className="mini-label">
-                      First name <span className="req-mark" aria-hidden="true">*</span>
+                      {t(locale, "auth.firstName")}{" "}
+                      <span className="req-mark" aria-hidden="true">*</span>
                     </span>
                     <input
                       id="studio-auth-first-name"
@@ -2490,7 +2966,8 @@ function LoopenStudioApp({
                     htmlFor="studio-auth-last-name"
                   >
                     <span className="mini-label">
-                      Last name <span className="req-mark" aria-hidden="true">*</span>
+                      {t(locale, "auth.lastName")}{" "}
+                      <span className="req-mark" aria-hidden="true">*</span>
                     </span>
                     <input
                       id="studio-auth-last-name"
@@ -2529,14 +3006,15 @@ function LoopenStudioApp({
                   htmlFor="studio-auth-email"
                 >
                   <span className="mini-label">
-                    Email <span className="req-mark" aria-hidden="true">*</span>
+                    {t(locale, "auth.email")}{" "}
+                    <span className="req-mark" aria-hidden="true">*</span>
                   </span>
                   <input
                     id="studio-auth-email"
                     type="text"
                     autoComplete="email"
                     inputMode="email"
-                    placeholder="you@brand.studio"
+                    placeholder={t(locale, "auth.placeholder.email")}
                     value={authEmail}
                     onChange={(event) =>
                       updateAuthField("email", event.target.value)
@@ -2568,7 +3046,9 @@ function LoopenStudioApp({
                   htmlFor="studio-auth-password"
                 >
                   <span className="mini-label">
-                    {authMode === "reset" ? "New password" : "Password"}{" "}
+                    {authMode === "reset"
+                      ? t(locale, "auth.newPassword")
+                      : t(locale, "auth.password")}{" "}
                     <span className="req-mark" aria-hidden="true">*</span>
                   </span>
                   <div
@@ -2615,7 +3095,7 @@ function LoopenStudioApp({
                         onPointerCancel={() => setAuthPasswordVisible(false)}
                         onBlur={() => setAuthPasswordVisible(false)}
                         onContextMenu={(event) => event.preventDefault()}
-                        aria-label="Hold to show password"
+                        aria-label={t(locale, "auth.showPasswordAria")}
                         tabIndex={0}
                       >
                         <svg
@@ -2672,7 +3152,7 @@ function LoopenStudioApp({
                         className="studio-gate-field-hint"
                         id="studio-auth-password-hint"
                       >
-                        At least 8 characters, with a letter and a number.
+                        {t(locale, "auth.passwordHint")}
                       </span>
                     )}
                   {showAuthFieldError("password") && (
@@ -2692,7 +3172,7 @@ function LoopenStudioApp({
                   htmlFor="studio-auth-password-confirm"
                 >
                   <span className="mini-label">
-                    Confirm password{" "}
+                    {t(locale, "auth.confirmPassword")}{" "}
                     <span className="req-mark" aria-hidden="true">*</span>
                   </span>
                   <input
@@ -2728,7 +3208,7 @@ function LoopenStudioApp({
               )}
               <div className="studio-gate-actions">
                 <button type="button" onClick={() => setIsAuthOpen(false)}>
-                  Not now
+                  {t(locale, "auth.notNow")}
                 </button>
                 {authMode === "confirm" ? (
                   <button
@@ -2738,10 +3218,10 @@ function LoopenStudioApp({
                     onClick={() => void resendConfirmationEmail()}
                   >
                     {authSending === "resend"
-                      ? "Sending…"
+                      ? t(locale, "auth.sending")
                       : authResendWaitSec > 0
-                        ? `Resend in ${authResendWaitSec}s`
-                        : "Resend email"}
+                        ? t(locale, "auth.resendIn", { n: authResendWaitSec })
+                        : t(locale, "auth.resend")}
                     <span>↗</span>
                   </button>
                 ) : (
@@ -2752,20 +3232,20 @@ function LoopenStudioApp({
                     disabled={Boolean(authSending)}
                   >
                     {authSending === "signin"
-                      ? "Signing in…"
+                      ? t(locale, "auth.signingIn")
                       : authSending === "signup"
-                        ? "Creating…"
+                        ? t(locale, "auth.creating")
                         : authSending === "forgot"
-                          ? "Sending…"
+                          ? t(locale, "auth.sending")
                           : authSending === "reset"
-                            ? "Saving…"
+                            ? t(locale, "auth.saving")
                             : authMode === "signup"
-                              ? "Create account"
+                              ? t(locale, "auth.create")
                               : authMode === "forgot"
-                                ? "Send reset link"
+                                ? t(locale, "auth.sendReset")
                                 : authMode === "reset"
-                                  ? "Save password"
-                                  : "Enter studio"}
+                                  ? t(locale, "auth.savePassword")
+                                  : t(locale, "auth.enter")}
                     <span>→</span>
                   </button>
                 )}
@@ -2778,14 +3258,14 @@ function LoopenStudioApp({
                       onClick={() => openAuthGate("signup")}
                       disabled={Boolean(authSending)}
                     >
-                      Create account
+                      {t(locale, "auth.createAccount")}
                     </button>
                     <button
                       type="button"
                       onClick={() => openAuthGate("forgot")}
                       disabled={Boolean(authSending)}
                     >
-                      Forgot password
+                      {t(locale, "auth.forgotPassword")}
                     </button>
                   </>
                 )}
@@ -2795,7 +3275,7 @@ function LoopenStudioApp({
                     onClick={() => openAuthGate("signin")}
                     disabled={Boolean(authSending)}
                   >
-                    Already have an account? Sign in
+                    {t(locale, "auth.haveAccount")}
                   </button>
                 )}
                 {authMode === "confirm" && (
@@ -2804,12 +3284,12 @@ function LoopenStudioApp({
                     onClick={() =>
                       openAuthGate(
                         "signin",
-                        "After confirming, sign in with your password.",
+                        t(locale, "auth.confirm.copy"),
                       )
                     }
                     disabled={Boolean(authSending)}
                   >
-                    I confirmed — sign in
+                    {t(locale, "auth.confirmedSignIn")}
                   </button>
                 )}
                 {(authMode === "forgot" || authMode === "reset") && (
@@ -2818,15 +3298,16 @@ function LoopenStudioApp({
                     onClick={() => openAuthGate("signin")}
                     disabled={Boolean(authSending)}
                   >
-                    Back to sign in
+                    {t(locale, "auth.backSignIn")}
                   </button>
                 )}
               </div>
             </form>
             {authStatus && <p className="studio-gate-status">{authStatus}</p>}
             <p className="studio-gate-note">
-              First entry includes {signalCosts?.generateBatch ?? 4} welcome
-              signals — enough for one full concept batch.
+              {t(locale, "auth.welcomeNote", {
+                n: signalCosts?.generateBatch ?? 4,
+              })}
             </p>
           </section>
         </div>
@@ -2841,24 +3322,28 @@ function LoopenStudioApp({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="signal-vault-head">
-              <p>Signal vault</p>
-              <button type="button" onClick={() => setIsSignalsOpen(false)} aria-label="Close">
+              <p>{t(locale, "signals.vault")}</p>
+              <button
+                type="button"
+                onClick={() => setIsSignalsOpen(false)}
+                aria-label={t(locale, "signals.closeAria")}
+              >
                 ×
               </button>
             </div>
             <h2 id="signal-vault-title">
-              Creative energy,
-              <em> prepaid.</em>
+              {t(locale, "signals.title.1")}
+              <em> {t(locale, "signals.title.2")}</em>
             </h2>
             <p className="signal-vault-balance">
               <strong>{signalBalance ?? "—"}</strong>
-              <span>signals on hand</span>
+              <span>{t(locale, "signals.onHand")}</span>
             </p>
             <ul className="signal-cost-list">
-              <li><span>4 concepts</span><b>{signalCosts?.generateBatch ?? 4}</b></li>
-              <li><span>+1 concept</span><b>{signalCosts?.extraConcept ?? 1}</b></li>
-              <li><span>Pro refine</span><b>{signalCosts?.refine ?? 2}</b></li>
-              <li><span>Vector master</span><b>{signalCosts?.vectorize ?? 1}</b></li>
+              <li><span>{t(locale, "signals.cost.batch")}</span><b>{signalCosts?.generateBatch ?? 4}</b></li>
+              <li><span>{t(locale, "signals.cost.extra")}</span><b>{signalCosts?.extraConcept ?? 1}</b></li>
+              <li><span>{t(locale, "signals.cost.refine")}</span><b>{signalCosts?.refine ?? 2}</b></li>
+              <li><span>{t(locale, "signals.cost.vector")}</span><b>{signalCosts?.vectorize ?? 1}</b></li>
             </ul>
             <div className="signal-pack-grid">
               {(signalPacks.length
@@ -2869,28 +3354,28 @@ function LoopenStudioApp({
                       label: "Spark",
                       signals: 12,
                       priceUsd: 14,
-                      blurb: "One full loop: brief → four concepts → refine → vector.",
+                      blurb: t(locale, "signals.pack.sparkBlurb"),
                     },
                     {
                       id: "studio",
                       label: "Studio",
                       signals: 40,
                       priceUsd: 39,
-                      blurb: "Room to explore territories and lock a mark properly.",
+                      blurb: t(locale, "signals.pack.studioBlurb"),
                     },
                     {
                       id: "atelier",
                       label: "Atelier",
                       signals: 120,
                       priceUsd: 99,
-                      blurb: "A working stock for multiple brands in the same season.",
+                      blurb: t(locale, "signals.pack.atelierBlurb"),
                     },
                   ]
               ).map((pack) => (
                 <article className="signal-pack" key={pack.id}>
                   <span>{pack.label}</span>
                   <strong>{pack.signals}</strong>
-                  <small>signals</small>
+                  <small>{t(locale, "signals.unit")}</small>
                   <p>{pack.blurb}</p>
                   <button
                     type="button"
@@ -2898,11 +3383,11 @@ function LoopenStudioApp({
                     onClick={() => void startSignalCheckout(pack.id)}
                   >
                     {!user
-                      ? "Enter first"
+                      ? t(locale, "signals.enterFirst")
                       : !billingEnabled
-                        ? "Billing soon"
+                        ? t(locale, "signals.billingSoon")
                         : checkoutPackId === pack.id
-                          ? "Redirecting…"
+                          ? t(locale, "signals.redirecting")
                           : `$${pack.priceUsd}`}
                   </button>
                 </article>
@@ -2910,22 +3395,22 @@ function LoopenStudioApp({
             </div>
             {!billingEnabled && (
               <p className="signal-vault-note">
-                Stripe keys are not configured yet — welcome signals still work for the first loop.
+                {t(locale, "signals.stripeNote")}
               </p>
             )}
           </section>
         </div>
       )}
       {user && isHistoryOpen && (
-        <aside className="history-drawer" aria-label="Project history">
+        <aside className="history-drawer" aria-label={t(locale, "workspace.private")}>
           <div className="history-head">
             <div>
               <span>
                 {isAdmin
-                  ? "Admin workspace"
+                  ? t(locale, "workspace.admin")
                   : role === "user"
-                    ? "Private workspace"
-                    : "Guest workspace"}
+                    ? t(locale, "workspace.private")
+                    : t(locale, "workspace.guest")}
               </span>
               <strong>{user.displayName}</strong>
               <small className="history-email">
@@ -2933,119 +3418,490 @@ function LoopenStudioApp({
                 {role !== "guest" ? ` · ${role}` : ""}
               </small>
             </div>
-            <button type="button" onClick={() => setIsHistoryOpen(false)} aria-label="Close history">×</button>
+            <button
+              type="button"
+              onClick={() => setIsHistoryOpen(false)}
+              aria-label={t(locale, "workspace.closeAria")}
+            >
+              ×
+            </button>
           </div>
+
           <div className="history-account-row">
             <button type="button" onClick={() => setIsSignalsOpen(true)}>
-              {signalBalance === null ? "Signals" : `${signalBalance} signals`} ↗
+              {signalBalance === null
+                ? t(locale, "nav.signals")
+                : t(locale, "nav.signalsCount", { n: signalBalance })}{" "}
+              ↗
             </button>
-            <a href="/api/auth/logout?return_to=/">Leave studio</a>
+            <a href="/api/auth/logout?return_to=/">
+              {t(locale, "workspace.leave")}
+            </a>
           </div>
-          <div className="history-list" ref={historyListRef}>
-            {projects.length ? projects.map((project) => (
-              <div className="history-project" key={project.id}>
-                <button
-                  className="history-open"
-                  type="button"
-                  onClick={() => openProject(project.id)}
-                >
-                  <span>{new Date(project.createdAt).toLocaleDateString()}</span>
-                  <strong>{project.brandName}</strong>
-                  <small>{project.status}</small>
-                </button>
-                <button
-                  className="history-delete"
-                  type="button"
-                  onClick={() => deleteProject(project)}
-                  disabled={deletingProjectId === project.id}
-                  aria-label={`Delete ${project.brandName} project`}
-                  title="Delete project"
-                >
-                  {deletingProjectId === project.id ? (
-                    <RequestDrop label="Deleting project" />
-                  ) : "×"}
-                </button>
+
+          <div
+            className="workspace-tabs"
+            role="tablist"
+            aria-label={t(locale, "workspace.tabsAria")}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={workspacePane === "projects"}
+              className={workspacePane === "projects" ? "is-active" : ""}
+              onClick={() => setWorkspacePane("projects")}
+            >
+              {t(locale, "workspace.projects")}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={workspacePane === "account"}
+              className={workspacePane === "account" ? "is-active" : ""}
+              onClick={() => {
+                setWorkspacePane("account");
+                // Names only — never rehydrate prefs from the SSR `user` prop
+                // (it is stale after an in-session language / email prefs save).
+                setProfileFirstName(user.firstName ?? profileFirstName);
+                setProfileLastName(user.lastName ?? profileLastName);
+              }}
+            >
+              {t(locale, "workspace.account")}
+            </button>
+          </div>
+
+          {workspacePane === "projects" ? (
+            <>
+              <div className="history-list" ref={historyListRef}>
+                {projects.length ? (
+                  <>
+                    <button
+                      type="button"
+                      className="workspace-new-project"
+                      onClick={() => void startNewProjectFromWorkspace()}
+                    >
+                      {t(locale, "workspace.newProject")} <span>→</span>
+                    </button>
+                    {projects.map((project) => (
+                      <div className="history-project" key={project.id}>
+                        <button
+                          className="history-open"
+                          type="button"
+                          onClick={() => openProject(project.id)}
+                        >
+                          <span>
+                            {new Date(project.createdAt).toLocaleDateString()}
+                          </span>
+                          <strong>{project.brandName}</strong>
+                          <small>{project.status}</small>
+                        </button>
+                        <button
+                          className="history-delete"
+                          type="button"
+                          onClick={() => deleteProject(project)}
+                          disabled={deletingProjectId === project.id}
+                          aria-label={t(locale, "workspace.deleteProjectAria", {
+                            name: project.brandName,
+                          })}
+                          title={t(locale, "workspace.deleteProjectTitle")}
+                        >
+                          {deletingProjectId === project.id ? (
+                            <RequestDrop
+                              label={t(locale, "workspace.deletingProject")}
+                            />
+                          ) : (
+                            "×"
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div className="workspace-empty">
+                    <p className="workspace-empty-kicker">
+                      {t(locale, "workspace.empty.kicker")}
+                    </p>
+                    <h3>{t(locale, "workspace.empty.title")}</h3>
+                    <p>{t(locale, "workspace.empty.body")}</p>
+                    <button
+                      type="button"
+                      className="workspace-empty-cta"
+                      onClick={startBriefFromWorkspace}
+                    >
+                      {t(locale, "workspace.empty.cta")} <span>↘</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            )) : <p>No saved projects yet.</p>}
-          </div>
-          {projects.length > 3 && (
-            <div className="history-scroll-controls" aria-label="Scroll project history">
-              <button
-                type="button"
-                onClick={() => scrollProjectHistory(-1)}
-                aria-label="Scroll projects up"
-              >
-                ↑
-              </button>
-              <span>Browse projects</span>
-              <button
-                type="button"
-                onClick={() => scrollProjectHistory(1)}
-                aria-label="Scroll projects down"
-              >
-                ↓
-              </button>
+              {projects.length > 3 && (
+                <div
+                  className="history-scroll-controls"
+                  aria-label={t(locale, "workspace.scrollHistoryAria")}
+                >
+                  <button
+                    type="button"
+                    onClick={() => scrollProjectHistory(-1)}
+                    aria-label={t(locale, "workspace.scrollUpAria")}
+                  >
+                    ↑
+                  </button>
+                  <span>{t(locale, "workspace.browse")}</span>
+                  <button
+                    type="button"
+                    onClick={() => scrollProjectHistory(1)}
+                    aria-label={t(locale, "workspace.scrollDownAria")}
+                  >
+                    ↓
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="workspace-account">
+              {(
+                [
+                  ["profile", "workspace.editName"],
+                  ["password", "workspace.changePassword"],
+                  ["locale", "workspace.briefLanguage"],
+                  ["email", "workspace.emailPrefs"],
+                  ["billing", "workspace.billing"],
+                  ["team", "workspace.team"],
+                  ["support", "workspace.support"],
+                  ["delete", "workspace.delete"],
+                ] as const
+              ).map(([id, labelKey]) => (
+                <section key={id} className="workspace-acc-block">
+                  <button
+                    type="button"
+                    className={`workspace-acc-trigger${accountSection === id ? " is-open" : ""}`}
+                    onClick={() => {
+                      const next = accountSection === id ? null : id;
+                      setAccountSection(next);
+                      if (next === "billing") void loadBillingHistory();
+                    }}
+                    aria-expanded={accountSection === id}
+                  >
+                    <span>{t(locale, labelKey)}</span>
+                    <b>{accountSection === id ? "−" : "+"}</b>
+                  </button>
+
+                  {accountSection === id && id === "profile" && (
+                    <form
+                      className="workspace-acc-panel"
+                      onSubmit={saveProfileName}
+                    >
+                      <label>
+                        <span>{t(locale, "field.firstName")}</span>
+                        <input
+                          value={profileFirstName}
+                          onChange={(event) =>
+                            setProfileFirstName(event.target.value)
+                          }
+                          maxLength={80}
+                          required
+                        />
+                      </label>
+                      <label>
+                        <span>{t(locale, "field.lastName")}</span>
+                        <input
+                          value={profileLastName}
+                          onChange={(event) =>
+                            setProfileLastName(event.target.value)
+                          }
+                          maxLength={80}
+                          required
+                        />
+                      </label>
+                      <button type="submit" disabled={profileSaving}>
+                        {profileSaving
+                          ? t(locale, "workspace.profile.saving")
+                          : t(locale, "workspace.profile.save")}
+                      </button>
+                      {profileStatus && <p>{profileStatus}</p>}
+                    </form>
+                  )}
+
+                  {accountSection === id && id === "password" && (
+                    <form
+                      className="workspace-acc-panel"
+                      onSubmit={saveAccountPassword}
+                    >
+                      {user.source === "local" ? (
+                        <p>{t(locale, "workspace.password.localOnly")}</p>
+                      ) : (
+                        <>
+                          <label>
+                            <span>{t(locale, "workspace.password.current")}</span>
+                            <input
+                              type="password"
+                              autoComplete="current-password"
+                              value={passwordCurrent}
+                              onChange={(event) =>
+                                setPasswordCurrent(event.target.value)
+                              }
+                              required
+                            />
+                          </label>
+                          <label>
+                            <span>{t(locale, "workspace.password.new")}</span>
+                            <input
+                              type="password"
+                              autoComplete="new-password"
+                              value={passwordNext}
+                              onChange={(event) =>
+                                setPasswordNext(event.target.value)
+                              }
+                              required
+                            />
+                          </label>
+                          <label>
+                            <span>{t(locale, "workspace.password.confirm")}</span>
+                            <input
+                              type="password"
+                              autoComplete="new-password"
+                              value={passwordNextConfirm}
+                              onChange={(event) =>
+                                setPasswordNextConfirm(event.target.value)
+                              }
+                              required
+                            />
+                          </label>
+                          <button type="submit" disabled={passwordSaving}>
+                            {passwordSaving
+                              ? t(locale, "workspace.password.updating")
+                              : t(locale, "workspace.password.update")}
+                          </button>
+                          {passwordStatus && <p>{passwordStatus}</p>}
+                        </>
+                      )}
+                    </form>
+                  )}
+
+                  {accountSection === id && id === "locale" && (
+                    <div className="workspace-acc-panel workspace-locale-panel">
+                      <p>{t(locale, "workspace.locale.help")}</p>
+                      <CreativeSelect
+                        label={t(locale, "workspace.locale.label")}
+                        value={emailPrefs.briefLocale}
+                        options={BRIEF_LOCALE_OPTIONS}
+                        onChange={(value) => {
+                          if (localeSaving) return;
+                          void saveBriefLocale(value as BriefLocale);
+                        }}
+                      />
+                      {localeStatus && <p>{localeStatus}</p>}
+                    </div>
+                  )}
+
+                  {accountSection === id && id === "email" && (
+                    <div className="workspace-acc-panel">
+                      <label className="workspace-toggle">
+                        <input
+                          type="checkbox"
+                          checked={emailPrefs.productUpdates}
+                          disabled={prefsSaving}
+                          onChange={(event) =>
+                            void saveEmailPrefs({
+                              ...emailPrefs,
+                              productUpdates: event.target.checked,
+                            })
+                          }
+                        />
+                        <span>{t(locale, "workspace.email.productUpdates")}</span>
+                      </label>
+                      <label className="workspace-toggle">
+                        <input
+                          type="checkbox"
+                          checked={emailPrefs.signalReceipts}
+                          disabled={prefsSaving}
+                          onChange={(event) =>
+                            void saveEmailPrefs({
+                              ...emailPrefs,
+                              signalReceipts: event.target.checked,
+                            })
+                          }
+                        />
+                        <span>{t(locale, "workspace.email.signalReceipts")}</span>
+                      </label>
+                      {prefsStatus && <p>{prefsStatus}</p>}
+                    </div>
+                  )}
+
+                  {accountSection === id && id === "support" && (
+                    <div className="workspace-acc-panel">
+                      <p>{t(locale, "workspace.support.body")}</p>
+                      <a
+                        className="workspace-support-link"
+                        href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
+                          `LOOPEN ${t(locale, "workspace.support.subject")}`,
+                        )}`}
+                      >
+                        {SUPPORT_EMAIL} <span>↗</span>
+                      </a>
+                    </div>
+                  )}
+
+                  {accountSection === id && id === "billing" && (
+                    <div className="workspace-acc-panel">
+                      {billingHistoryLoading ? (
+                        <p>{t(locale, "workspace.billing.loading")}</p>
+                      ) : billingHistory.length ? (
+                        <ul className="workspace-billing-list">
+                          {billingHistory.map((entry) => (
+                            <li key={entry.id}>
+                              <span>
+                                {new Date(entry.createdAt).toLocaleDateString()}
+                              </span>
+                              <strong>{entry.label}</strong>
+                              <b>
+                                {entry.delta > 0 ? "+" : ""}
+                                {entry.delta}
+                              </b>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p>
+                          {billingHistoryStatus ||
+                            (billingEnabled
+                              ? t(locale, "workspace.billing.empty")
+                              : t(locale, "workspace.billing.stripePending"))}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsSignalsOpen(true)}
+                      >
+                        {t(locale, "workspace.billing.topUp")}
+                      </button>
+                    </div>
+                  )}
+
+                  {accountSection === id && id === "team" && (
+                    <div className="workspace-acc-panel">
+                      <p>{t(locale, "workspace.team.body")}</p>
+                      <label className="workspace-toggle">
+                        <input
+                          type="checkbox"
+                          checked={emailPrefs.teamLaunch}
+                          disabled={prefsSaving}
+                          onChange={(event) =>
+                            void saveEmailPrefs({
+                              ...emailPrefs,
+                              teamLaunch: event.target.checked,
+                            })
+                          }
+                        />
+                        <span>{t(locale, "workspace.team.notify")}</span>
+                      </label>
+                      {prefsStatus && <p>{prefsStatus}</p>}
+                    </div>
+                  )}
+
+                  {accountSection === id && id === "delete" && (
+                    <form
+                      className="workspace-acc-panel workspace-acc-danger"
+                      onSubmit={deleteStudioAccount}
+                    >
+                      {user.source === "local" ? (
+                        <p>{t(locale, "workspace.delete.localOnly")}</p>
+                      ) : (
+                        <>
+                          <p>
+                            {
+                              t(locale, "workspace.delete.body").split(
+                                "{email}",
+                              )[0]
+                            }
+                            <em>{user.email}</em>
+                            {
+                              t(locale, "workspace.delete.body").split(
+                                "{email}",
+                              )[1]
+                            }
+                          </p>
+                          <label>
+                            <span>{t(locale, "workspace.delete.confirmEmail")}</span>
+                            <input
+                              type="email"
+                              value={deleteConfirmEmail}
+                              onChange={(event) =>
+                                setDeleteConfirmEmail(event.target.value)
+                              }
+                              placeholder={user.email}
+                              required
+                            />
+                          </label>
+                          <button type="submit" disabled={deleteSaving}>
+                            {deleteSaving
+                              ? t(locale, "workspace.delete.deleting")
+                              : t(locale, "workspace.delete.submit")}
+                          </button>
+                          {deleteStatus && <p>{deleteStatus}</p>}
+                        </>
+                      )}
+                    </form>
+                  )}
+                </section>
+              ))}
             </div>
           )}
-          <span className="local-session-note">Tab session autosaved</span>
+
+          <span className="local-session-note">
+            {t(locale, "workspace.autosave")}
+          </span>
         </aside>
       )}
 
       <section className="hero" id="top">
         <div className="hero-kicker">
-          <span>AI creative direction</span>
-          <span>Tel Aviv / 2026</span>
+          <span>{t(locale, "hero.kicker")}</span>
+          <span>{studioStamp}</span>
         </div>
         <h1>
-          Brands with
+          {t(locale, "hero.title.1")}
           <span className="hero-line">
             <i className="loop-orbit" aria-hidden="true" />
-            <em>memory.</em>
+            <em>{t(locale, "hero.title.2")}</em>
           </span>
         </h1>
         <div className="hero-footer">
-          <p>
-            Loopen turns a sharp brand brief into an original, scalable identity
-            system — guided by strategy, refined by taste.
-          </p>
-          <a className="circle-cta" href="#brief" aria-label="Start a brand brief">
-            <span>Start</span>
+          <p>LOOPEN {t(locale, "hero.body")}</p>
+          <a className="circle-cta" href="#brief" aria-label={t(locale, "hero.start")}>
+            <span>{t(locale, "hero.start")}</span>
             <b>↘</b>
           </a>
         </div>
       </section>
 
-      <section className="ticker" aria-label="Product capabilities">
+      <section className="ticker" aria-label={t(locale, "ticker.aria")}>
         <div>
-          <span>Strategy first</span>
+          <span>{t(locale, "ticker.strategy")}</span>
           <i>✦</i>
-          <span>Distinct directions</span>
+          <span>{t(locale, "ticker.directions")}</span>
           <i>✦</i>
-          <span>Editable vectors</span>
+          <span>{t(locale, "ticker.vectors")}</span>
           <i>✦</i>
-          <span>Human selection</span>
+          <span>{t(locale, "ticker.selection")}</span>
           <i>✦</i>
         </div>
       </section>
 
       <section className="studio-section" id="brief">
         <div className="section-heading">
-          <p className="eyebrow">01 / Brand signal</p>
+          <p className="eyebrow">{t(locale, "brief.eyebrow")}</p>
           <h2>
-            Define the feeling
+            {t(locale, "brief.title.1")}
             <br />
-            before the form.
+            {t(locale, "brief.title.2")}
           </h2>
-          <p className="section-note">
-            A focused brief gives the system taste, boundaries and a reason for
-            every visual decision.
-          </p>
+          <p className="section-note">{t(locale, "brief.note")}</p>
         </div>
 
         <div className="brief-panel">
           <div className="premium-fields brief-template-select">
             <CreativeSelect
-              label="Brief template"
+              label={t(locale, "brief.template")}
               value={activeTemplateId || "custom"}
               onChange={(value) => {
                 if (value === "custom") {
@@ -3056,7 +3912,7 @@ function LoopenStudioApp({
                 if (template) applyBriefTemplate(template);
               }}
               options={[
-                { value: "custom", label: "Blank / custom brief" },
+                { value: "custom", label: t(locale, "brief.blankTemplate") },
                 ...BRIEF_TEMPLATES.map((template) => ({
                   value: template.id,
                   label: `${template.label} — ${template.industryLabel}`,
@@ -3065,12 +3921,12 @@ function LoopenStudioApp({
             />
           </div>
           <div className="field-row">
-            <label htmlFor="brand-name">Brand name *</label>
+            <label htmlFor="brand-name">{t(locale, "brief.brandName")} *</label>
             <span>01</span>
             <input
               id="brand-name"
               value={brandName}
-              placeholder="e.g. Acme"
+              placeholder={t(locale, "brief.ph.brandName")}
               onChange={(event) => {
                 const next = event.target.value;
                 setWordmarkName((current) =>
@@ -3087,51 +3943,51 @@ function LoopenStudioApp({
             />
           </div>
           <div className="field-row">
-            <label htmlFor="brand-idea">Core idea *</label>
+            <label htmlFor="brand-idea">{t(locale, "brief.coreIdea")} *</label>
             <span>02</span>
             <textarea
               id="brand-idea"
               rows={2}
               value={coreIdea}
-              placeholder="What the brand stands for in one or two sentences"
+              placeholder={t(locale, "brief.ph.coreIdea")}
               onChange={(event) => setCoreIdea(event.target.value)}
               required
             />
           </div>
           <div className="premium-fields">
             <label>
-              <span className="mini-label">Industry *</span>
+              <span className="mini-label">{t(locale, "brief.industry")} *</span>
               <input
                 value={industry}
-                placeholder="e.g. Architecture, coffee, clean energy"
+                placeholder={t(locale, "brief.ph.industry")}
                 onChange={(event) => setIndustry(event.target.value)}
                 required
               />
             </label>
             <label>
-              <span className="mini-label">What the company does *</span>
+              <span className="mini-label">{t(locale, "brief.companyDoes")} *</span>
               <textarea
                 value={companyDescription}
-                placeholder="Short description of products, services and markets"
+                placeholder={t(locale, "brief.ph.companyDoes")}
                 onChange={(event) => setCompanyDescription(event.target.value)}
                 rows={3}
                 required
               />
             </label>
             <label>
-              <span className="mini-label">Positioning</span>
+              <span className="mini-label">{t(locale, "brief.positioning")}</span>
               <textarea
                 value={positioning}
-                placeholder="How the brand sits vs competitors"
+                placeholder={t(locale, "brief.ph.positioning")}
                 onChange={(event) => setPositioning(event.target.value)}
                 rows={2}
               />
             </label>
             <label>
-              <span className="mini-label">Competitors</span>
+              <span className="mini-label">{t(locale, "brief.competitors")}</span>
               <textarea
                 value={competitors}
-                placeholder="Names or URLs, separated by commas"
+                placeholder={t(locale, "brief.ph.competitors")}
                 onChange={(event) => setCompetitors(event.target.value)}
                 rows={2}
               />
@@ -3139,7 +3995,7 @@ function LoopenStudioApp({
           </div>
           <div className="personality-row">
             <div className="field-label">
-              <label>Personality</label>
+              <label>{t(locale, "brief.personality")}</label>
               <span>03</span>
             </div>
             <div className="chips">
@@ -3154,7 +4010,7 @@ function LoopenStudioApp({
                     onClick={() => togglePersonality(item)}
                   >
                     {active && <span>●</span>}
-                    {item}
+                    {t(locale, `brief.person.${item.toLowerCase()}`)}
                   </button>
                 );
               })}
@@ -3162,25 +4018,25 @@ function LoopenStudioApp({
           </div>
           <div className="premium-fields production-brief">
             <label>
-              <span className="mini-label">Visual direction</span>
+              <span className="mini-label">{t(locale, "brief.visualDirection")}</span>
               <textarea
                 value={visualDirection}
-                placeholder="Mood, form language, what the mark should feel like"
+                placeholder={t(locale, "brief.ph.visualDirection")}
                 onChange={(event) => setVisualDirection(event.target.value)}
                 rows={3}
               />
             </label>
             <label>
-              <span className="mini-label">Audience</span>
+              <span className="mini-label">{t(locale, "brief.audience")}</span>
               <textarea
                 value={audience}
-                placeholder="Who the brand is for"
+                placeholder={t(locale, "brief.ph.audience")}
                 onChange={(event) => setAudience(event.target.value)}
                 rows={2}
               />
             </label>
             <CreativeSelect
-              label="Color strategy"
+              label={t(locale, "brief.colorStrategy")}
               value={colorApproach}
               onChange={(value) =>
                 setColorApproach(
@@ -3188,47 +4044,47 @@ function LoopenStudioApp({
                 )
               }
               options={[
-                { value: "propose", label: "Let the system propose" },
-                { value: "existing", label: "Use existing brand colors" },
-                { value: "mood", label: "Build from a color mood" },
+                { value: "propose", label: t(locale, "brief.color.propose") },
+                { value: "existing", label: t(locale, "brief.color.existing") },
+                { value: "mood", label: t(locale, "brief.color.mood") },
               ]}
             />
             {colorApproach === "existing" && (
               <label>
-                <span className="mini-label">Existing colors</span>
+                <span className="mini-label">{t(locale, "brief.existingColors")}</span>
                 <textarea
                   value={brandColors}
                   onChange={(event) => setBrandColors(event.target.value)}
                   rows={2}
-                  placeholder="#111111, #F4F1E8 — add names or usage notes"
+                  placeholder={t(locale, "brief.ph.existingColors")}
                 />
               </label>
             )}
             {colorApproach !== "existing" && (
               <label>
-                <span className="mini-label">Desired color mood</span>
+                <span className="mini-label">{t(locale, "brief.colorMood")}</span>
                 <textarea
                   value={colorMood}
-                  placeholder="e.g. Warm neutrals with one sharp accent"
+                  placeholder={t(locale, "brief.ph.colorMood")}
                   onChange={(event) => setColorMood(event.target.value)}
                   rows={2}
                 />
               </label>
             )}
             <label>
-              <span className="mini-label">Primary usage</span>
+              <span className="mini-label">{t(locale, "brief.usage")}</span>
               <textarea
                 value={usage}
-                placeholder="Website, app, packaging, signage…"
+                placeholder={t(locale, "brief.ph.usage")}
                 onChange={(event) => setUsage(event.target.value)}
                 rows={2}
               />
             </label>
             <label className="wide-field">
-              <span className="mini-label">Avoid</span>
+              <span className="mini-label">{t(locale, "brief.avoid")}</span>
               <textarea
                 value={avoid}
-                placeholder="Clichés, motifs or styles to stay away from"
+                placeholder={t(locale, "brief.ph.avoid")}
                 onChange={(event) => setAvoid(event.target.value)}
                 rows={3}
               />
@@ -3236,7 +4092,8 @@ function LoopenStudioApp({
           </div>
           <div className="generate-row">
             <p>
-              <span>{signalCosts?.generateBatch ?? 4}</span> signals · four explorations · dual jury · Pro refine later
+              <span>{signalCosts?.generateBatch ?? 4}</span>{" "}
+              {t(locale, "brief.signalsLine")}
             </p>
             <button
               className="primary-button"
@@ -3245,22 +4102,19 @@ function LoopenStudioApp({
               disabled={isGenerating}
             >
               {isGenerating
-                ? "Generating logo concepts…"
+                ? t(locale, "brief.generateBusy")
                 : user
-                  ? "Generate 4 logo concepts"
-                  : "Enter to generate"}
+                  ? t(locale, "brief.generate")
+                  : t(locale, "brief.enterGenerate")}
               {isGenerating ? (
-                <RequestDrop label="Generating logo concepts" />
+                <RequestDrop label={t(locale, "brief.generateBusy")} />
               ) : (
                 <span>↗</span>
               )}
             </button>
           </div>
           {isGuestSession && (
-            <p className="auth-hint">
-              Enter with email to save briefs, spend signals and keep each
-              project private.
-            </p>
+            <p className="auth-hint">{t(locale, "brief.authHint")}</p>
           )}
           {notice && (
             <p className="inline-notice" role="status">
@@ -3270,15 +4124,23 @@ function LoopenStudioApp({
         </div>
       </section>
 
-      <section className="strategy-section" id="research" aria-label="Brand research and strategy">
+      <section
+        className="strategy-section"
+        id="research"
+        aria-label={t(locale, "strategy.aria")}
+      >
           <div className="strategy-heading">
-            <p className="eyebrow">02 / Category research</p>
-            <h2>Know the category.<br />Refuse its clichés.</h2>
+            <p className="eyebrow">{t(locale, "strategy.eyebrow")}</p>
+            <h2>
+              {t(locale, "strategy.title.1")}
+              <br />
+              {t(locale, "strategy.title.2")}
+            </h2>
             <p>
               {strategy?.differentiation ??
                 (isGenerating
-                  ? "Research sets the boundaries for the creative work: what the category repeats, what competitors already own and where Ketchup can be unmistakably different."
-                  : "Submit the brief to establish category codes, competitor risks, typography and a client-directed color strategy before concepts are created.")}
+                  ? t(locale, "strategy.placeholder.generating")
+                  : t(locale, "strategy.placeholder.idle"))}
             </p>
           </div>
           {strategy ? (
@@ -3288,59 +4150,72 @@ function LoopenStudioApp({
               aria-expanded={isStrategyOpen}
               onClick={() => setIsStrategyOpen((current) => !current)}
             >
-              {isStrategyOpen ? "Hide research" : "View research details"}
+              {isStrategyOpen
+                ? t(locale, "strategy.hide")
+                : t(locale, "strategy.view")}
               <span>{isStrategyOpen ? "−" : "+"}</span>
             </button>
           ) : (
             <div className={`strategy-pending ${isGenerating ? "active" : ""}`}>
               <div className="research-status">
-                <span>{isGenerating ? "Research in progress" : "Awaiting brief"}</span>
-                <b>{isGenerating ? "04 signals" : "00 / 04"}</b>
+                <span>
+                  {isGenerating
+                    ? t(locale, "strategy.inProgress")
+                    : t(locale, "strategy.awaiting")}
+                </span>
+                <b>
+                  {isGenerating
+                    ? t(locale, "strategy.signalsActive")
+                    : t(locale, "strategy.signalsIdle")}
+                </b>
               </div>
-              <div className="research-route" aria-label="Research stages">
-                {[
-                  ["01", "Category codes"],
-                  ["02", "Competitor field"],
-                  ["03", "White space"],
-                  ["04", "Color logic"],
-                ].map(([number, label]) => (
+              <div
+                className="research-route"
+                aria-label={t(locale, "strategy.stagesAria")}
+              >
+                {(
+                  [
+                    ["01", "strategy.stage.codes"],
+                    ["02", "strategy.stage.competitors"],
+                    ["03", "strategy.stage.whitespace"],
+                    ["04", "strategy.stage.color"],
+                  ] as const
+                ).map(([number, labelKey]) => (
                   <div className="research-node" key={number}>
                     <i aria-hidden="true" />
                     <span>{number}</span>
-                    <strong>{label}</strong>
+                    <strong>{t(locale, labelKey)}</strong>
                   </div>
                 ))}
               </div>
-              {!isGenerating && (
-                <p>Submit the brand signal above to activate the research map.</p>
-              )}
+              {!isGenerating && <p>{t(locale, "strategy.submitHint")}</p>}
             </div>
           )}
           {strategy && isStrategyOpen && <div className="strategy-grid">
             <article>
-              <span>Visual codes</span>
+              <span>{t(locale, "strategy.codes")}</span>
               {strategy.categoryCodes.map((item) => <p key={item}>{item}</p>)}
             </article>
             <article>
-              <span>Competitor risks</span>
+              <span>{t(locale, "strategy.risks")}</span>
               {strategy.competitorRisks.map((item) => <p key={item}>{item}</p>)}
             </article>
             <article>
-              <span>Typography direction</span>
+              <span>{t(locale, "strategy.typography")}</span>
               <p>{strategy.typography}</p>
             </article>
             <article>
               <span>
                 {colorApproach === "existing"
-                  ? "Client palette"
-                  : "Proposed palette"}
+                  ? t(locale, "strategy.clientPalette")
+                  : t(locale, "strategy.proposedPalette")}
               </span>
               <div className="palette-row">
                 {strategy.palette.map((color) => (
                   <button
                     key={color}
                     type="button"
-                    title={`Use ${color}`}
+                    title={t(locale, "strategy.useColor", { color })}
                     style={{ background: color }}
                     onClick={() => setLockupColor(color)}
                   >
@@ -3350,19 +4225,21 @@ function LoopenStudioApp({
               </div>
             </article>
           </div>}
-          {strategy && isStrategyOpen && <p className="trademark-notice">Trademark note — {strategy.trademarkNotice}</p>}
+          {strategy && isStrategyOpen && (
+            <p className="trademark-notice">
+              {t(locale, "strategy.trademarkPrefix")}{" "}
+              {strategy.trademarkNotice}
+            </p>
+          )}
         </section>
 
       <section className="concepts-section" id="concepts">
         <div className="concepts-header">
           <div>
-            <p className="eyebrow light">03 / Concept territories</p>
-            <h2>Different ideas. Not different seeds.</h2>
+            <p className="eyebrow light">{t(locale, "concepts.eyebrow")}</p>
+            <h2>{t(locale, "concepts.title")}</h2>
           </div>
-          <p>
-            Each route begins with a different brand idea and arrives as a flat,
-            usable logo concept ready for professional selection and refinement.
-          </p>
+          <p>{t(locale, "concepts.body")}</p>
         </div>
         {diversityWarning && (
           <p className="diversity-warning" role="status">
@@ -3391,8 +4268,12 @@ function LoopenStudioApp({
                 aria-pressed={isActive}
                 aria-label={
                   isActive
-                    ? `Deselect ${generated.directionTitle}`
-                    : `Select ${generated.directionTitle}`
+                    ? t(locale, "concepts.deselectAria", {
+                        title: generated.directionTitle,
+                      })
+                    : t(locale, "concepts.selectAria", {
+                        title: generated.directionTitle,
+                      })
                 }
                 onClick={() => selectGeneratedConcept(generated.id)}
                 onKeyDown={(event) => {
@@ -3406,9 +4287,16 @@ function LoopenStudioApp({
                   <span>{String(conceptIndex + 1).padStart(2, "0")}</span>
                   <span
                     className={`score ${concept.accent}`}
-                    title={generated.reviewReason ?? "Manual review required"}
+                    title={
+                      generated.reviewReason ??
+                      t(locale, "concepts.reviewFallback")
+                    }
                   >
-                    {generated.reviewStatus ?? "Review"}
+                    {generated.reviewStatus === "Recommended"
+                      ? t(locale, "prod.recommended")
+                      : generated.reviewStatus
+                        ? t(locale, "prod.reviewNotes")
+                        : t(locale, "concepts.reviewStatus")}
                   </span>
                 </div>
                 <div className="concept-mark generated-mark">
@@ -3429,13 +4317,15 @@ function LoopenStudioApp({
                       showJuryReview(generated);
                     }}
                   >
-                    <span>Read jury critique</span>
+                    <span>{t(locale, "concepts.readJury")}</span>
                     <b>{generated.qualityScore ? `${generated.qualityScore}/100` : "↗"}</b>
                   </button>
                 </div>
                 <div className="concept-card-actions">
                   <span className="select-indicator" aria-hidden="true">
-                    {isActive ? "Selected" : "Select"}
+                    {isActive
+                      ? t(locale, "concepts.selected")
+                      : t(locale, "concepts.select")}
                   </span>
                   <button
                     className="delete-concept"
@@ -3444,9 +4334,11 @@ function LoopenStudioApp({
                       event.stopPropagation();
                       void deleteConcept(generated);
                     }}
-                    aria-label={`Delete ${generated.directionTitle}`}
+                    aria-label={t(locale, "concepts.deleteAria", {
+                      title: generated.directionTitle,
+                    })}
                   >
-                    Delete
+                    {t(locale, "concepts.delete")}
                   </button>
                 </div>
               </article>
@@ -3455,26 +4347,31 @@ function LoopenStudioApp({
           </div>
         ) : (
           <div className="concept-empty">
-            <span>Awaiting a real brief</span>
-            <strong>No sample logos. No invented scores.</strong>
-            <p>
-              Complete the brief and generate four original flat logo concepts.
-              Only real generated identity work will appear here.
-            </p>
-            <a href="#brief">Complete the brief ↑</a>
+            <span>{t(locale, "concepts.empty.kicker")}</span>
+            <strong>{t(locale, "concepts.empty.title")}</strong>
+            <p>{t(locale, "concepts.empty.body")}</p>
+            <a href="#brief">{t(locale, "concepts.empty.cta")}</a>
           </div>
         )}
 
         {generatedConcepts.length > 0 && generatedConcepts.length < 8 && (
           <div className="more-concepts">
-            <span>{generatedConcepts.length} concepts ready · next action makes exactly 1 image request</span>
+            <span>
+              {t(locale, "concepts.moreReady", {
+                n: generatedConcepts.length,
+              })}
+            </span>
             <button
               type="button"
               onClick={generateMore}
               disabled={isGeneratingMore}
             >
-              {isGeneratingMore ? "Generating one more…" : "More concept +1"}
-              {isGeneratingMore && <RequestDrop label="Generating one more study" />}
+              {isGeneratingMore
+                ? t(locale, "concepts.moreBusy")
+                : t(locale, "concepts.moreCta")}
+              {isGeneratingMore && (
+                <RequestDrop label={t(locale, "concepts.moreLoader")} />
+              )}
             </button>
           </div>
         )}
@@ -3486,9 +4383,11 @@ function LoopenStudioApp({
             <em />
           </div>
           <div>
-            <span>Architecture shortlist</span>
+            <span>{t(locale, "concepts.shortlist")}</span>
             <strong>
-              {selectedConceptIds.length ? "1 selected" : "0 selected"}
+              {t(locale, "concepts.selectedCount", {
+                n: selectedConceptIds.length ? 1 : 0,
+              })}
               {focusedGeneration ? ` · ${focusedGeneration.directionTitle}` : ""}
             </strong>
           </div>
@@ -3504,16 +4403,14 @@ function LoopenStudioApp({
                   )!.downloadUrl,
                 )}
               >
-                Download PNG ↓
+                {t(locale, "concepts.downloadPng")}
               </a>
             ) : (
               <button
                 type="button"
-                onClick={() =>
-                  setNotice("Generate real concepts to download a PNG.")
-                }
+                onClick={() => setNotice(t(locale, "notice.needRealConcepts"))}
               >
-                Download PNG
+                {t(locale, "concepts.downloadPngShort")}
               </button>
             )}
             <button
@@ -3522,8 +4419,16 @@ function LoopenStudioApp({
               onClick={refineSelected}
               disabled={isRefining || selectedConceptIds.length === 0}
             >
-              {isRefining ? "Reducing…" : `Reduce ${selectedConceptIds.length || ""} selected`}
-              {isRefining ? <RequestDrop label="Reducing selected studies" /> : <span>→</span>}
+              {isRefining
+                ? t(locale, "concepts.reducing")
+                : t(locale, "concepts.reduceSelected", {
+                    n: selectedConceptIds.length || "",
+                  })}
+              {isRefining ? (
+                <RequestDrop label={t(locale, "concepts.reduceLoader")} />
+              ) : (
+                <span>→</span>
+              )}
             </button>
           </div>
         </div>}
@@ -3535,13 +4440,20 @@ function LoopenStudioApp({
         aria-hidden={productionUnlocked ? undefined : true}
       >
         <div className="workflow-heading">
-          <p className="eyebrow">04 / Production pipeline</p>
-          <h2>From chosen thought<br />to usable identity.</h2>
-          <p>Every stage keeps a visible parent, so the creative decision never disappears inside a black box.</p>
+          <p className="eyebrow">{t(locale, "prod.eyebrow")}</p>
+          <h2>
+            {t(locale, "prod.title.1")}
+            <br />
+            {t(locale, "prod.title.2")}
+          </h2>
+          <p>{t(locale, "prod.body")}</p>
         </div>
 
         <div className="workflow-stage">
-          <div className="stage-index"><span>01</span><strong>Logo refinement</strong></div>
+          <div className="stage-index">
+            <span>01</span>
+            <strong>{t(locale, "prod.stage.refine")}</strong>
+          </div>
           <div className="asset-grid">
             {refinements.length ? refinements.map((asset) => (
               <article
@@ -3573,14 +4485,14 @@ function LoopenStudioApp({
                   }`}
                 >
                   {asset.reviewStatus === "Recommended"
-                    ? "Recommended"
-                    : "Review notes"}
+                    ? t(locale, "prod.recommended")
+                    : t(locale, "prod.reviewNotes")}
                 </b>
                 {selectedRefinement === asset.id && vectorSourceGeneration && (
                   <div
                     className="segmented vector-source-toggle"
                     role="group"
-                    aria-label="SVG source"
+                    aria-label={t(locale, "prod.svgSourceAria")}
                     onClick={(event) => event.stopPropagation()}
                     onKeyDown={(event) => event.stopPropagation()}
                   >
@@ -3589,32 +4501,32 @@ function LoopenStudioApp({
                       className={vectorSourceMode === "original" ? "active" : ""}
                       onClick={() => setVectorSourceMode("original")}
                     >
-                      Original concept
+                      {t(locale, "prod.originalConcept")}
                     </button>
                     <button
                       type="button"
                       className={vectorSourceMode === "refine" ? "active" : ""}
                       onClick={() => setVectorSourceMode("refine")}
                     >
-                      Refinement
+                      {t(locale, "prod.refinement")}
                     </button>
                   </div>
                 )}
               </article>
             )) : (
               <div className="empty-stage">
-                <strong>Professional craft pass</strong>
+                <strong>{t(locale, "prod.empty.refineTitle")}</strong>
                 <p>
                   {isRefining
-                    ? "Nano Banana is refining the selected concept. SVG reconstruction unlocks when this pass finishes."
+                    ? t(locale, "prod.empty.refining")
                     : selectedConceptIds.length
-                      ? "Use Reduce in the shortlist above to start the craft pass. Or reconstruct SVG directly from the original concept."
-                      : "Choose one logo concept above. Nano Banana preserves the idea and silhouette while improving proportions, counterspace and small-size clarity."}
+                      ? t(locale, "prod.empty.hasSelection")
+                      : t(locale, "prod.empty.noSelection")}
                 </p>
                 {isRefining && (
                   <p className="inline-notice" role="status">
-                    Refining selected logo…
-                    <RequestDrop label="Refining selected logos" />
+                    {t(locale, "prod.refiningStatus")}
+                    <RequestDrop label={t(locale, "prod.refiningLoader")} />
                   </p>
                 )}
               </div>
@@ -3628,29 +4540,44 @@ function LoopenStudioApp({
                 onClick={vectorizeSelected}
                 disabled={isVectorizing || !canReconstruct}
               >
-              {isVectorizing ? "Creating SVG…" : "Reconstruct selected"}
-              {isVectorizing ? <RequestDrop label="Creating SVG master" /> : <span>→</span>}
+              {isVectorizing
+                ? t(locale, "prod.creatingSvg")
+                : t(locale, "prod.reconstruct")}
+              {isVectorizing ? (
+                <RequestDrop label={t(locale, "prod.creatingLoader")} />
+              ) : (
+                <span>→</span>
+              )}
               </button>
             </div>
           )}
           {!isRefining && selectedReduction && !juryRecommends && (
             <div className="transition-advisory" role="status">
-              <span>Jury recommendation</span>
-              <strong>Craft notes available — SVG is still unlocked.</strong>
+              <span>{t(locale, "prod.juryRec")}</span>
+              <strong>{t(locale, "prod.juryUnlocked")}</strong>
               <p>
                 {selectedReduction.reviewReason ??
-                  "The dual jury left review notes. You can refine again or build SVG from this mark or the original concept."}
+                  t(locale, "prod.juryFallback")}
               </p>
               <button type="button" onClick={refineSelected} disabled={isRefining}>
-                {isRefining ? "Refining again…" : "Optional: try another refinement"}
-                {isRefining ? <RequestDrop label="Retrying logo refinement" /> : <span>↗</span>}
+                {isRefining
+                  ? t(locale, "prod.retrying")
+                  : t(locale, "prod.retryRefine")}
+                {isRefining ? (
+                  <RequestDrop label={t(locale, "prod.retryLoader")} />
+                ) : (
+                  <span>↗</span>
+                )}
               </button>
             </div>
           )}
         </div>
 
         <div className="workflow-stage">
-          <div className="stage-index"><span>02</span><strong>Vector</strong></div>
+          <div className="stage-index">
+            <span>02</span>
+            <strong>{t(locale, "prod.stage.vector")}</strong>
+          </div>
           <div className="asset-grid vector-grid">
             {vectors.length ? vectors.map((asset) => (
               <article
@@ -3681,16 +4608,16 @@ function LoopenStudioApp({
                       event.stopPropagation();
                       void deleteAsset(asset);
                     }}
-                    aria-label={`Delete ${asset.label}`}
+                    aria-label={`${t(locale, "prod.delete")} ${asset.label}`}
                   >
-                    Delete
+                    {t(locale, "prod.delete")}
                   </button>
                 </div>
               </article>
             )) : (
               <div className="empty-stage">
-                <strong>Geometric SVG master</strong>
-                <p>Rebuild from the original concept or a refinement — jury notes recommend, they never block.</p>
+                <strong>{t(locale, "prod.empty.vectorTitle")}</strong>
+                <p>{t(locale, "prod.empty.vectorBody")}</p>
               </div>
             )}
           </div>
@@ -3700,11 +4627,11 @@ function LoopenStudioApp({
           {!selectedVectorAsset ? (
             <div className="production-lock">
               <div className="production-lock-number">—</div>
-              <p>Identity workspace / Locked</p>
-              <h3>The controls appear<br />when the mark is real.</h3>
+              <p>{t(locale, "prod.lock.kicker")}</p>
+              <h3>{t(locale, "prod.lock.title")}</h3>
               <div>
-                <span>Next step</span>
-                <strong>Concept or refine → Geometric SVG master</strong>
+                <span>{t(locale, "prod.lock.next")}</span>
+                <strong>{t(locale, "prod.lock.nextValue")}</strong>
               </div>
               <i aria-hidden="true">↘</i>
             </div>
@@ -3712,14 +4639,14 @@ function LoopenStudioApp({
           <div className="lockup-stage">
             <aside className="lockup-rail">
               <div className="rail-block">
-                <p className="rail-kicker">01 / Composition</p>
+                <p className="rail-kicker">{t(locale, "prod.comp.kicker")}</p>
                 <div className="segmented">
-                  <button type="button" className={lockupLayout === "horizontal" ? "active" : ""} onClick={() => setLockupLayout("horizontal")}>Horizontal</button>
-                  <button type="button" className={lockupLayout === "vertical" ? "active" : ""} onClick={() => setLockupLayout("vertical")}>Vertical</button>
-                  <button type="button" className={lockupLayout === "icon" ? "active" : ""} onClick={() => setLockupLayout("icon")}>Icon only</button>
+                  <button type="button" className={lockupLayout === "horizontal" ? "active" : ""} onClick={() => setLockupLayout("horizontal")}>{t(locale, "prod.layout.horizontal")}</button>
+                  <button type="button" className={lockupLayout === "vertical" ? "active" : ""} onClick={() => setLockupLayout("vertical")}>{t(locale, "prod.layout.vertical")}</button>
+                  <button type="button" className={lockupLayout === "icon" ? "active" : ""} onClick={() => setLockupLayout("icon")}>{t(locale, "prod.layout.icon")}</button>
                 </div>
                 <div className="editor-color-control">
-                  <span className="mini-label">Color</span>
+                  <span className="mini-label">{t(locale, "prod.color")}</span>
                   <div className="editor-color-options">
                     {lockupPalette.map((color) => (
                       <button
@@ -3727,12 +4654,17 @@ function LoopenStudioApp({
                         key={color}
                         className={lockupColor.toLowerCase() === color.toLowerCase() ? "active" : ""}
                         style={{ background: color }}
-                        aria-label={`Use ${color}`}
+                        aria-label={t(locale, "strategy.useColor", { color })}
                         onClick={() => setLockupColor(color)}
                       />
                     ))}
-                    <label className="editor-color-picker" title="Custom color">
-                      <span className="sr-only">Custom color</span>
+                    <label
+                      className="editor-color-picker"
+                      title={t(locale, "prod.customColor")}
+                    >
+                      <span className="sr-only">
+                        {t(locale, "prod.customColor")}
+                      </span>
                       <input
                         type="color"
                         value={/^#[0-9a-f]{6}$/i.test(lockupColor) ? lockupColor : "#201f1e"}
@@ -3744,17 +4676,19 @@ function LoopenStudioApp({
               </div>
 
               <div className="rail-block">
-                <p className="rail-kicker">02 / Type</p>
+                <p className="rail-kicker">{t(locale, "prod.type.kicker")}</p>
                 <label className="editor-field-with-size">
-                  <span className="mini-label">Wordmark name</span>
+                  <span className="mini-label">
+                    {t(locale, "prod.wordmarkName")}
+                  </span>
                   <div className="editor-field-line">
                     <input
                       value={wordmarkName}
-                      placeholder={brandName || "Brand name"}
+                      placeholder={brandName || brandNameFallback}
                       onChange={(event) => setWordmarkName(event.target.value)}
                     />
                     <SizeSquareSelect
-                      label="Wordmark"
+                      label={t(locale, "prod.wordmark")}
                       value={wordmarkSize}
                       onChange={setWordmarkSize}
                       options={WORDMARK_SIZE_OPTIONS}
@@ -3762,15 +4696,17 @@ function LoopenStudioApp({
                   </div>
                 </label>
                 <label className="editor-field-with-size">
-                  <span className="mini-label">Descriptor</span>
+                  <span className="mini-label">
+                    {t(locale, "prod.descriptor")}
+                  </span>
                   <div className="editor-field-line">
                     <input
                       value={descriptor}
-                      placeholder="Short line under the wordmark"
+                      placeholder={t(locale, "prod.descriptorPh")}
                       onChange={(event) => setDescriptor(event.target.value)}
                     />
                     <SizeSquareSelect
-                      label="Descriptor"
+                      label={t(locale, "prod.descriptor")}
                       value={descriptorSize}
                       onChange={setDescriptorSize}
                       options={DESCRIPTOR_SIZE_OPTIONS}
@@ -3778,41 +4714,60 @@ function LoopenStudioApp({
                   </div>
                 </label>
                 <CreativeSelect
-                  label="Wordmark character"
+                  label={t(locale, "prod.wordmarkCharacter")}
                   value={wordmarkStyle}
                   onChange={setWordmarkStyle}
                   options={[
-                    { value: "modern", label: "Modern grotesk" },
-                    { value: "geometric", label: "Geometric" },
-                    { value: "humanist", label: "Humanist" },
-                    { value: "editorial", label: "Editorial serif" },
+                    { value: "modern", label: t(locale, "prod.type.modern") },
+                    {
+                      value: "geometric",
+                      label: t(locale, "prod.type.geometric"),
+                    },
+                    {
+                      value: "humanist",
+                      label: t(locale, "prod.type.humanist"),
+                    },
+                    {
+                      value: "editorial",
+                      label: t(locale, "prod.type.editorial"),
+                    },
                   ]}
                 />
                 <CreativeSelect
-                  label="Case"
+                  label={t(locale, "prod.case")}
                   value={wordmarkCase}
                   onChange={(value) => setWordmarkCase(value as typeof wordmarkCase)}
                   options={[
-                    { value: "original", label: "Original" },
-                    { value: "upper", label: "Uppercase" },
-                    { value: "lower", label: "Lowercase" },
+                    {
+                      value: "original",
+                      label: t(locale, "prod.case.original"),
+                    },
+                    { value: "upper", label: t(locale, "prod.case.upper") },
+                    { value: "lower", label: t(locale, "prod.case.lower") },
                   ]}
                 />
               </div>
 
               <div className="rail-block">
-                <p className="rail-kicker">03 / Optics</p>
+                <p className="rail-kicker">{t(locale, "prod.optics.kicker")}</p>
                 <label className="creative-range">
-                  <span className="mini-label">Weight — {wordmarkWeight}</span>
+                  <span className="mini-label">
+                    {t(locale, "prod.weight", { n: wordmarkWeight })}
+                  </span>
                   <input style={{ "--range-progress": `${((wordmarkWeight - 400) / 400) * 100}%` } as CSSProperties} type="range" min="400" max="800" step="100" value={wordmarkWeight} onChange={(event) => setWordmarkWeight(Number(event.target.value))} />
                 </label>
                 <label className="creative-range">
-                  <span className="mini-label">Tracking — {wordmarkTracking}</span>
+                  <span className="mini-label">
+                    {t(locale, "prod.tracking", { n: wordmarkTracking })}
+                  </span>
                   <input style={{ "--range-progress": `${((wordmarkTracking + 8) / 16) * 100}%` } as CSSProperties} type="range" min="-8" max="8" value={wordmarkTracking} onChange={(event) => setWordmarkTracking(Number(event.target.value))} />
                 </label>
                 <label className="creative-range">
                   <span className="mini-label">
-                    Mark scale — {markScale}% · {markSizePx}px
+                    {t(locale, "prod.markScale", {
+                      pct: markScale,
+                      px: markSizePx,
+                    })}
                   </span>
                   <input
                     style={
@@ -3873,7 +4828,7 @@ function LoopenStudioApp({
           </div>
           <div className="quality-lab">
             <article>
-              <span>Responsive test</span>
+              <span>{t(locale, "prod.responsiveTest")}</span>
               <div className="size-test">
                 {[16, 24, 32, 64].map((size) => (
                   <figure key={size}>
@@ -3894,7 +4849,7 @@ function LoopenStudioApp({
               </div>
             </article>
             <article>
-              <span>Contrast test</span>
+              <span>{t(locale, "prod.contrastTest")}</span>
               <div className="contrast-test">
                 <div>
                   {selectedVectorAsset && (
@@ -3917,34 +4872,39 @@ function LoopenStudioApp({
               </div>
             </article>
             <article>
-              <span>Production checks</span>
+              <span>{t(locale, "prod.checks")}</span>
               <ul>
-                <li>Single-color silhouette</li>
-                <li>Small-size legibility</li>
-                <li>Light and dark backgrounds</li>
-                <li>Editable SVG paths</li>
+                <li>{t(locale, "prod.check.silhouette")}</li>
+                <li>{t(locale, "prod.check.legibility")}</li>
+                <li>{t(locale, "prod.check.contrast")}</li>
+                <li>{t(locale, "prod.check.paths")}</li>
               </ul>
             </article>
           </div>
           <div className="export-row">
-            <div><span>03</span><strong>Export system</strong></div>
+            <div>
+              <span>03</span>
+              <strong>{t(locale, "prod.export")}</strong>
+            </div>
             <div>
               <button type="button" onClick={() => void exportLockup("svg")} disabled={!selectedVector || Boolean(exportingKey)}>
-                SVG {exportingKey === `svg-${lockupLayout}-master` ? <RequestDrop label="Exporting SVG" /> : "↓"}
+                SVG {exportingKey === `svg-${lockupLayout}-master` ? <RequestDrop label={t(locale, "prod.loader.exportSvg")} /> : "↓"}
               </button>
               <button type="button" onClick={() => void exportLockup("png")} disabled={!selectedVector || Boolean(exportingKey)}>
-                PNG {exportingKey === `png-${lockupLayout}-master` ? <RequestDrop label="Exporting PNG" /> : "↓"}
+                PNG {exportingKey === `png-${lockupLayout}-master` ? <RequestDrop label={t(locale, "prod.loader.exportPng")} /> : "↓"}
               </button>
               <button type="button" onClick={() => void exportLockup("webp")} disabled={!selectedVector || Boolean(exportingKey)}>
-                WebP {exportingKey === `webp-${lockupLayout}-master` ? <RequestDrop label="Exporting WebP" /> : "↓"}
+                WebP {exportingKey === `webp-${lockupLayout}-master` ? <RequestDrop label={t(locale, "prod.loader.exportWebp")} /> : "↓"}
               </button>
               <button type="button" onClick={() => void exportLockup("png", "icon", 48)} disabled={!selectedVector || Boolean(exportingKey)}>
-                Favicon 48 {exportingKey === "png-icon-48" ? <RequestDrop label="Exporting favicon" /> : "↓"}
+                {t(locale, "prod.export.favicon")} {exportingKey === "png-icon-48" ? <RequestDrop label={t(locale, "prod.loader.favicon")} /> : "↓"}
               </button>
               <button type="button" onClick={() => void exportLockup("png", "icon", 1024)} disabled={!selectedVector || Boolean(exportingKey)}>
-                Social avatar {exportingKey === "png-icon-1024" ? <RequestDrop label="Exporting social avatar" /> : "↓"}
+                {t(locale, "prod.export.social")} {exportingKey === "png-icon-1024" ? <RequestDrop label={t(locale, "prod.loader.social")} /> : "↓"}
               </button>
-              <button type="button" onClick={printBrandGuide} disabled={!selectedVector}>Brand guide / PDF ↗</button>
+              <button type="button" onClick={printBrandGuide} disabled={!selectedVector}>
+                {t(locale, "prod.export.guide")}
+              </button>
             </div>
           </div>
           </>)}
@@ -3953,17 +4913,17 @@ function LoopenStudioApp({
 
       <section className="system-section" id="system">
         <div className="system-left">
-          <p className="eyebrow">05 / Brand system</p>
+          <p className="eyebrow">{t(locale, "system.eyebrow")}</p>
           <h2>
-            One idea.
+            {t(locale, "system.title.1")}
             <br />
-            Every context.
+            {t(locale, "system.title.2")}
           </h2>
           <div className="system-number">{selectedVectorAsset ? "03" : "—"}</div>
           <p className="system-caption">
             {selectedVectorAsset
-              ? "Three live identity contexts built from the approved master."
-              : "The brand system unlocks after an approved SVG master exists."}
+              ? t(locale, "system.caption.ready")
+              : t(locale, "system.caption.locked")}
           </p>
         </div>
         {selectedVectorAsset ? (
@@ -3972,7 +4932,7 @@ function LoopenStudioApp({
               className="application-card identity-drawing-card"
               style={{ background: strategy?.palette?.[2] ?? "var(--acid)" }}
             >
-              <span className="app-label">Drawing title block / 01</span>
+              <span className="app-label">{t(locale, "system.app.drawing")}</span>
               <LockupMark
                 url={selectedVectorAsset.url}
                 color={lockupColor}
@@ -3986,14 +4946,14 @@ function LoopenStudioApp({
               <strong>{displayBrandName}</strong>
             </article>
             <article className="application-card identity-proposal-card">
-              <span className="app-label">Proposal cover / 02</span>
+              <span className="app-label">{t(locale, "system.app.proposal")}</span>
               <div className={`dynamic-wordmark wordmark-${wordmarkStyle}`}>
                 {displayBrandName}
               </div>
-              <p>{descriptor || "Architecture with a point of view."}</p>
+              <p>{descriptor || t(locale, "system.proposalFallback")}</p>
             </article>
             <article className="application-card identity-scale-card">
-              <span className="app-label">Responsive mark / 03</span>
+              <span className="app-label">{t(locale, "system.app.scale")}</span>
               <div className="identity-scale-row">
                 {[24, 40, 72].map((size) => (
                   <figure key={size}>
@@ -4008,86 +4968,102 @@ function LoopenStudioApp({
                   </figure>
                 ))}
               </div>
-              <p>One master. Controlled at every scale.</p>
+              <p>{t(locale, "system.scaleNote")}</p>
             </article>
           </div>
         ) : (
           <div className="system-locked">
-            <span>Waiting for a master</span>
-            <strong>No placeholder brand system.</strong>
-            <p>
-              Approve a refined logo and create its geometric SVG. Real
-              applications will then be composed from the actual brand mark,
-              wordmark and selected palette.
-            </p>
+            <span>{t(locale, "system.locked.kicker")}</span>
+            <strong>{t(locale, "system.locked.title")}</strong>
+            <p>{t(locale, "system.locked.body")}</p>
             <i aria-hidden="true">○</i>
           </div>
         )}
       </section>
 
       <section className="manifesto" id="manifesto">
-        <p className="eyebrow">Our point of view</p>
+        <p className="eyebrow">{t(locale, "manifesto.eyebrow")}</p>
         <blockquote>
-          AI should multiply <span>directions,</span>
+          {t(locale, "manifesto.quote.1")}{" "}
+          <span>{t(locale, "manifesto.quote.2")}</span>
           <br />
-          not multiply noise.
+          {t(locale, "manifesto.quote.3")}
         </blockquote>
         <div className="manifesto-footer">
-          <p>
-            Strategy makes it relevant. Selection makes it distinct. Craft makes
-            it last.
-          </p>
+          <p>{t(locale, "manifesto.body")}</p>
           <button
             className="text-button"
             type="button"
             onClick={() => setIsMethodOpen(true)}
           >
-            Read the Loopen method <span>↗</span>
+            {t(locale, "manifesto.readMethod")}
           </button>
         </div>
       </section>
 
       <footer className="site-footer">
         <div className="footer-signal">
-          <span><i /> System online</span>
-          <p>Independent AI identity studio<br />Tel Aviv / 2026</p>
+          <span><i /> {t(locale, "footer.online")}</span>
+          <p>
+            {t(locale, "footer.studio")}
+            <br />
+            {studioStamp}
+          </p>
         </div>
         <div className="footer-statement">
-          <span>One sharp brief.</span>
+          <span>{t(locale, "footer.oneBrief")}</span>
           <strong>
-            A brand with
+            {t(locale, "footer.statement.1")}
             <br />
-            somewhere to <em>go.</em>
+            {t(locale, "footer.statement.2")}{" "}
+            <em>{t(locale, "footer.statement.3")}</em>
           </strong>
         </div>
-        <nav className="footer-route" aria-label="Page sections">
-          {[
-            ["01", "Brief", "#brief"],
-            ["02", "Research", "#research"],
-            ["03", "Territories", "#concepts"],
-            ["04", "Production", "#workflow"],
-            ["05", "System", "#system"],
-          ].map(([number, label, href]) => (
+        <nav className="footer-route" aria-label={t(locale, "footer.routeAria")}>
+          {(
+            [
+              ["01", "footer.route.brief", "#brief"],
+              ["02", "footer.route.research", "#research"],
+              ["03", "footer.route.territories", "#concepts"],
+              ["04", "footer.route.production", "#workflow"],
+              ["05", "footer.route.system", "#system"],
+            ] as const
+          ).map(([number, labelKey, href]) => (
             <a href={href} key={number}>
               <span>{number}</span>
-              <strong>{label}</strong>
+              <strong>{t(locale, labelKey)}</strong>
               <i>↘</i>
             </a>
           ))}
         </nav>
         <div className="footer-brand-row">
-          <a className="footer-wordmark" href="#top">
-            LOOPEN<span>®</span>
-          </a>
+          <div className="footer-brand">
+            <a className="footer-wordmark" href="#top">
+              LOOPEN<span>®</span>
+            </a>
+            <p className="footer-credit">
+              {t(locale, "footer.credit")}{" "}
+              <em>{STUDIO_AUTHOR}</em>
+            </p>
+          </div>
           <div className="footer-orbit" aria-hidden="true"><i /></div>
           <div className="footer-meta">
-            <p>Brand systems,<br />not random logos.</p>
+            <p>
+              {t(locale, "footer.meta")
+                .split("\n")
+                .map((line, index, lines) => (
+                  <span key={line}>
+                    {line}
+                    {index < lines.length - 1 ? <br /> : null}
+                  </span>
+                ))}
+            </p>
             <button type="button" onClick={() => setIsMethodOpen(true)}>
-              Read the method ↗
+              {t(locale, "footer.method")}
             </button>
           </div>
           <a className="back-top" href="#top">
-            <span>Back to top</span>
+            <span>{t(locale, "footer.backTop")}</span>
             <i>↑</i>
           </a>
         </div>
@@ -4115,7 +5091,7 @@ export default function LoopenStudio({
     : createEmptyStudioDraft();
   const restoreNotice =
     restored && (restored.projectId || restored.generatedConcepts.length)
-      ? "Studio session restored after reload."
+      ? t(readStoredLocale(), "notice.sessionRestored")
       : "";
 
   return (
