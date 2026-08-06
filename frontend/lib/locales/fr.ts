@@ -70,7 +70,7 @@ const fr: Dict = {
   "auth.confirmedSignIn": "J’ai confirmé — se connecter",
   "auth.backSignIn": "Retour à la connexion",
   "auth.welcomeNote":
-    "La première entrée inclut {n} signaux de bienvenue — assez pour un lot complet de concepts.",
+    "La première entrée inclut {n} signaux de bienvenue — assez pour concepts, refine et vector.",
   "auth.checkFields": "Vérifiez les champs surlignés et réessayez.",
   "auth.passwordHint": "Au moins 8 caractères, avec une lettre et un chiffre.",
   "auth.signingIn": "Connexion…",

@@ -71,7 +71,7 @@ const he: Dict = {
   "auth.confirmedSignIn": "אישרתי — כניסה",
   "auth.backSignIn": "חזרה לכניסה",
   "auth.welcomeNote":
-    "בכניסה הראשונה יש {n} welcome signals — מספיק למחזור קונספטים מלא.",
+    "בכניסה הראשונה יש {n} welcome signals — מספיק לקונספטים, refine ו-vector.",
   "auth.checkFields": "בדקו את השדות המסומנים ונסו שוב.",
   "auth.passwordHint": "לפחות 8 תווים, עם אות ומספר.",
   "auth.signingIn": "נכנסים…",

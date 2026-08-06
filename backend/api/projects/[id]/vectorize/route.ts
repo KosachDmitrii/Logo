@@ -282,8 +282,8 @@ export async function POST(
 
     let signalsSpent = false;
     try {
-      await assertRateLimit(userEmail, RATE_LIMITS.vectorizeUser);
       if (!isAdminRole(user.role)) {
+        await assertRateLimit(userEmail, RATE_LIMITS.vectorizeUser);
         await ensureStudioWallet(userEmail);
         await spendSignals(userEmail, "vectorize", projectId);
         signalsSpent = true;

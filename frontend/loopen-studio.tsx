@@ -3490,7 +3490,13 @@ function LoopenStudioApp({
                           onClick={() => openProject(project.id)}
                         >
                           <span>
-                            {new Date(project.createdAt).toLocaleDateString()}
+                            {new Date(project.createdAt).toLocaleString(locale, {
+                              day: "numeric",
+                              month: "numeric",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </span>
                           <strong>{project.brandName}</strong>
                           <small>{project.status}</small>

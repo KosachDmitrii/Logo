@@ -10,7 +10,7 @@ export const SIGNAL_COSTS = {
 
 export type SignalAction = keyof typeof SIGNAL_COSTS;
 
-export const WELCOME_SIGNALS = 4;
+export const WELCOME_SIGNALS = 10;
 
 export type SignalPack = {
   id: string;

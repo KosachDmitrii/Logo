@@ -46,8 +46,8 @@ export async function POST(
   const { id: projectId } = await context.params;
   let signalsSpent = false;
   try {
-    await assertRateLimit(user.email, RATE_LIMITS.refineUser);
     if (!isAdminRole(user.role)) {
+      await assertRateLimit(user.email, RATE_LIMITS.refineUser);
       await ensureStudioWallet(user.email);
       await spendSignals(user.email, "refine", projectId);
       signalsSpent = true;

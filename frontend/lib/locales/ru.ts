@@ -71,7 +71,7 @@ const ru: Dict = {
   "auth.confirmedSignIn": "Подтвердил — войти",
   "auth.backSignIn": "Назад ко входу",
   "auth.welcomeNote":
-    "При первом входе — {n} welcome signals: хватит на полный пакет концептов.",
+    "При первом входе — {n} welcome signals: хватит на концепты, refine и vector.",
   "auth.checkFields": "Проверьте выделенные поля и попробуйте снова.",
   "auth.passwordHint": "Минимум 8 символов, буква и цифра.",
   "auth.signingIn": "Входим…",

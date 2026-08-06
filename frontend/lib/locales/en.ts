@@ -69,7 +69,7 @@ const en = {
   "auth.confirmedSignIn": "I confirmed — sign in",
   "auth.backSignIn": "Back to sign in",
   "auth.welcomeNote":
-    "First entry includes {n} welcome signals — enough for one full concept batch.",
+    "First entry includes {n} welcome signals — enough for concepts, refine and vector.",
   "auth.checkFields": "Check the highlighted fields and try again.",
   "auth.passwordHint": "At least 8 characters, with a letter and a number.",
   "auth.signingIn": "Signing in…",

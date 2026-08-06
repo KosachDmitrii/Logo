@@ -163,14 +163,16 @@ export async function POST(request: Request) {
     ? "extraConcept"
     : "generateBatch";
 
-  try {
-    await assertRateLimit(userEmail, RATE_LIMITS.generateUser);
-    await assertRateLimit(clientIp(request), RATE_LIMITS.generateIp);
-  } catch (error) {
-    if (error instanceof RateLimitError) {
-      return Response.json({ error: error.message }, { status: 429 });
+  if (!isAdminRole(user.role)) {
+    try {
+      await assertRateLimit(userEmail, RATE_LIMITS.generateUser);
+      await assertRateLimit(clientIp(request), RATE_LIMITS.generateIp);
+    } catch (error) {
+      if (error instanceof RateLimitError) {
+        return Response.json({ error: error.message }, { status: 429 });
+      }
+      throw error;
     }
-    throw error;
   }
 
   let projectId = existingProjectId;
