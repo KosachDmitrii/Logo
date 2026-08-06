@@ -614,6 +614,11 @@ const fr: Dict = {
   "confirm.deleteConcept.body":
     "Ce concept et tous les assets liés seront définitivement supprimés.",
   "confirm.deleteConcept.cta": "Supprimer le concept",
+  "confirm.deleteRefine.kicker": "Action permanente / Raffinement",
+  "confirm.deleteRefine.title": "Supprimer {label} ?",
+  "confirm.deleteRefine.body":
+    "Ce raffinement de logo sera définitivement retiré du projet.",
+  "confirm.deleteRefine.cta": "Supprimer le raffinement",
   "confirm.deleteSvg.kicker": "Action permanente / SVG",
   "confirm.deleteSvg.title": "Supprimer {label} ?",
   "confirm.deleteSvg.body":

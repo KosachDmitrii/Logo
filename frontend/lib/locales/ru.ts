@@ -617,6 +617,11 @@ const ru: Dict = {
   "confirm.deleteConcept.body":
     "Этот концепт и связанные ассеты будут удалены навсегда.",
   "confirm.deleteConcept.cta": "Удалить концепт",
+  "confirm.deleteRefine.kicker": "Необратимо / Доработка",
+  "confirm.deleteRefine.title": "Удалить {label}?",
+  "confirm.deleteRefine.body":
+    "Эта доработка логотипа будет навсегда удалена из проекта.",
+  "confirm.deleteRefine.cta": "Удалить доработку",
   "confirm.deleteSvg.kicker": "Необратимо / SVG",
   "confirm.deleteSvg.title": "Удалить {label}?",
   "confirm.deleteSvg.body":

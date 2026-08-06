@@ -1687,7 +1687,7 @@ textarea:focus-visible {
   left: 50%;
   position: absolute;
   top: -4px;
-  transform-origin: 0 30px;
+  transform-origin: 0 29px;
   width: 7px;
 }
 
@@ -2092,18 +2092,73 @@ textarea:focus-visible {
   text-transform: uppercase;
 }
 
-.more-concepts button {
-  background: var(--acid);
-  border: 0;
+.more-concepts button,
+.more-concepts button span {
   color: var(--ink);
-  cursor: pointer;
-  font: inherit;
-  padding: 14px 18px;
 }
 
+.more-concepts button {
+  align-items: center;
+  background: var(--acid);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  gap: 12px;
+  justify-content: center;
+  letter-spacing: -0.02em;
+  min-height: 48px;
+  min-width: 240px;
+  overflow: visible;
+  padding: 14px 22px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .more-concepts button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+.more-concepts button.is-busy,
 .more-concepts button:disabled {
+  /* Elevated from the dark concepts section so the control stays legible. */
+  background: #2c2b29;
+  border-color: rgba(255, 207, 104, 0.5);
   cursor: progress;
-  opacity: 0.55;
+  opacity: 1;
+}
+
+.more-concepts button.is-busy,
+.more-concepts button.is-busy span,
+.more-concepts button:disabled,
+.more-concepts button:disabled span {
+  color: var(--acid);
+}
+
+.more-concepts .water-loader {
+  flex-shrink: 0;
+  height: 22px;
+  width: 22px;
+}
+
+.more-concepts .water-loader i {
+  background: var(--acid);
+  height: 9px;
+  width: 9px;
+}
+
+.more-concepts .water-loader::after {
+  border-color: var(--acid);
+  height: 9px;
+  top: 10px;
+  width: 9px;
 }
 
 .concept-card {
@@ -4356,7 +4411,7 @@ textarea:focus-visible {
   left: 50%;
   position: absolute;
   top: -6px;
-  transform-origin: 0 45px;
+  transform-origin: 0 43px;
   width: 11px;
 }
 

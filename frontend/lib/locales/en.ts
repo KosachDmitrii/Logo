@@ -613,6 +613,11 @@ const en = {
   "confirm.deleteConcept.body":
     "This concept and any linked assets will be permanently removed.",
   "confirm.deleteConcept.cta": "Delete concept",
+  "confirm.deleteRefine.kicker": "Permanent action / Refinement",
+  "confirm.deleteRefine.title": "Delete {label}?",
+  "confirm.deleteRefine.body":
+    "This logo refinement will be permanently removed from the project.",
+  "confirm.deleteRefine.cta": "Delete refinement",
   "confirm.deleteSvg.kicker": "Permanent action / SVG",
   "confirm.deleteSvg.title": "Delete {label}?",
   "confirm.deleteSvg.body":

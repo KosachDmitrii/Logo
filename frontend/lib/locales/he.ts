@@ -615,6 +615,11 @@ const he: Dict = {
   "confirm.deleteConcept.body":
     "הקונספט הזה וכל נכס מקושר יוסרו לצמיתות.",
   "confirm.deleteConcept.cta": "מחיקת קונספט",
+  "confirm.deleteRefine.kicker": "פעולה סופית / ליטוש",
+  "confirm.deleteRefine.title": "למחוק את {label}?",
+  "confirm.deleteRefine.body":
+    "ליטוש הלוגו הזה יוסר לצמיתות מהפרויקט.",
+  "confirm.deleteRefine.cta": "מחיקת ליטוש",
   "confirm.deleteSvg.kicker": "פעולה סופית / SVG",
   "confirm.deleteSvg.title": "למחוק את {label}?",
   "confirm.deleteSvg.body":

@@ -2614,11 +2614,13 @@ function LoopenStudioApp({
   }
 
   async function deleteAsset(asset: StudioAsset) {
+    const isRefine = asset.stage === "refine";
+    const confirmPrefix = isRefine ? "confirm.deleteRefine" : "confirm.deleteSvg";
     const confirmed = await requestConfirmation({
-      kicker: t(locale, "confirm.deleteSvg.kicker"),
-      title: t(locale, "confirm.deleteSvg.title", { label: asset.label }),
-      body: t(locale, "confirm.deleteSvg.body"),
-      confirmLabel: t(locale, "confirm.deleteSvg.cta"),
+      kicker: t(locale, `${confirmPrefix}.kicker`),
+      title: t(locale, `${confirmPrefix}.title`, { label: asset.label }),
+      body: t(locale, `${confirmPrefix}.body`),
+      confirmLabel: t(locale, `${confirmPrefix}.cta`),
       tone: "danger",
     });
     if (!confirmed) return;
@@ -2631,8 +2633,11 @@ function LoopenStudioApp({
         error?: string;
       } | null;
       showRequestError(
-        t(locale, "confirm.deleteSvg.cta"),
-        payload?.error ?? "SVG could not be deleted.",
+        t(locale, `${confirmPrefix}.cta`),
+        payload?.error ??
+          (isRefine
+            ? "Refinement could not be deleted."
+            : "SVG could not be deleted."),
       );
       return;
     }
@@ -2647,6 +2652,7 @@ function LoopenStudioApp({
     if (selectedRefinement === asset.id) {
       const remainingRefines = remaining.filter((item) => item.stage === "refine");
       setSelectedRefinement(remainingRefines[0]?.id ?? "");
+      if (!remainingRefines.length) setVectorSourceMode("refine");
     }
     setNotice(t(locale, "notice.assetDeleted", { label: asset.label }));
   }
@@ -4470,15 +4476,19 @@ function LoopenStudioApp({
             </span>
             <button
               type="button"
+              className={isGeneratingMore ? "is-busy" : undefined}
               onClick={generateMore}
               disabled={isGeneratingMore}
+              aria-busy={isGeneratingMore || undefined}
             >
-              {isGeneratingMore
-                ? t(locale, "concepts.moreBusy")
-                : t(locale, "concepts.moreCta")}
-              {isGeneratingMore && (
+              <span>
+                {isGeneratingMore
+                  ? t(locale, "concepts.moreBusy")
+                  : t(locale, "concepts.moreCta")}
+              </span>
+              {isGeneratingMore ? (
                 <RequestDrop label={t(locale, "concepts.moreLoader")} />
-              )}
+              ) : null}
             </button>
           </div>
         )}
@@ -4682,6 +4692,19 @@ function LoopenStudioApp({
                     onClick={() => setVectorSourceMode("refine")}
                   >
                     {t(locale, "prod.refinement")}
+                  </button>
+                </div>
+                <div className="asset-card-actions">
+                  <button
+                    className="delete-asset"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void deleteAsset(asset);
+                    }}
+                    aria-label={`${t(locale, "prod.delete")} ${asset.label}`}
+                  >
+                    {t(locale, "prod.delete")}
                   </button>
                 </div>
               </article>

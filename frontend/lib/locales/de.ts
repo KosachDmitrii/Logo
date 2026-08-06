@@ -614,6 +614,11 @@ const de: Dict = {
   "confirm.deleteConcept.body":
     "Dieses Konzept und alle verknüpften Assets werden dauerhaft entfernt.",
   "confirm.deleteConcept.cta": "Konzept löschen",
+  "confirm.deleteRefine.kicker": "Dauerhafte Aktion / Verfeinerung",
+  "confirm.deleteRefine.title": "{label} löschen?",
+  "confirm.deleteRefine.body":
+    "Diese Logo-Verfeinerung wird dauerhaft aus dem Projekt entfernt.",
+  "confirm.deleteRefine.cta": "Verfeinerung löschen",
   "confirm.deleteSvg.kicker": "Dauerhafte Aktion / SVG",
   "confirm.deleteSvg.title": "{label} löschen?",
   "confirm.deleteSvg.body":
