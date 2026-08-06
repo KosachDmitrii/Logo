@@ -40,3 +40,5 @@ next-env.d.ts
 /dist/
 /outputs/
 /work/
+
+.idea
