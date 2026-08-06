@@ -34,6 +34,11 @@ import {
 import { buildLockupSvg } from "./lib/lockup-export";
 import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
 import {
+  INDUSTRY_OPTIONS,
+  optionKey,
+  splitIndustry,
+} from "./lib/brief-options";
+import {
   clearStudioSession,
   createEmptyStudioDraft,
   draftFromSnapshot,
@@ -241,7 +246,7 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     brandName: "Ketchup",
     coreIdea:
       "Ketchup is an architecture and spatial-design studio that turns constraints into distinctive, generous places. The identity should communicate intelligent transformation, confident authorship and an unexpected human quality. Create a memorable symbol that feels specific to Ketchup rather than to architecture in general.",
-    industry: "Contemporary architecture, interiors and spatial design",
+    industry: "Architecture",
     companyDescription:
       "Ketchup is an independent architecture and spatial-design studio working across residential, hospitality, retail and cultural projects. The studio treats budgets, sites, regulations and existing structures as creative material. Its work combines rigorous planning, clear construction and generous public or shared space with one surprising intervention that makes each project recognisable, useful and emotionally engaging.",
     audience:
@@ -276,7 +281,7 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     brandName: "Northline",
     coreIdea:
       "Northline is a specialty coffee roastery and café brand built around clarity, craft and a quiet sense of northern light. The identity should feel precise and hospitable — a mark that suggests route, roast and ritual without becoming a coffee-cup cliché.",
-    industry: "Specialty coffee roasting, cafés and hospitality",
+    industry: "Food & Beverage",
     companyDescription:
       "Northline roasts single-origin and blend coffees for cafés, offices and home brewing. The brand runs a flagship café, supplies wholesale partners and publishes tasting notes with the same care as its roasting logs. Northline values transparency of origin, consistent extraction and a calm, design-led guest experience.",
     audience:
@@ -305,7 +310,7 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     brandName: "Voltara",
     coreIdea:
       "Voltara is a clean-energy and home-electrification company helping households and small businesses switch to smarter power. The identity should communicate reliable modern infrastructure with a human, optimistic charge — not a generic lightning bolt utility brand.",
-    industry: "Clean energy, home electrification and energy services",
+    industry: "Clean Energy",
     companyDescription:
       "Voltara designs and installs solar, battery storage and electrification upgrades for homes and light commercial sites. The company combines engineering clarity with a consumer-friendly service model: site assessment, financing options, installation and ongoing monitoring. Voltara wants to feel like the trusted operator of a cleaner everyday grid.",
     audience:
@@ -334,7 +339,7 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     brandName: "Muchachos",
     coreIdea:
       "Muchachos is a contemporary barber shop built on sharp craft, masculine hospitality and neighbourhood ritual. The identity should feel confident and brotherly without becoming a cliché scissors brand — a mark that owns the chair, the line-up and the after-hours atmosphere.",
-    industry: "Barber shops, men's grooming and neighbourhood hospitality",
+    industry: "Beauty & Wellness",
     companyDescription:
       "Muchachos is an independent barber shop offering classic and modern cuts, fades, beard work and grooming rituals in a social, well-run space. The shop mixes precise technique with warm service: walk-ins and bookings, good music, clean stations and a culture where regulars feel known. Muchachos wants to feel like the best chair on the block — sharp, welcoming and culturally specific.",
     audience:
@@ -551,17 +556,22 @@ function CreativeSelect({
   label,
   onChange,
   options,
+  placeholder,
+  scrollable = false,
   value,
 }: {
   label: string;
   onChange: (value: string) => void;
   options: Array<{ label: string; value: string }>;
+  placeholder?: string;
+  scrollable?: boolean;
   value: string;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const selectedLabel =
     options.find((option) => option.value === value)?.label ?? value;
+  const showPlaceholder = !value && Boolean(placeholder);
 
   useEffect(() => {
     if (!open) return;
@@ -581,11 +591,17 @@ function CreativeSelect({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span>{selectedLabel}</span>
+        <span className={showPlaceholder ? "is-placeholder" : undefined}>
+          {showPlaceholder ? placeholder : selectedLabel}
+        </span>
         <i>{open ? "−" : "↘"}</i>
       </button>
       {open && (
-        <div className="creative-select-menu" role="listbox" aria-label={label}>
+        <div
+          className={`creative-select-menu${scrollable ? " is-scrollable" : ""}`}
+          role="listbox"
+          aria-label={label}
+        >
           {options.map((option, index) => (
             <button
               type="button"
@@ -641,7 +657,14 @@ function LoopenStudioApp({
   );
   const [brandName, setBrandName] = useState(initialDraft.brandName);
   const [coreIdea, setCoreIdea] = useState(initialDraft.coreIdea);
-  const [industry, setIndustry] = useState(initialDraft.industry);
+  const [industryChoice, setIndustryChoice] = useState(
+    () => splitIndustry(initialDraft.industry).choice,
+  );
+  const [industryOther, setIndustryOther] = useState(
+    () => splitIndustry(initialDraft.industry).other,
+  );
+  const industry =
+    industryChoice === "Other" ? industryOther.trim() : industryChoice;
   const [companyDescription, setCompanyDescription] = useState(
     initialDraft.companyDescription,
   );
@@ -1879,7 +1902,7 @@ function LoopenStudioApp({
       setBrandName(nextBrand);
       setWordmarkName(nextBrand);
       setCoreIdea(nextCoreIdea);
-      setIndustry(nextIndustry);
+      assignIndustry(nextIndustry);
       setCompanyDescription(payload.project.brief.companyDescription ?? "");
       setAudience(payload.project.brief.audience ?? "");
       setPositioning(payload.project.brief.positioning ?? "");
@@ -1988,6 +2011,12 @@ function LoopenStudioApp({
     );
   }
 
+  function assignIndustry(value: string) {
+    const next = splitIndustry(value);
+    setIndustryChoice(next.choice);
+    setIndustryOther(next.other);
+  }
+
   function togglePersonality(item: string) {
     setPersonalities((current) =>
       current.includes(item)
@@ -2001,7 +2030,7 @@ function LoopenStudioApp({
     setBrandName("");
     setWordmarkName("");
     setCoreIdea("");
-    setIndustry("");
+    assignIndustry("");
     setCompanyDescription("");
     setAudience("");
     setPositioning("");
@@ -2124,7 +2153,7 @@ function LoopenStudioApp({
     setBrandName(template.brandName);
     setWordmarkName(template.brandName);
     setCoreIdea(template.coreIdea);
-    setIndustry(template.industry);
+    assignIndustry(template.industry);
     setCompanyDescription(template.companyDescription);
     setAudience(template.audience);
     setPositioning(template.positioning);
@@ -4068,15 +4097,33 @@ function LoopenStudioApp({
             />
           </div>
           <div className="premium-fields">
-            <label>
-              <span className="mini-label">{t(locale, "brief.industry")} *</span>
-              <input
-                value={industry}
+            <div className="industry-field">
+              <CreativeSelect
+                label={`${t(locale, "brief.industry")} *`}
+                value={industryChoice}
                 placeholder={t(locale, "brief.ph.industry")}
-                onChange={(event) => setIndustry(event.target.value)}
-                required
+                scrollable
+                onChange={(value) => {
+                  setIndustryChoice(value);
+                  if (value !== "Other") setIndustryOther("");
+                }}
+                options={INDUSTRY_OPTIONS.map((item) => ({
+                  value: item,
+                  label: t(locale, optionKey("brief.ind", item)),
+                }))}
               />
-            </label>
+              {industryChoice === "Other" && (
+                <label>
+                  <span className="mini-label">{t(locale, "brief.industryOther")}</span>
+                  <input
+                    value={industryOther}
+                    placeholder={t(locale, "brief.ph.industryOther")}
+                    onChange={(event) => setIndustryOther(event.target.value)}
+                    required
+                  />
+                </label>
+              )}
+            </div>
             <label>
               <span className="mini-label">{t(locale, "brief.companyDoes")} *</span>
               <textarea

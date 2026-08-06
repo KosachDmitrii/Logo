@@ -1380,10 +1380,6 @@ textarea:focus-visible {
   max-width: 340px;
 }
 
-.brief-panel {
-  border-top: 1px solid var(--ink);
-}
-
 .brief-template-select {
   margin: 28px 0 8px;
   padding-bottom: 8px;
@@ -1402,7 +1398,7 @@ textarea:focus-visible {
 .field-label label {
   color: rgba(17, 17, 15, 0.45);
   font-family: var(--font-geist-mono), monospace;
-  font-size: 9px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -2697,6 +2693,17 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+.premium-fields .industry-field {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.premium-fields .industry-field .creative-select {
+  width: 100%;
+}
+
 .premium-fields input,
 .premium-fields select,
 .premium-fields textarea {
@@ -3498,6 +3505,10 @@ textarea:focus-visible {
   font-style: normal;
 }
 
+.creative-select-trigger .is-placeholder {
+  opacity: 0.34;
+}
+
 .creative-select-menu {
   background: #141312;
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -3511,6 +3522,14 @@ textarea:focus-visible {
   top: calc(100% + 6px);
   width: 100%;
   z-index: 1;
+}
+
+.creative-select-menu.is-scrollable {
+  /* Exactly 6 option rows, then native scroll */
+  max-height: calc(12px + 6 * 47px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .production-brief .creative-select-menu {
