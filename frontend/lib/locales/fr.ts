@@ -4,6 +4,7 @@ const fr: Dict = {
   "nav.method": "Méthode",
   "nav.studio": "Studio",
   "nav.about": "À propos",
+  "nav.concepts": "Concepts",
   "nav.enter": "Entrer",
   "nav.projects": "projets",
   "nav.signals": "Signaux",
@@ -517,6 +518,12 @@ const fr: Dict = {
   "notice.topUpCancelled": "Recharge annulée — votre solde est inchangé.",
   "notice.loadingProject": "Chargement du projet sauvegardé…",
   "notice.projectLoaded": "Projet {name} chargé.",
+  "projectOpen.kicker": "03 / Territoires de concept",
+  "projectOpen.title.1": "On rouvre la",
+  "projectOpen.title.2": "boucle.",
+  "projectOpen.stage": "Ouverture",
+  "projectOpen.body":
+    "Brief, concepts et notes de craft reviennent dans le studio.",
   "notice.projectDeleted": "{name} a été définitivement supprimé.",
   "notice.blankBrief": "Brief vide — renseignez vos propres détails.",
   "notice.studioReset":

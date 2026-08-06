@@ -5,6 +5,7 @@ const he: Dict = {
   "nav.method": "שיטה",
   "nav.studio": "סטודיו",
   "nav.about": "אודות",
+  "nav.concepts": "קונספטים",
   "nav.enter": "כניסה",
   "nav.projects": "פרויקטים",
   "nav.signals": "Signals",
@@ -518,6 +519,12 @@ const he: Dict = {
   "notice.topUpCancelled": "הטעינה בוטלה — היתרה ללא שינוי.",
   "notice.loadingProject": "טוענים פרויקט שמור…",
   "notice.projectLoaded": "פרויקט {name} נטען.",
+  "projectOpen.kicker": "03 / טריטוריות קונספט",
+  "projectOpen.title.1": "פותחים מחדש את",
+  "projectOpen.title.2": "הלולאה.",
+  "projectOpen.stage": "פתיחה",
+  "projectOpen.body":
+    "מחזירים בריף, קונספטים והערות craft לסטודיו.",
   "notice.projectDeleted": "{name} נמחק לצמיתות.",
   "notice.blankBrief": "בריף ריק — מלאו בפרטים שלכם.",
   "notice.studioReset":

@@ -2,6 +2,9 @@ import type { StudioDraft, StudioSessionSnapshot } from "./studio-types";
 
 export const STUDIO_SESSION_KEY = "loopen-studio-session-v1";
 
+/** When true, writes are ignored (logout / hard wipe before navigation). */
+let studioSessionPersistSuspended = false;
+
 declare global {
   interface Window {
     __loopenStudioSessionCache?: StudioSessionSnapshot | null | undefined;
@@ -112,6 +115,11 @@ export function readStudioSession(): StudioSessionSnapshot | null {
 
 export function writeStudioSession(snapshot: StudioSessionSnapshot) {
   if (typeof window === "undefined") return;
+  if (studioSessionPersistSuspended) {
+    // Undo any race where pagehide tries to re-save during logout.
+    clearStudioSession();
+    return;
+  }
   try {
     window.sessionStorage.setItem(STUDIO_SESSION_KEY, JSON.stringify(snapshot));
     window.localStorage.removeItem(STUDIO_SESSION_KEY);
@@ -119,6 +127,11 @@ export function writeStudioSession(snapshot: StudioSessionSnapshot) {
   } catch {
     // Quota / private mode — session restore is best-effort.
   }
+}
+
+/** Block further session writes (e.g. pagehide flush during logout). */
+export function suspendStudioSessionPersist() {
+  studioSessionPersistSuspended = true;
 }
 
 export function clearStudioSession() {

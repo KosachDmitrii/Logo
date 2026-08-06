@@ -38,7 +38,9 @@ import {
   createEmptyStudioDraft,
   draftFromSnapshot,
   getClientStudioSnapshot,
+  STUDIO_SESSION_KEY,
   subscribeStudioSession,
+  suspendStudioSessionPersist,
   writeStudioSession,
 } from "./lib/studio-session";
 import type {
@@ -664,6 +666,7 @@ function LoopenStudioApp({
   const [assets, setAssets] = useState(initialDraft.assets);
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [openingProjectName, setOpeningProjectName] = useState("");
   const [workspacePane, setWorkspacePane] = useState<"projects" | "account">(
     "projects",
   );
@@ -1563,8 +1566,8 @@ function LoopenStudioApp({
     (asset) => asset.id === selectedRefinement,
   );
   const vectorSourceGeneration =
-    generatedConcepts.find((item) => item.id === selectedConceptIds[0]) ??
     generatedConcepts.find((item) => item.id === selectedReduction?.parentId) ??
+    generatedConcepts.find((item) => item.id === selectedConceptIds[0]) ??
     generatedConcepts.find((item) => item.directionKey === selectedConcept) ??
     null;
   const preferOriginal =
@@ -1842,69 +1845,97 @@ function LoopenStudioApp({
     setProjects(list);
   }
 
-  async function openProject(id: string) {
+  async function openProject(id: string, brandHint = "") {
+    const startedAt = Date.now();
+    setOpeningProjectName(brandHint || "…");
     setNotice(t(locale, "notice.loadingProject"));
-    const response = await apiFetch(`/projects/${id}`);
-    const payload = (await response.json()) as {
-      error?: string;
-      project?: { brandName: string; brief: PremiumBrief; selectedGenerationId?: string };
-      generations?: GeneratedConcept[];
-      assets?: StudioAsset[];
-    };
-    if (!response.ok || !payload.project) {
+    try {
+      const response = await apiFetch(`/projects/${id}`);
+      const payload = (await response.json()) as {
+        error?: string;
+        project?: {
+          brandName: string;
+          brief: PremiumBrief;
+          selectedGenerationId?: string;
+        };
+        generations?: GeneratedConcept[];
+        assets?: StudioAsset[];
+      };
+      if (!response.ok || !payload.project) {
+        setOpeningProjectName("");
+        showRequestError(
+          "Project history",
+          payload.error ?? "Project could not be loaded.",
+        );
+        return;
+      }
+      const loadedAssets = payload.assets ?? [];
+      const loadedGenerations = payload.generations ?? [];
+      setProjectId(id);
+      const nextBrand = payload.project.brandName;
+      const nextCoreIdea = payload.project.brief.coreIdea ?? "";
+      const nextIndustry = payload.project.brief.industry ?? "";
+      setOpeningProjectName(nextBrand);
+      setBrandName(nextBrand);
+      setWordmarkName(nextBrand);
+      setCoreIdea(nextCoreIdea);
+      setIndustry(nextIndustry);
+      setCompanyDescription(payload.project.brief.companyDescription ?? "");
+      setAudience(payload.project.brief.audience ?? "");
+      setPositioning(payload.project.brief.positioning ?? "");
+      setCompetitors(payload.project.brief.competitors ?? "");
+      setColorApproach(payload.project.brief.colorApproach ?? "propose");
+      setBrandColors(payload.project.brief.brandColors ?? "");
+      setColorMood(payload.project.brief.colorMood ?? "");
+      setVisualDirection(payload.project.brief.visualDirection ?? "");
+      setUsage(payload.project.brief.usage ?? "");
+      setAvoid(payload.project.brief.avoid ?? "");
+      setStrategy(payload.project.brief.strategy ?? null);
+      setPersonalities(payload.project.brief.personalities ?? []);
+      setActiveTemplateId(
+        resolveBriefTemplateId({
+          brandName: nextBrand,
+          coreIdea: nextCoreIdea,
+          industry: nextIndustry,
+        }),
+      );
+      setGeneratedConcepts(loadedGenerations);
+      setAssets(loadedAssets);
+      const selectedLoaded =
+        loadedGenerations.find(
+          (item) => item.id === payload.project?.selectedGenerationId,
+        ) ?? loadedGenerations[0];
+      if (selectedLoaded) setSelectedConcept(selectedLoaded.directionKey);
+      setSelectedConceptIds(selectedLoaded ? [selectedLoaded.id] : []);
+      const latestRefine = loadedAssets
+        .filter((asset) => asset.stage === "refine")
+        .at(-1);
+      const latestVector = loadedAssets
+        .filter((asset) => asset.stage === "vector")
+        .at(-1);
+      setSelectedRefinement(latestRefine?.id ?? "");
+      setSelectedVector(latestVector?.id ?? "");
+      setProductionLocked(false);
+      setNotice(
+        t(locale, "notice.projectLoaded", { name: payload.project.brandName }),
+      );
+      // Hold the creative loader briefly so it reads as intentional, not a flash.
+      const holdMs = Math.max(0, 900 - (Date.now() - startedAt));
+      if (holdMs) await new Promise((resolve) => window.setTimeout(resolve, holdMs));
+      setIsHistoryOpen(false);
+      setOpeningProjectName("");
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById("concepts")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    } catch (error) {
+      setOpeningProjectName("");
       showRequestError(
         "Project history",
-        payload.error ?? "Project could not be loaded.",
+        error instanceof Error ? error.message : "Project could not be loaded.",
       );
-      return;
     }
-    const loadedAssets = payload.assets ?? [];
-    const loadedGenerations = payload.generations ?? [];
-    setProjectId(id);
-    const nextBrand = payload.project.brandName;
-    const nextCoreIdea = payload.project.brief.coreIdea ?? "";
-    const nextIndustry = payload.project.brief.industry ?? "";
-    setBrandName(nextBrand);
-    setWordmarkName(nextBrand);
-    setCoreIdea(nextCoreIdea);
-    setIndustry(nextIndustry);
-    setCompanyDescription(payload.project.brief.companyDescription ?? "");
-    setAudience(payload.project.brief.audience ?? "");
-    setPositioning(payload.project.brief.positioning ?? "");
-    setCompetitors(payload.project.brief.competitors ?? "");
-    setColorApproach(payload.project.brief.colorApproach ?? "propose");
-    setBrandColors(payload.project.brief.brandColors ?? "");
-    setColorMood(payload.project.brief.colorMood ?? "");
-    setVisualDirection(payload.project.brief.visualDirection ?? "");
-    setUsage(payload.project.brief.usage ?? "");
-    setAvoid(payload.project.brief.avoid ?? "");
-    setStrategy(payload.project.brief.strategy ?? null);
-    setPersonalities(payload.project.brief.personalities ?? []);
-    setActiveTemplateId(
-      resolveBriefTemplateId({
-        brandName: nextBrand,
-        coreIdea: nextCoreIdea,
-        industry: nextIndustry,
-      }),
-    );
-    setGeneratedConcepts(loadedGenerations);
-    setAssets(loadedAssets);
-    const selectedLoaded =
-      loadedGenerations.find(
-        (item) => item.id === payload.project?.selectedGenerationId,
-      ) ?? loadedGenerations[0];
-    if (selectedLoaded) setSelectedConcept(selectedLoaded.directionKey);
-    setSelectedConceptIds(selectedLoaded ? [selectedLoaded.id] : []);
-    const latestRefine = loadedAssets.filter((asset) => asset.stage === "refine").at(-1);
-    const latestVector = loadedAssets.filter((asset) => asset.stage === "vector").at(-1);
-    setSelectedRefinement(latestRefine?.id ?? "");
-    setSelectedVector(latestVector?.id ?? "");
-    setProductionLocked(false);
-    setIsHistoryOpen(false);
-    setNotice(
-      t(locale, "notice.projectLoaded", { name: payload.project.brandName }),
-    );
-    document.getElementById("workflow")?.scrollIntoView({ behavior: "smooth" });
   }
 
   async function deleteProject(project: SavedProject) {
@@ -2047,6 +2078,45 @@ function LoopenStudioApp({
     window.requestAnimationFrame(() => {
       document.getElementById("brief")?.scrollIntoView({ behavior: "smooth" });
     });
+  }
+
+  /** Wipe client draft/cache before auth cookies are cleared — pagehide must not re-save. */
+  function leaveStudio() {
+    suspendStudioSessionPersist();
+    clearStudioSession();
+    projectListCache = null;
+    projectListInflight = null;
+    try {
+      window.localStorage.removeItem(LOCALE_STORAGE_KEY);
+      window.sessionStorage.removeItem(STUDIO_SESSION_KEY);
+      window.localStorage.removeItem(STUDIO_SESSION_KEY);
+    } catch {
+      // ignore
+    }
+    setProjects([]);
+    setSignalBalance(null);
+    setIsHistoryOpen(false);
+    setIsSignalsOpen(false);
+    setOpeningProjectName("");
+    setConfirmDialog(null);
+    clearBriefTemplate();
+    setSelectedConcept("continuous");
+    setSelectedConceptIds([]);
+    setGeneratedConcepts([]);
+    setProjectId(null);
+    setAssets([]);
+    setSelectedRefinement("");
+    setSelectedVector("");
+    setProductionLocked(false);
+    setStrategy(null);
+    setProfileFirstName("");
+    setProfileLastName("");
+    setPasswordCurrent("");
+    setPasswordNext("");
+    setPasswordNextConfirm("");
+    setDeleteConfirmEmail("");
+    // Logout HTML page clears storage again after any pagehide re-write.
+    window.location.assign("/api/auth/logout?return_to=/");
   }
 
   function applyBriefTemplate(template: BriefTemplate) {
@@ -2791,7 +2861,10 @@ function LoopenStudioApp({
         </a>
         <nav className="top-nav" aria-label={t(locale, "nav.mainAria")}>
           <a href="#brief">{t(locale, "nav.studio")}</a>
-          <a href="#manifesto">{t(locale, "nav.method")}</a>
+          <a href="#concepts">{t(locale, "nav.concepts")}</a>
+          <button type="button" onClick={() => setIsMethodOpen(true)}>
+            {t(locale, "nav.method")}
+          </button>
           <a href="#manifesto">{t(locale, "nav.about")}</a>
         </nav>
         <div className="header-actions">
@@ -3401,6 +3474,31 @@ function LoopenStudioApp({
           </section>
         </div>
       )}
+      {openingProjectName && (
+        <div
+          className="project-open-backdrop"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <section className="project-open-card">
+            <span className="project-open-orbit" aria-hidden="true">
+              <i />
+              <b>∞</b>
+            </span>
+            <p>{t(locale, "projectOpen.kicker")}</p>
+            <h2>
+              {t(locale, "projectOpen.title.1")}
+              <em> {t(locale, "projectOpen.title.2")}</em>
+            </h2>
+            <strong>{openingProjectName}</strong>
+            <div className="project-open-meta">
+              <span>{t(locale, "projectOpen.stage")}</span>
+              <p>{t(locale, "projectOpen.body")}</p>
+            </div>
+          </section>
+        </div>
+      )}
       {user && isHistoryOpen && (
         <aside className="history-drawer" aria-label={t(locale, "workspace.private")}>
           <div className="history-head">
@@ -3434,9 +3532,9 @@ function LoopenStudioApp({
                 : t(locale, "nav.signalsCount", { n: signalBalance })}{" "}
               ↗
             </button>
-            <a href="/api/auth/logout?return_to=/">
+            <button type="button" onClick={leaveStudio}>
               {t(locale, "workspace.leave")}
-            </a>
+            </button>
           </div>
 
           <div
@@ -3487,7 +3585,10 @@ function LoopenStudioApp({
                         <button
                           className="history-open"
                           type="button"
-                          onClick={() => openProject(project.id)}
+                          onClick={() =>
+                            void openProject(project.id, project.brandName)
+                          }
+                          disabled={Boolean(openingProjectName)}
                         >
                           <span>
                             {new Date(project.createdAt).toLocaleString(locale, {
@@ -4461,7 +4562,26 @@ function LoopenStudioApp({
             <strong>{t(locale, "prod.stage.refine")}</strong>
           </div>
           <div className="asset-grid">
-            {refinements.length ? refinements.map((asset) => (
+            {refinements.length ? refinements.map((asset) => {
+              const parentConcept =
+                generatedConcepts.find((item) => item.id === asset.parentId) ??
+                null;
+              const showOriginal =
+                selectedRefinement === asset.id &&
+                vectorSourceMode === "original" &&
+                Boolean(parentConcept);
+              const previewLabel = showOriginal
+                ? parentConcept!.directionTitle
+                : asset.label;
+              const previewMeta = showOriginal
+                ? parentConcept!.qualityScore
+                  ? `QC ${parentConcept!.qualityScore}/100`
+                  : t(locale, "prod.originalConcept")
+                : `${asset.model}${
+                    asset.qualityScore ? ` · QC ${asset.qualityScore}/100` : ""
+                  }`;
+
+              return (
               <article
                 className={selectedRefinement === asset.id ? "asset-card active" : "asset-card"}
                 key={asset.id}
@@ -4476,50 +4596,97 @@ function LoopenStudioApp({
                   }
                 }}
               >
-                <img
-                  src={resolveMediaUrl(asset.url)}
-                  alt={`${brandName} ${asset.label}`}
-                />
-                <span>{asset.label}</span>
-                <small>
-                  {asset.model}
-                  {asset.qualityScore ? ` · QC ${asset.qualityScore}/100` : ""}
-                </small>
+                <div
+                  className={`asset-card-preview${showOriginal ? " is-original" : ""}`}
+                >
+                  <img
+                    className="asset-preview-refine"
+                    src={resolveMediaUrl(asset.url)}
+                    alt={`${brandName} ${asset.label}`}
+                    decoding="async"
+                    hidden={showOriginal}
+                  />
+                  {parentConcept ? (
+                    <img
+                      className="asset-preview-original"
+                      src={resolveMediaUrl(parentConcept.imageUrl)}
+                      alt={`${brandName} ${parentConcept.directionTitle}`}
+                      decoding="async"
+                      hidden={!showOriginal}
+                    />
+                  ) : null}
+                </div>
+                <span>{previewLabel}</span>
+                <small>{previewMeta}</small>
                 <b
                   className={`asset-verdict ${
                     asset.reviewStatus === "Recommended" ? "approved" : "advisory"
-                  }`}
+                  }${showOriginal ? " is-slot" : ""}`}
+                  aria-hidden={showOriginal || undefined}
                 >
                   {asset.reviewStatus === "Recommended"
                     ? t(locale, "prod.recommended")
                     : t(locale, "prod.reviewNotes")}
                 </b>
-                {selectedRefinement === asset.id && vectorSourceGeneration && (
-                  <div
-                    className="segmented vector-source-toggle"
-                    role="group"
-                    aria-label={t(locale, "prod.svgSourceAria")}
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
+                <div
+                  className={`segmented vector-source-toggle${
+                    selectedRefinement === asset.id && parentConcept
+                      ? ""
+                      : " is-slot"
+                  }`}
+                  role="group"
+                  aria-label={t(locale, "prod.svgSourceAria")}
+                  aria-hidden={
+                    !(selectedRefinement === asset.id && parentConcept) ||
+                    undefined
+                  }
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    className={
+                      selectedRefinement === asset.id &&
+                      vectorSourceMode === "original"
+                        ? "active"
+                        : ""
+                    }
+                    disabled={
+                      !(selectedRefinement === asset.id && parentConcept)
+                    }
+                    tabIndex={
+                      selectedRefinement === asset.id && parentConcept
+                        ? 0
+                        : -1
+                    }
+                    onClick={() => setVectorSourceMode("original")}
                   >
-                    <button
-                      type="button"
-                      className={vectorSourceMode === "original" ? "active" : ""}
-                      onClick={() => setVectorSourceMode("original")}
-                    >
-                      {t(locale, "prod.originalConcept")}
-                    </button>
-                    <button
-                      type="button"
-                      className={vectorSourceMode === "refine" ? "active" : ""}
-                      onClick={() => setVectorSourceMode("refine")}
-                    >
-                      {t(locale, "prod.refinement")}
-                    </button>
-                  </div>
-                )}
+                    {t(locale, "prod.originalConcept")}
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      selectedRefinement === asset.id &&
+                      vectorSourceMode === "refine"
+                        ? "active"
+                        : ""
+                    }
+                    disabled={
+                      !(selectedRefinement === asset.id && parentConcept)
+                    }
+                    tabIndex={
+                      selectedRefinement === asset.id && parentConcept
+                        ? 0
+                        : -1
+                    }
+                    onClick={() => setVectorSourceMode("refine")}
+                  >
+                    {t(locale, "prod.refinement")}
+                  </button>
+                </div>
               </article>
-            )) : (
+              );
+            }) : (
               <div className="empty-stage">
                 <strong>{t(locale, "prod.empty.refineTitle")}</strong>
                 <p>
@@ -5028,16 +5195,18 @@ function LoopenStudioApp({
         <nav className="footer-route" aria-label={t(locale, "footer.routeAria")}>
           {(
             [
-              ["01", "footer.route.brief", "#brief"],
-              ["02", "footer.route.research", "#research"],
-              ["03", "footer.route.territories", "#concepts"],
-              ["04", "footer.route.production", "#workflow"],
-              ["05", "footer.route.system", "#system"],
+              ["01", "brief.eyebrow", "#brief"],
+              ["02", "strategy.eyebrow", "#research"],
+              ["03", "concepts.eyebrow", "#concepts"],
+              ["04", "prod.eyebrow", "#workflow"],
+              ["05", "system.eyebrow", "#system"],
             ] as const
           ).map(([number, labelKey, href]) => (
             <a href={href} key={number}>
               <span>{number}</span>
-              <strong>{t(locale, labelKey)}</strong>
+              <strong>
+                {t(locale, labelKey).replace(/^\d+\s*\/\s*/, "")}
+              </strong>
               <i>↘</i>
             </a>
           ))}

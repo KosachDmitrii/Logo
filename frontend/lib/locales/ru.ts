@@ -5,6 +5,7 @@ const ru: Dict = {
   "nav.method": "Метод",
   "nav.studio": "Студия",
   "nav.about": "О нас",
+  "nav.concepts": "Концепты",
   "nav.enter": "Войти",
   "nav.projects": "проекты",
   "nav.signals": "Signals",
@@ -520,6 +521,12 @@ const ru: Dict = {
   "notice.topUpCancelled": "Пополнение отменено — баланс без изменений.",
   "notice.loadingProject": "Загружаем сохранённый проект…",
   "notice.projectLoaded": "Проект {name} загружен.",
+  "projectOpen.kicker": "03 / Территории концептов",
+  "projectOpen.title.1": "Открываем",
+  "projectOpen.title.2": "петлю.",
+  "projectOpen.stage": "Загрузка",
+  "projectOpen.body":
+    "Возвращаем бриф, концепты и craft notes в студию.",
   "notice.projectDeleted": "{name} удалён навсегда.",
   "notice.blankBrief": "Пустой бриф — заполните своими данными.",
   "notice.studioReset":
