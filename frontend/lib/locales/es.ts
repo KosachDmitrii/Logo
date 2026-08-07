@@ -65,7 +65,7 @@ const es: Dict = {
   "auth.sendReset": "Enviar enlace",
   "auth.savePassword": "Guardar contraseña",
   "auth.resend": "Reenviar email",
-  "auth.createAccount": "Crear cuenta",
+  "auth.createAccount": "¿No tienes cuenta? Créala",
   "auth.forgotPassword": "Olvidé la contraseña",
   "auth.haveAccount": "¿Ya tienes cuenta? Inicia sesión",
   "auth.confirmedSignIn": "Confirmé — iniciar sesión",
@@ -145,7 +145,6 @@ const es: Dict = {
   "workspace.empty.body":
     "Define un brief → genera conceptos. Tu historial privado se reunirá aquí.",
   "workspace.empty.cta": "Empezar brief",
-  "workspace.browse": "Explorar proyectos",
   "workspace.autosave": "Sesión de pestaña autoguardada",
   "workspace.editName": "Editar nombre",
   "workspace.changePassword": "Cambiar contraseña",
@@ -169,9 +168,6 @@ const es: Dict = {
   "workspace.deleteProjectAria": "Eliminar proyecto {name}",
   "workspace.deleteProjectTitle": "Eliminar proyecto",
   "workspace.deletingProject": "Eliminando proyecto",
-  "workspace.scrollHistoryAria": "Desplazar historial de proyectos",
-  "workspace.scrollUpAria": "Desplazar proyectos hacia arriba",
-  "workspace.scrollDownAria": "Desplazar proyectos hacia abajo",
   "workspace.password.localOnly":
     "Los cambios de contraseña son solo para cuentas con email.",
   "workspace.password.current": "Contraseña actual",

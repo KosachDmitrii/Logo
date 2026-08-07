@@ -64,7 +64,7 @@ const en = {
   "auth.sendReset": "Send reset link",
   "auth.savePassword": "Save password",
   "auth.resend": "Resend email",
-  "auth.createAccount": "Create account",
+  "auth.createAccount": "Don't have an account? Create one",
   "auth.forgotPassword": "Forgot password",
   "auth.haveAccount": "Already have an account? Sign in",
   "auth.confirmedSignIn": "I confirmed — sign in",
@@ -144,7 +144,6 @@ const en = {
   "workspace.empty.body":
     "Define a brief → generate concepts. Your private history will collect here.",
   "workspace.empty.cta": "Start brief",
-  "workspace.browse": "Browse projects",
   "workspace.autosave": "Tab session autosaved",
   "workspace.editName": "Edit name",
   "workspace.changePassword": "Change password",
@@ -168,9 +167,6 @@ const en = {
   "workspace.deleteProjectAria": "Delete {name} project",
   "workspace.deleteProjectTitle": "Delete project",
   "workspace.deletingProject": "Deleting project",
-  "workspace.scrollHistoryAria": "Scroll project history",
-  "workspace.scrollUpAria": "Scroll projects up",
-  "workspace.scrollDownAria": "Scroll projects down",
   "workspace.password.localOnly":
     "Password changes are for email accounts only.",
   "workspace.password.current": "Current password",

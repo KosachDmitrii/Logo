@@ -66,7 +66,7 @@ const ru: Dict = {
   "auth.sendReset": "Отправить ссылку",
   "auth.savePassword": "Сохранить пароль",
   "auth.resend": "Отправить снова",
-  "auth.createAccount": "Создать аккаунт",
+  "auth.createAccount": "Нет аккаунта? Создать",
   "auth.forgotPassword": "Забыли пароль",
   "auth.haveAccount": "Уже есть аккаунт? Войти",
   "auth.confirmedSignIn": "Подтвердил — войти",
@@ -148,7 +148,6 @@ const ru: Dict = {
   "workspace.empty.body":
     "Соберите бриф → сгенерируйте концепты. Частная история соберётся здесь.",
   "workspace.empty.cta": "Начать бриф",
-  "workspace.browse": "Смотреть проекты",
   "workspace.autosave": "Сессия вкладки автосохранена",
   "workspace.editName": "Изменить имя",
   "workspace.changePassword": "Сменить пароль",
@@ -172,9 +171,6 @@ const ru: Dict = {
   "workspace.deleteProjectAria": "Удалить проект {name}",
   "workspace.deleteProjectTitle": "Удалить проект",
   "workspace.deletingProject": "Удаляем проект",
-  "workspace.scrollHistoryAria": "Прокрутить историю проектов",
-  "workspace.scrollUpAria": "Прокрутить проекты вверх",
-  "workspace.scrollDownAria": "Прокрутить проекты вниз",
   "workspace.password.localOnly":
     "Смена пароля доступна только для email-аккаунтов.",
   "workspace.password.current": "Текущий пароль",

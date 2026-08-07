@@ -65,7 +65,7 @@ const de: Dict = {
   "auth.sendReset": "Reset-Link senden",
   "auth.savePassword": "Passwort speichern",
   "auth.resend": "E-Mail erneut senden",
-  "auth.createAccount": "Konto erstellen",
+  "auth.createAccount": "Noch kein Konto? Jetzt erstellen",
   "auth.forgotPassword": "Passwort vergessen",
   "auth.haveAccount": "Bereits ein Konto? Anmelden",
   "auth.confirmedSignIn": "Bestätigt — anmelden",
@@ -145,7 +145,6 @@ const de: Dict = {
   "workspace.empty.body":
     "Briefing definieren → Konzepte generieren. Deine private Historie sammelt sich hier.",
   "workspace.empty.cta": "Briefing starten",
-  "workspace.browse": "Projekte durchsuchen",
   "workspace.autosave": "Tab-Session automatisch gespeichert",
   "workspace.editName": "Name bearbeiten",
   "workspace.changePassword": "Passwort ändern",
@@ -169,9 +168,6 @@ const de: Dict = {
   "workspace.deleteProjectAria": "Projekt {name} löschen",
   "workspace.deleteProjectTitle": "Projekt löschen",
   "workspace.deletingProject": "Projekt wird gelöscht",
-  "workspace.scrollHistoryAria": "Projekthistorie scrollen",
-  "workspace.scrollUpAria": "Projekte nach oben scrollen",
-  "workspace.scrollDownAria": "Projekte nach unten scrollen",
   "workspace.password.localOnly":
     "Passwortänderungen gelten nur für E-Mail-Konten.",
   "workspace.password.current": "Aktuelles Passwort",

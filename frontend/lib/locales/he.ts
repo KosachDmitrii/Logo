@@ -66,7 +66,7 @@ const he: Dict = {
   "auth.sendReset": "שליחת קישור איפוס",
   "auth.savePassword": "שמירת סיסמה",
   "auth.resend": "שליחה מחדש",
-  "auth.createAccount": "יצירת חשבון",
+  "auth.createAccount": "אין חשבון? יצירת חשבון",
   "auth.forgotPassword": "שכחתי סיסמה",
   "auth.haveAccount": "כבר יש חשבון? כניסה",
   "auth.confirmedSignIn": "אישרתי — כניסה",
@@ -146,7 +146,6 @@ const he: Dict = {
   "workspace.empty.body":
     "הגדירו בריף → צרו קונספטים. ההיסטוריה הפרטית תיאסף כאן.",
   "workspace.empty.cta": "התחלת בריף",
-  "workspace.browse": "עיון בפרויקטים",
   "workspace.autosave": "סשן הלשונית נשמר אוטומטית",
   "workspace.editName": "עריכת שם",
   "workspace.changePassword": "החלפת סיסמה",
@@ -170,9 +169,6 @@ const he: Dict = {
   "workspace.deleteProjectAria": "מחיקת פרויקט {name}",
   "workspace.deleteProjectTitle": "מחיקת פרויקט",
   "workspace.deletingProject": "מוחקים פרויקט",
-  "workspace.scrollHistoryAria": "גלילת היסטוריית פרויקטים",
-  "workspace.scrollUpAria": "גלילת פרויקטים למעלה",
-  "workspace.scrollDownAria": "גלילת פרויקטים למטה",
   "workspace.password.localOnly":
     "החלפת סיסמה זמינה רק לחשבונות אימייל.",
   "workspace.password.current": "סיסמה נוכחית",

@@ -106,8 +106,13 @@ function persistLocale(locale: BriefLocale) {
 const SUPPORT_EMAIL =
   process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "hello@loopen.dev";
 
-/** Text-presentation NE arrow (avoid Apple Color Emoji). */
-const ARROW_NE = "↗\uFE0E\uFE0E\uFE0E";
+/** Text-presentation SE arrow (avoid Apple Color Emoji). */
+const ARROW_SE = "↘\uFE0E\uFE0E\uFE0E";
+
+/** Canonical CTA arrow — same markup as `.stage-action`. */
+function ActionArrow() {
+  return <span aria-hidden="true">→</span>;
+}
 
 export type StudioUser = {
   displayName: string;
@@ -597,7 +602,7 @@ function CreativeSelect({
         <span className={showPlaceholder ? "is-placeholder" : undefined}>
           {showPlaceholder ? placeholder : selectedLabel}
         </span>
-        <i>{open ? "−" : "↘"}</i>
+        <i aria-hidden="true">{open ? "−" : ARROW_SE}</i>
       </button>
       {open && (
         <div
@@ -803,7 +808,6 @@ function LoopenStudioApp({
   const [markScale, setMarkScale] = useState(initialDraft.markScale);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
   const confirmResolver = useRef<((confirmed: boolean) => void) | null>(null);
-  const historyListRef = useRef<HTMLDivElement>(null);
   const sessionReady = true;
   const studioStamp = useMemo(
     () => studioPlaceStamp(STUDIO_ORIGIN),
@@ -824,13 +828,6 @@ function LoopenStudioApp({
       document.body.style.overflow = previousOverflow;
     };
   }, [isHistoryOpen]);
-
-  function scrollProjectHistory(direction: -1 | 1) {
-    historyListRef.current?.scrollBy({
-      behavior: "smooth",
-      top: direction * Math.max(240, historyListRef.current.clientHeight * 0.72),
-    });
-  }
 
   function requestConfirmation(dialog: ConfirmDialog) {
     return new Promise<boolean>((resolve) => {
@@ -2832,7 +2829,8 @@ function LoopenStudioApp({
                 setIsMethodOpen(false);
                 document.getElementById("brief")?.scrollIntoView({ behavior: "smooth" });
               }}>
-                {t(locale, "method.cta")} <span>↘</span>
+                {t(locale, "method.cta")}
+                <ActionArrow />
               </button>
             </footer>
           </article>
@@ -2852,7 +2850,9 @@ function LoopenStudioApp({
             aria-modal="true"
             aria-labelledby="confirm-dialog-title"
           >
-            <div className="confirm-dialog-index">↘</div>
+            <div className="confirm-dialog-index" aria-hidden="true">
+              {ARROW_SE}
+            </div>
             <p>{confirmDialog.kicker}</p>
             <h2 id="confirm-dialog-title">{confirmDialog.title}</h2>
             <div className="confirm-dialog-copy">
@@ -2866,7 +2866,8 @@ function LoopenStudioApp({
                   className="confirm-dialog-primary"
                   onClick={() => resolveConfirmation(false)}
                 >
-                  {confirmDialog.confirmLabel} <span>↘</span>
+                  {confirmDialog.confirmLabel}
+                  <ActionArrow />
                 </button>
               ) : (
                 <>
@@ -2878,7 +2879,8 @@ function LoopenStudioApp({
                     className="confirm-dialog-primary"
                     onClick={() => resolveConfirmation(true)}
                   >
-                    {confirmDialog.confirmLabel} <span>→</span>
+                    {confirmDialog.confirmLabel}
+                    <ActionArrow />
                   </button>
                 </>
               )}
@@ -2971,18 +2973,20 @@ function LoopenStudioApp({
             aria-labelledby="studio-gate-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <p className="studio-gate-index">∞</p>
-            <p>
-              {authMode === "signup"
-                ? t(locale, "auth.signup.kicker")
-                : authMode === "confirm"
-                  ? t(locale, "auth.confirm.kicker")
-                  : authMode === "forgot"
-                    ? t(locale, "auth.forgot.kicker")
-                    : authMode === "reset"
-                      ? t(locale, "auth.reset.kicker")
-                      : t(locale, "auth.signin.kicker")}
-            </p>
+            <div className="studio-gate-top">
+              <p className="studio-gate-index">∞</p>
+              <p className="studio-gate-kicker">
+                {authMode === "signup"
+                  ? t(locale, "auth.signup.kicker")
+                  : authMode === "confirm"
+                    ? t(locale, "auth.confirm.kicker")
+                    : authMode === "forgot"
+                      ? t(locale, "auth.forgot.kicker")
+                      : authMode === "reset"
+                        ? t(locale, "auth.reset.kicker")
+                        : t(locale, "auth.signin.kicker")}
+              </p>
+            </div>
             <h2 id="studio-gate-title">
               {authMode === "signup" ? (
                 <>
@@ -3275,6 +3279,16 @@ function LoopenStudioApp({
                       {showAuthFieldError("password")}
                     </span>
                   )}
+                  {authMode === "signin" && (
+                    <button
+                      type="button"
+                      className="studio-gate-forgot"
+                      onClick={() => openAuthGate("forgot")}
+                      disabled={Boolean(authSending)}
+                    >
+                      {t(locale, "auth.forgotPassword")}
+                    </button>
+                  )}
                 </label>
               )}
               {(authMode === "signup" || authMode === "reset") && (
@@ -3333,7 +3347,7 @@ function LoopenStudioApp({
                       : authResendWaitSec > 0
                         ? t(locale, "auth.resendIn", { n: authResendWaitSec })
                         : t(locale, "auth.resend")}
-                    <i aria-hidden="true">{ARROW_NE}</i>
+                    <ActionArrow />
                   </button>
                 ) : (
                   <button
@@ -3357,28 +3371,19 @@ function LoopenStudioApp({
                                 : authMode === "reset"
                                   ? t(locale, "auth.savePassword")
                                   : t(locale, "auth.enter")}
-                    <span>→</span>
+                    <ActionArrow />
                   </button>
                 )}
               </div>
               <div className="studio-gate-switch">
                 {authMode === "signin" && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => openAuthGate("signup")}
-                      disabled={Boolean(authSending)}
-                    >
-                      {t(locale, "auth.createAccount")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openAuthGate("forgot")}
-                      disabled={Boolean(authSending)}
-                    >
-                      {t(locale, "auth.forgotPassword")}
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => openAuthGate("signup")}
+                    disabled={Boolean(authSending)}
+                  >
+                    {t(locale, "auth.createAccount")}
+                  </button>
                 )}
                 {authMode === "signup" && (
                   <button
@@ -3567,8 +3572,8 @@ function LoopenStudioApp({
             <button type="button" onClick={() => setIsSignalsOpen(true)}>
               {signalBalance === null
                 ? t(locale, "nav.signals")
-                : t(locale, "nav.signalsCount", { n: signalBalance })}{" "}
-              <i aria-hidden="true">{ARROW_NE}</i>
+                : t(locale, "nav.signalsCount", { n: signalBalance })}
+              <ActionArrow />
             </button>
             <button type="button" onClick={leaveStudio}>
               {t(locale, "workspace.leave")}
@@ -3608,7 +3613,7 @@ function LoopenStudioApp({
 
           {workspacePane === "projects" ? (
             <>
-              <div className="history-list" ref={historyListRef}>
+              <div className="history-list">
                 {projects.length ? (
                   <>
                     <button
@@ -3616,7 +3621,8 @@ function LoopenStudioApp({
                       className="workspace-new-project"
                       onClick={() => void startNewProjectFromWorkspace()}
                     >
-                      {t(locale, "workspace.newProject")} <span>→</span>
+                      {t(locale, "workspace.newProject")}
+                      <ActionArrow />
                     </button>
                     {projects.map((project) => (
                       <div className="history-project" key={project.id}>
@@ -3673,33 +3679,12 @@ function LoopenStudioApp({
                       className="workspace-empty-cta"
                       onClick={startBriefFromWorkspace}
                     >
-                      {t(locale, "workspace.empty.cta")} <span>↘</span>
+                      {t(locale, "workspace.empty.cta")}
+                      <ActionArrow />
                     </button>
                   </div>
                 )}
               </div>
-              {projects.length > 3 && (
-                <div
-                  className="history-scroll-controls"
-                  aria-label={t(locale, "workspace.scrollHistoryAria")}
-                >
-                  <button
-                    type="button"
-                    onClick={() => scrollProjectHistory(-1)}
-                    aria-label={t(locale, "workspace.scrollUpAria")}
-                  >
-                    ↑
-                  </button>
-                  <span>{t(locale, "workspace.browse")}</span>
-                  <button
-                    type="button"
-                    onClick={() => scrollProjectHistory(1)}
-                    aria-label={t(locale, "workspace.scrollDownAria")}
-                  >
-                    ↓
-                  </button>
-                </div>
-              )}
             </>
           ) : (
             <div className="workspace-account">
@@ -3881,8 +3866,8 @@ function LoopenStudioApp({
                           `LOOPEN ${t(locale, "workspace.support.subject")}`,
                         )}`}
                       >
-                        {SUPPORT_EMAIL}{" "}
-                        <i aria-hidden="true">{ARROW_NE}</i>
+                        {SUPPORT_EMAIL}
+                        <ActionArrow />
                       </a>
                     </div>
                   )}
@@ -3918,8 +3903,8 @@ function LoopenStudioApp({
                         type="button"
                         onClick={() => setIsSignalsOpen(true)}
                       >
-                        {t(locale, "workspace.billing.topUp")}{" "}
-                        <i aria-hidden="true">{ARROW_NE}</i>
+                        {t(locale, "workspace.billing.topUp")}
+                        <ActionArrow />
                       </button>
                     </div>
                   )}
@@ -4016,7 +4001,7 @@ function LoopenStudioApp({
           <p>LOOPEN {t(locale, "hero.body")}</p>
           <a className="circle-cta" href="#brief" aria-label={t(locale, "hero.start")}>
             <span>{t(locale, "hero.start")}</span>
-            <b>↘</b>
+            <b aria-hidden="true">{ARROW_SE}</b>
           </a>
         </div>
       </section>
@@ -4274,7 +4259,7 @@ function LoopenStudioApp({
               {isGenerating ? (
                 <RequestDrop label={t(locale, "brief.generateBusy")} />
               ) : (
-                <i aria-hidden="true">{ARROW_NE}</i>
+                <ActionArrow />
               )}
             </button>
           </div>
@@ -4487,7 +4472,7 @@ function LoopenStudioApp({
                       {generated.qualityScore ? (
                         `${generated.qualityScore}/100`
                       ) : (
-                        <i aria-hidden="true">{ARROW_NE}</i>
+                        <ActionArrow />
                       )}
                     </b>
                   </button>
@@ -4602,7 +4587,7 @@ function LoopenStudioApp({
               {isRefining ? (
                 <RequestDrop label={t(locale, "concepts.reduceLoader")} />
               ) : (
-                <span>→</span>
+                <ActionArrow />
               )}
             </button>
           </div>
@@ -4800,7 +4785,7 @@ function LoopenStudioApp({
               {isVectorizing ? (
                 <RequestDrop label={t(locale, "prod.creatingLoader")} />
               ) : (
-                <span>→</span>
+                <ActionArrow />
               )}
               </button>
             </div>
@@ -4820,7 +4805,7 @@ function LoopenStudioApp({
                 {isRefining ? (
                   <RequestDrop label={t(locale, "prod.retryLoader")} />
                 ) : (
-                  <i aria-hidden="true">{ARROW_NE}</i>
+                  <ActionArrow />
                 )}
               </button>
             </div>
@@ -4887,7 +4872,7 @@ function LoopenStudioApp({
                 <span>{t(locale, "prod.lock.next")}</span>
                 <strong>{t(locale, "prod.lock.nextValue")}</strong>
               </div>
-              <i aria-hidden="true">↘</i>
+              <i aria-hidden="true">{ARROW_SE}</i>
             </div>
           ) : (<>
           <div className="lockup-stage">
@@ -5157,8 +5142,8 @@ function LoopenStudioApp({
                 {t(locale, "prod.export.social")} {exportingKey === "png-icon-1024" ? <RequestDrop label={t(locale, "prod.loader.social")} /> : "↓"}
               </button>
               <button type="button" onClick={printBrandGuide} disabled={!selectedVector}>
-                {t(locale, "prod.export.guide")}{" "}
-                <i aria-hidden="true">{ARROW_NE}</i>
+                {t(locale, "prod.export.guide")}
+                <ActionArrow />
               </button>
             </div>
           </div>
@@ -5252,7 +5237,7 @@ function LoopenStudioApp({
             onClick={() => setIsMethodOpen(true)}
           >
             {t(locale, "manifesto.readMethod")}
-            <i aria-hidden="true">{ARROW_NE}</i>
+            <ActionArrow />
           </button>
         </div>
       </section>
@@ -5290,7 +5275,7 @@ function LoopenStudioApp({
               <strong>
                 {t(locale, labelKey).replace(/^\d+\s*\/\s*/, "")}
               </strong>
-              <i>↘</i>
+              <i aria-hidden="true">{ARROW_SE}</i>
             </a>
           ))}
         </nav>
@@ -5317,8 +5302,8 @@ function LoopenStudioApp({
                 ))}
             </p>
             <button type="button" onClick={() => setIsMethodOpen(true)}>
-              {t(locale, "footer.method")}{" "}
-              <i aria-hidden="true">{ARROW_NE}</i>
+              {t(locale, "footer.method")}
+              <ActionArrow />
             </button>
           </div>
           <a className="back-top" href="#top">
