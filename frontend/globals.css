@@ -44,7 +44,9 @@ textarea {
 
 textarea {
   field-sizing: content;
-  min-height: 2.8em;
+  /* 2 lines + vertical padding headroom so multi-line placeholders
+     aren't clipped on mobile (border-box + overflow hidden). */
+  min-height: calc(2lh + 24px);
   overflow-y: hidden;
   resize: none;
 }
@@ -1429,6 +1431,7 @@ textarea:focus-visible {
 
 .field-row textarea {
   line-height: 1.4;
+  min-height: calc(2lh + 8px);
 }
 
 .personality-row {
@@ -2726,6 +2729,7 @@ textarea:focus-visible {
 
 .premium-fields textarea {
   line-height: 1.4;
+  min-height: calc(2lh + 28px);
 }
 
 .premium-fields .wide-field {
