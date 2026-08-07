@@ -106,6 +106,9 @@ function persistLocale(locale: BriefLocale) {
 const SUPPORT_EMAIL =
   process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "hello@loopen.dev";
 
+/** Text-presentation NE arrow (avoid Apple Color Emoji). */
+const ARROW_NE = "↗\uFE0E\uFE0E\uFE0E";
+
 export type StudioUser = {
   displayName: string;
   email: string;
@@ -3330,7 +3333,7 @@ function LoopenStudioApp({
                       : authResendWaitSec > 0
                         ? t(locale, "auth.resendIn", { n: authResendWaitSec })
                         : t(locale, "auth.resend")}
-                    <span>↗</span>
+                    <i aria-hidden="true">{ARROW_NE}</i>
                   </button>
                 ) : (
                   <button
@@ -3565,7 +3568,7 @@ function LoopenStudioApp({
               {signalBalance === null
                 ? t(locale, "nav.signals")
                 : t(locale, "nav.signalsCount", { n: signalBalance })}{" "}
-              ↗
+              <i aria-hidden="true">{ARROW_NE}</i>
             </button>
             <button type="button" onClick={leaveStudio}>
               {t(locale, "workspace.leave")}
@@ -3878,7 +3881,8 @@ function LoopenStudioApp({
                           `LOOPEN ${t(locale, "workspace.support.subject")}`,
                         )}`}
                       >
-                        {SUPPORT_EMAIL} <span>↗</span>
+                        {SUPPORT_EMAIL}{" "}
+                        <i aria-hidden="true">{ARROW_NE}</i>
                       </a>
                     </div>
                   )}
@@ -3914,7 +3918,8 @@ function LoopenStudioApp({
                         type="button"
                         onClick={() => setIsSignalsOpen(true)}
                       >
-                        {t(locale, "workspace.billing.topUp")}
+                        {t(locale, "workspace.billing.topUp")}{" "}
+                        <i aria-hidden="true">{ARROW_NE}</i>
                       </button>
                     </div>
                   )}
@@ -4269,7 +4274,7 @@ function LoopenStudioApp({
               {isGenerating ? (
                 <RequestDrop label={t(locale, "brief.generateBusy")} />
               ) : (
-                <span>↗</span>
+                <i aria-hidden="true">{ARROW_NE}</i>
               )}
             </button>
           </div>
@@ -4478,7 +4483,13 @@ function LoopenStudioApp({
                     }}
                   >
                     <span>{t(locale, "concepts.readJury")}</span>
-                    <b>{generated.qualityScore ? `${generated.qualityScore}/100` : "↗"}</b>
+                    <b>
+                      {generated.qualityScore ? (
+                        `${generated.qualityScore}/100`
+                      ) : (
+                        <i aria-hidden="true">{ARROW_NE}</i>
+                      )}
+                    </b>
                   </button>
                 </div>
                 <div className="concept-card-actions">
@@ -4809,7 +4820,7 @@ function LoopenStudioApp({
                 {isRefining ? (
                   <RequestDrop label={t(locale, "prod.retryLoader")} />
                 ) : (
-                  <span>↗</span>
+                  <i aria-hidden="true">{ARROW_NE}</i>
                 )}
               </button>
             </div>
@@ -5146,7 +5157,8 @@ function LoopenStudioApp({
                 {t(locale, "prod.export.social")} {exportingKey === "png-icon-1024" ? <RequestDrop label={t(locale, "prod.loader.social")} /> : "↓"}
               </button>
               <button type="button" onClick={printBrandGuide} disabled={!selectedVector}>
-                {t(locale, "prod.export.guide")}
+                {t(locale, "prod.export.guide")}{" "}
+                <i aria-hidden="true">{ARROW_NE}</i>
               </button>
             </div>
           </div>
@@ -5240,6 +5252,7 @@ function LoopenStudioApp({
             onClick={() => setIsMethodOpen(true)}
           >
             {t(locale, "manifesto.readMethod")}
+            <i aria-hidden="true">{ARROW_NE}</i>
           </button>
         </div>
       </section>
@@ -5304,7 +5317,8 @@ function LoopenStudioApp({
                 ))}
             </p>
             <button type="button" onClick={() => setIsMethodOpen(true)}>
-              {t(locale, "footer.method")}
+              {t(locale, "footer.method")}{" "}
+              <i aria-hidden="true">{ARROW_NE}</i>
             </button>
           </div>
           <a className="back-top" href="#top">

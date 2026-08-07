@@ -191,7 +191,7 @@ const es: Dict = {
   "workspace.billing.empty": "Aún no hay actividad de señales.",
   "workspace.billing.stripePending":
     "La facturación abre cuando Stripe esté conectado. Las señales de bienvenida ya aparecen aquí.",
-  "workspace.billing.topUp": "Recargar señales ↗",
+  "workspace.billing.topUp": "Recargar señales",
   "workspace.billing.loadFailed": "No se pudo cargar el historial de facturación.",
   "workspace.team.body":
     "Los asientos de atelier compartido están en el tablero — un espacio, varias manos, bóveda de señales compartida.",
@@ -441,7 +441,7 @@ const es: Dict = {
   "prod.export": "Exportar sistema",
   "prod.export.favicon": "Favicon 48",
   "prod.export.social": "Avatar social",
-  "prod.export.guide": "Brand guide / PDF ↗",
+  "prod.export.guide": "Brand guide / PDF",
   "prod.loader.exportSvg": "Exportando SVG",
   "prod.loader.exportPng": "Exportando PNG",
   "prod.loader.exportWebp": "Exportando WebP",
@@ -471,7 +471,7 @@ const es: Dict = {
   "manifesto.quote.3": "no ruido.",
   "manifesto.body":
     "La estrategia lo hace relevante. La selección lo hace distinto. El craft lo hace durar.",
-  "manifesto.readMethod": "Leer el método ↗",
+  "manifesto.readMethod": "Leer el método",
 
   "method.index": "Método / 01—05",
   "method.close": "Cerrar",
@@ -510,7 +510,7 @@ const es: Dict = {
   "footer.statement.2": "un lugar",
   "footer.statement.3": "adonde ir.",
   "footer.meta": "Sistemas de marca,\nno logos al azar.",
-  "footer.method": "Leer el método ↗",
+  "footer.method": "Leer el método",
   "footer.backTop": "Volver arriba",
   "footer.credit": "Escrito en el loop",
   "footer.route.brief": "Brief",

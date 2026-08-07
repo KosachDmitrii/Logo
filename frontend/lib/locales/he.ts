@@ -192,7 +192,7 @@ const he: Dict = {
   "workspace.billing.empty": "עדיין אין פעילות signals.",
   "workspace.billing.stripePending":
     "החיוב ייפתח כש־Stripe יחובר. Welcome signals עדיין יופיעו כאן.",
-  "workspace.billing.topUp": "טעינת signals ↗",
+  "workspace.billing.topUp": "טעינת signals",
   "workspace.billing.loadFailed": "לא ניתן לטעון את היסטוריית החיוב.",
   "workspace.team.body":
     "מקומות באטליה משותפת כבר על הלוח — מרחב אחד, כמה ידיים, כספת signals משותפת.",
@@ -442,7 +442,7 @@ const he: Dict = {
   "prod.export": "ייצוא מערכת",
   "prod.export.favicon": "Favicon 48",
   "prod.export.social": "Social avatar",
-  "prod.export.guide": "Brand guide / PDF ↗",
+  "prod.export.guide": "Brand guide / PDF",
   "prod.loader.exportSvg": "מייצאים SVG",
   "prod.loader.exportPng": "מייצאים PNG",
   "prod.loader.exportWebp": "מייצאים WebP",
@@ -472,7 +472,7 @@ const he: Dict = {
   "manifesto.quote.3": "לא להכפיל רעש.",
   "manifesto.body":
     "אסטרטגיה הופכת לרלוונטי. בחירה הופכת למובחן. Craft הופך לעמיד.",
-  "manifesto.readMethod": "קריאת השיטה ↗",
+  "manifesto.readMethod": "קריאת השיטה",
 
   "method.index": "שיטה / 01—05",
   "method.close": "סגירה",
@@ -511,7 +511,7 @@ const he: Dict = {
   "footer.statement.2": "לאן",
   "footer.statement.3": "ללכת.",
   "footer.meta": "Brand systems,\nלא לוגואים אקראיים.",
-  "footer.method": "קריאת השיטה ↗",
+  "footer.method": "קריאת השיטה",
   "footer.backTop": "חזרה למעלה",
   "footer.credit": "נכתב בלולאה",
   "footer.route.brief": "בריף",

@@ -194,7 +194,7 @@ const ru: Dict = {
   "workspace.billing.empty": "Пока нет активности по signals.",
   "workspace.billing.stripePending":
     "Биллинг откроется, когда подключится Stripe. Welcome signals всё равно появятся здесь.",
-  "workspace.billing.topUp": "Пополнить signals ↗",
+  "workspace.billing.topUp": "Пополнить signals",
   "workspace.billing.loadFailed": "Не удалось загрузить историю биллинга.",
   "workspace.team.body":
     "Общие места в ателье уже на доске — одно пространство, несколько рук, общий signal vault.",
@@ -444,7 +444,7 @@ const ru: Dict = {
   "prod.export": "Экспорт системы",
   "prod.export.favicon": "Favicon 48",
   "prod.export.social": "Social avatar",
-  "prod.export.guide": "Brand guide / PDF ↗",
+  "prod.export.guide": "Brand guide / PDF",
   "prod.loader.exportSvg": "Экспортируем SVG",
   "prod.loader.exportPng": "Экспортируем PNG",
   "prod.loader.exportWebp": "Экспортируем WebP",
@@ -474,7 +474,7 @@ const ru: Dict = {
   "manifesto.quote.3": "а не шум.",
   "manifesto.body":
     "Стратегия делает уместным. Отбор делает отличимым. Craft делает долгим.",
-  "manifesto.readMethod": "Читать метод ↗",
+  "manifesto.readMethod": "Читать метод",
 
   "method.index": "Метод / 01—05",
   "method.close": "Закрыть",
@@ -513,7 +513,7 @@ const ru: Dict = {
   "footer.statement.2": "есть куда",
   "footer.statement.3": "идти.",
   "footer.meta": "Brand systems,\nне случайные логотипы.",
-  "footer.method": "Читать метод ↗",
+  "footer.method": "Читать метод",
   "footer.backTop": "Наверх",
   "footer.credit": "Собрано в петле",
   "footer.route.brief": "Бриф",

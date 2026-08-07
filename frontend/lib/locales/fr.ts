@@ -191,7 +191,7 @@ const fr: Dict = {
   "workspace.billing.empty": "Aucune activité de signaux pour l’instant.",
   "workspace.billing.stripePending":
     "La facturation s’ouvre quand Stripe est connecté. Les signaux de bienvenue apparaissent déjà ici.",
-  "workspace.billing.topUp": "Recharger des signaux ↗",
+  "workspace.billing.topUp": "Recharger des signaux",
   "workspace.billing.loadFailed": "Impossible de charger l’historique de facturation.",
   "workspace.team.body":
     "Les places d’atelier partagé sont sur le tableau — un espace, plusieurs mains, un coffre à signaux commun.",
@@ -441,7 +441,7 @@ const fr: Dict = {
   "prod.export": "Exporter le système",
   "prod.export.favicon": "Favicon 48",
   "prod.export.social": "Avatar social",
-  "prod.export.guide": "Brand guide / PDF ↗",
+  "prod.export.guide": "Brand guide / PDF",
   "prod.loader.exportSvg": "Export SVG",
   "prod.loader.exportPng": "Export PNG",
   "prod.loader.exportWebp": "Export WebP",
@@ -471,7 +471,7 @@ const fr: Dict = {
   "manifesto.quote.3": "pas le bruit.",
   "manifesto.body":
     "La stratégie rend pertinent. La sélection rend distinct. Le craft fait durer.",
-  "manifesto.readMethod": "Lire la méthode ↗",
+  "manifesto.readMethod": "Lire la méthode",
 
   "method.index": "Méthode / 01—05",
   "method.close": "Fermer",
@@ -510,7 +510,7 @@ const fr: Dict = {
   "footer.statement.2": "quelque part",
   "footer.statement.3": "où aller.",
   "footer.meta": "Systèmes de marque,\npas des logos au hasard.",
-  "footer.method": "Lire la méthode ↗",
+  "footer.method": "Lire la méthode",
   "footer.backTop": "Retour en haut",
   "footer.credit": "Écrit dans la boucle",
   "footer.route.brief": "Brief",

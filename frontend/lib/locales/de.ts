@@ -191,7 +191,7 @@ const de: Dict = {
   "workspace.billing.empty": "Noch keine Signal-Aktivität.",
   "workspace.billing.stripePending":
     "Abrechnung öffnet, wenn Stripe verbunden ist. Willkommenssignale erscheinen hier trotzdem.",
-  "workspace.billing.topUp": "Signale aufladen ↗",
+  "workspace.billing.topUp": "Signale aufladen",
   "workspace.billing.loadFailed": "Abrechnungshistorie konnte nicht geladen werden.",
   "workspace.team.body":
     "Geteilte Atelier-Plätze stehen auf der Agenda — ein Arbeitsbereich, mehrere Hände, gemeinsamer Signal-Tresor.",
@@ -441,7 +441,7 @@ const de: Dict = {
   "prod.export": "System exportieren",
   "prod.export.favicon": "Favicon 48",
   "prod.export.social": "Social Avatar",
-  "prod.export.guide": "Brand Guide / PDF ↗",
+  "prod.export.guide": "Brand Guide / PDF",
   "prod.loader.exportSvg": "SVG wird exportiert",
   "prod.loader.exportPng": "PNG wird exportiert",
   "prod.loader.exportWebp": "WebP wird exportiert",
@@ -471,7 +471,7 @@ const de: Dict = {
   "manifesto.quote.3": "nicht Lärm.",
   "manifesto.body":
     "Strategie macht es relevant. Auswahl macht es eigen. Craft macht es dauerhaft.",
-  "manifesto.readMethod": "Methode lesen ↗",
+  "manifesto.readMethod": "Methode lesen",
 
   "method.index": "Methode / 01—05",
   "method.close": "Schließen",
@@ -510,7 +510,7 @@ const de: Dict = {
   "footer.statement.2": "einem Ort,",
   "footer.statement.3": "wohin.",
   "footer.meta": "Markensysteme,\nkeine Zufallslogos.",
-  "footer.method": "Methode lesen ↗",
+  "footer.method": "Methode lesen",
   "footer.backTop": "Nach oben",
   "footer.credit": "Im Loop geschrieben",
   "footer.route.brief": "Briefing",

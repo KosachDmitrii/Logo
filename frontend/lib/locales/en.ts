@@ -190,7 +190,7 @@ const en = {
   "workspace.billing.empty": "No signal activity yet.",
   "workspace.billing.stripePending":
     "Billing opens when Stripe is connected. Welcome signals still appear here.",
-  "workspace.billing.topUp": "Top up signals ↗",
+  "workspace.billing.topUp": "Top up signals",
   "workspace.billing.loadFailed": "Could not load billing history.",
   "workspace.team.body":
     "Shared atelier seats are on the board — one workspace, several hands, shared signal vault.",
@@ -440,7 +440,7 @@ const en = {
   "prod.export": "Export system",
   "prod.export.favicon": "Favicon 48",
   "prod.export.social": "Social avatar",
-  "prod.export.guide": "Brand guide / PDF ↗",
+  "prod.export.guide": "Brand guide / PDF",
   "prod.loader.exportSvg": "Exporting SVG",
   "prod.loader.exportPng": "Exporting PNG",
   "prod.loader.exportWebp": "Exporting WebP",
@@ -470,7 +470,7 @@ const en = {
   "manifesto.quote.3": "not multiply noise.",
   "manifesto.body":
     "Strategy makes it relevant. Selection makes it distinct. Craft makes it last.",
-  "manifesto.readMethod": "Read the method ↗",
+  "manifesto.readMethod": "Read the method",
 
   "method.index": "Method / 01—05",
   "method.close": "Close",
@@ -509,7 +509,7 @@ const en = {
   "footer.statement.2": "somewhere to",
   "footer.statement.3": "go.",
   "footer.meta": "Brand systems,\nnot random logos.",
-  "footer.method": "Read the method ↗",
+  "footer.method": "Read the method",
   "footer.backTop": "Back to top",
   "footer.credit": "Authored in the loop",
   "footer.route.brief": "Brief",

@@ -35,6 +35,11 @@ body {
   overflow-x: hidden;
 }
 
+/* <i> is used for icons/arrows, not italics (<em>). */
+i {
+  font-style: normal;
+}
+
 button,
 input,
 textarea {
@@ -902,6 +907,10 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
+.workspace-support-link i {
+  font-style: normal;
+}
+
 .workspace-acc-panel input:focus-visible {
   border-color: var(--acid);
   outline: none;
@@ -1544,6 +1553,11 @@ textarea:focus-visible {
   transition: background 180ms ease;
 }
 
+.primary-button > i,
+.approve-button > i {
+  font-style: normal;
+}
+
 .primary-button:hover,
 .approve-button:hover {
   background: var(--taupe);
@@ -1850,9 +1864,11 @@ textarea:focus-visible {
   gap: 34px;
 }
 
-.confirm-dialog-primary span {
-  padding-left: 4px;
+.confirm-dialog-primary span,
+.confirm-dialog-primary i {
+  font-style: normal;
   font-size: 10px;
+  padding-left: 4px;
 }
 
 .method-backdrop {
@@ -4237,6 +4253,10 @@ textarea:focus-visible {
   max-width: 370px;
 }
 
+.manifesto-footer i {
+  font-style: normal;
+}
+
 .text-button {
   background: transparent;
   color: white;
@@ -4245,8 +4265,9 @@ textarea:focus-visible {
   padding: 8px 0;
 }
 
-.text-button span {
+.text-button i {
   color: var(--acid);
+  font-style: normal;
   margin-left: 18px;
 }
 
@@ -4416,6 +4437,10 @@ textarea:focus-visible {
   font: inherit;
   padding: 0;
   text-transform: uppercase;
+}
+
+.footer-meta button i {
+  font-style: normal;
 }
 
 .footer-orbit {
