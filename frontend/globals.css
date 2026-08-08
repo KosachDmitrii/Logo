@@ -3178,8 +3178,12 @@ textarea:focus-visible {
   z-index: 0;
 }
 
-.competitor-pool-tile.is-tip {
-  z-index: 4;
+.competitor-pool-tile-solo {
+  grid-template-columns: 1fr;
+}
+
+.competitor-pool-tile-solo .competitor-pool-add {
+  padding-right: 12px;
 }
 
 .competitor-pool-add {
@@ -3230,26 +3234,22 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
-.competitor-pool-tile:hover,
-.competitor-pool-tile.is-tip {
+.competitor-pool-tile:hover {
   background: var(--ink);
   border-color: var(--ink);
   border-style: solid;
   color: var(--paper);
 }
 
-.competitor-pool-tile:hover .competitor-pool-mark,
-.competitor-pool-tile.is-tip .competitor-pool-mark {
+.competitor-pool-tile:hover .competitor-pool-mark {
   color: var(--acid);
 }
 
-.competitor-pool-tile:hover .competitor-pool-dismiss,
-.competitor-pool-tile.is-tip .competitor-pool-dismiss {
+.competitor-pool-tile:hover .competitor-pool-dismiss {
   color: rgba(228, 224, 224, 0.42);
 }
 
-.competitor-pool-tile:hover .competitor-pool-dismiss:hover,
-.competitor-pool-tile.is-tip .competitor-pool-dismiss:hover {
+.competitor-pool-tile:hover .competitor-pool-dismiss:hover {
   color: var(--acid);
 }
 
@@ -3259,7 +3259,7 @@ textarea:focus-visible {
   bottom: calc(100% + 10px);
   box-shadow: 0 12px 28px rgba(17, 17, 15, 0.22);
   color: var(--paper);
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 6px;
   left: 50%;
@@ -3303,16 +3303,20 @@ textarea:focus-visible {
   line-height: 1.4;
 }
 
-.competitor-pool-tile:hover .competitor-pool-tip {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  transition-delay: 420ms;
-}
+@media (hover: hover) and (pointer: fine) {
+  .competitor-pool-tip {
+    display: flex;
+  }
 
-.competitor-pool-tile.is-tip .competitor-pool-tip {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  transition-delay: 0ms;
+  .competitor-pool-tile:hover {
+    z-index: 4;
+  }
+
+  .competitor-pool-tile:hover .competitor-pool-tip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    transition-delay: 420ms;
+  }
 }
 
 .competitor-pool-more {

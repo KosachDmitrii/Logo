@@ -271,7 +271,7 @@ const fr: Dict = {
   "brief.comp.suggested": "Suggestions",
   "brief.comp.yourPicks": "Votre choix",
   "brief.comp.matches": "{count} correspondances",
-  "brief.comp.tapToAdd": "+ pour ajouter · × si ça ne convient pas",
+  "brief.comp.tapToAdd": "Appuyez pour ajouter · × si ça ne convient pas",
   "brief.comp.selected": "Sélectionné",
   "brief.comp.alreadySelected": "Déjà sélectionné",
   "brief.comp.limitReached": "Limite atteinte",

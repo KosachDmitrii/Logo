@@ -272,7 +272,7 @@ const he: Dict = {
   "brief.comp.suggested": "מוצע",
   "brief.comp.yourPicks": "הבחירה שלך",
   "brief.comp.matches": "{count} התאמות",
-  "brief.comp.tapToAdd": "+ להוספה · × אם לא מתאים",
+  "brief.comp.tapToAdd": "לחצו כדי להוסיף · × אם לא מתאים",
   "brief.comp.selected": "נבחר",
   "brief.comp.alreadySelected": "כבר נבחר",
   "brief.comp.limitReached": "הגעתם למגבלה",

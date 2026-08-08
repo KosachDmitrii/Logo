@@ -4513,7 +4513,7 @@ function LoopenStudioApp({
                   ) ? (
                     <div className="competitor-pool">
                       <span className="competitor-pool-label">
-                        {t(locale, "brief.comp.tapToAdd")}
+                        {t(locale, "brief.comp.suggested")}
                       </span>
                       <div className="competitor-pool-grid">
                         {personalityOptions
@@ -4521,30 +4521,43 @@ function LoopenStudioApp({
                           .map((item) => {
                             const key = item.toLowerCase();
                             const label = t(locale, `brief.person.${key}`);
+                            const description = t(
+                              locale,
+                              `brief.person.${key}.desc`,
+                            );
                             return (
-                              <button
+                              <div
                                 key={`personality-pool-${item}`}
-                                type="button"
-                                className="competitor-pool-tile"
-                                title={t(locale, `brief.person.${key}.desc`)}
-                                onClick={() => togglePersonality(item)}
+                                className="competitor-pool-tile competitor-pool-tile-solo"
                               >
-                                <span
-                                  className="competitor-pool-mark"
-                                  aria-hidden="true"
+                                <div
+                                  className="competitor-pool-tip"
+                                  role="tooltip"
                                 >
-                                  {item.charAt(0)}
-                                </span>
-                                <span className="competitor-pool-name">
-                                  {label}
-                                </span>
-                                <span
-                                  className="competitor-pool-plus"
-                                  aria-hidden="true"
+                                  <strong className="competitor-pool-tip-name">
+                                    {label}
+                                  </strong>
+                                  <span className="competitor-pool-tip-reason">
+                                    {description}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="competitor-pool-add"
+                                  aria-label={`${label}. ${description}`}
+                                  onClick={() => togglePersonality(item)}
                                 >
-                                  +
-                                </span>
-                              </button>
+                                  <span
+                                    className="competitor-pool-mark"
+                                    aria-hidden="true"
+                                  >
+                                    {item.charAt(0)}
+                                  </span>
+                                  <span className="competitor-pool-name">
+                                    {label}
+                                  </span>
+                                </button>
+                              </div>
                             );
                           })}
                       </div>

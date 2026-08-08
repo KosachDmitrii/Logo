@@ -271,7 +271,7 @@ const es: Dict = {
   "brief.comp.suggested": "Sugerido",
   "brief.comp.yourPicks": "Tu selección",
   "brief.comp.matches": "{count} coincidencias",
-  "brief.comp.tapToAdd": "+ para añadir · × si no encaja",
+  "brief.comp.tapToAdd": "Toca para añadir · × si no encaja",
   "brief.comp.selected": "Seleccionado",
   "brief.comp.alreadySelected": "Ya seleccionado",
   "brief.comp.limitReached": "Límite alcanzado",

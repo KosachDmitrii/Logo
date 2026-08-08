@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { CompetitorEntry, LikedAspect } from "./lib/competitors/types.ts";
 import { BRIEF_LIMITS } from "./lib/brief-options.ts";
 import {
@@ -126,31 +126,12 @@ export function CompetitorField({
   const [section, setSection] = useState<CompetitorSectionKey>("direct");
   const [status, setStatus] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const [tipKey, setTipKey] = useState<string | null>(null);
-  const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [visibleCount, setVisibleCount] = useState({
     direct: 8,
     references: 8,
   });
 
   const active = section === "direct" ? direct : references;
-
-  function clearTipTimer() {
-    if (tipTimer.current) {
-      clearTimeout(tipTimer.current);
-      tipTimer.current = null;
-    }
-  }
-
-  function showTipSoon(key: string) {
-    clearTipTimer();
-    tipTimer.current = setTimeout(() => setTipKey(key), 420);
-  }
-
-  function hideTip() {
-    clearTipTimer();
-    setTipKey(null);
-  }
 
   const selectedKeys = useMemo(
     () => new Set(active.value.map((entry) => nameKey(entry.name))),
@@ -452,28 +433,10 @@ export function CompetitorField({
               const name = displayName(entry);
               const fullName = entry.name.trim() || name;
               const reason = entry.reason?.trim();
-              const tipOpen = tipKey === key;
               return (
                 <div
                   key={`${section}-pool-${key}`}
-                  className={
-                    tipOpen
-                      ? "competitor-pool-tile is-tip"
-                      : "competitor-pool-tile"
-                  }
-                  onPointerLeave={hideTip}
-                  onPointerCancel={hideTip}
-                  onPointerDown={(event) => {
-                    if (event.pointerType === "touch") {
-                      showTipSoon(key);
-                    }
-                  }}
-                  onPointerUp={(event) => {
-                    if (event.pointerType === "touch") {
-                      clearTipTimer();
-                      window.setTimeout(hideTip, 900);
-                    }
-                  }}
+                  className="competitor-pool-tile"
                 >
                   <div className="competitor-pool-tip" role="tooltip">
                     <strong className="competitor-pool-tip-name">
@@ -493,10 +456,7 @@ export function CompetitorField({
                         ? `${fullName}. ${reason}`
                         : `${labels.add} ${fullName}`
                     }
-                    onClick={() => {
-                      hideTip();
-                      toggleEntry(entry);
-                    }}
+                    onClick={() => toggleEntry(entry)}
                   >
                     <span className="competitor-pool-mark" aria-hidden="true">
                       {brandMark(entry)}
@@ -507,10 +467,7 @@ export function CompetitorField({
                     type="button"
                     className="competitor-pool-dismiss"
                     aria-label={`${labels.notSuitable}: ${fullName}`}
-                    onClick={() => {
-                      hideTip();
-                      dismissSuggestion(entry);
-                    }}
+                    onClick={() => dismissSuggestion(entry)}
                   >
                     ×
                   </button>
