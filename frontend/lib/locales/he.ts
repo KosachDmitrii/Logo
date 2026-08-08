@@ -222,10 +222,10 @@ const he: Dict = {
   "brief.chapter.feelDesc": "אופי וכיוון ויזואלי לסימן.",
   "brief.chapter.context": "הקשר",
   "brief.chapter.contextDesc":
-    "קהל, שוק, מתחרים, צבע ומגבלות — רק אם זה עוזר.",
+    "ממי להתרחק, למי להתייחס, שוק וצבע — שתי דקות של כיוון.",
   "brief.chapter.optional": "אופציונלי — משפר התאמה",
   "brief.note":
-    "בריף ממוקד נותן למערכת טעם, גבולות וסיבה לכל החלטה ויזואלית.",
+    "הוסיפו עם מי מתחרים, את מי מעריצים ומה מוצא חן — המערכת שומרת את הגבולות בכל קונספט.",
   "brief.template": "תבנית בריף",
   "brief.brandName": "שם המותג",
   "brief.coreIdea": "רעיון ליבה",
@@ -236,10 +236,10 @@ const he: Dict = {
   "brief.competitors": "מתחרים",
   "brief.directCompetitors": "מתחרים ישירים",
   "brief.directCompetitorsDesc":
-    "חברות עם הצעה, קהל יעד ומיצוב שוק דומים.",
+    "ממי להישאר מובחנים ויזואלית — הצעה וקהל דומים.",
   "brief.brandReferences": "רפרנסים מותגיים",
   "brief.brandReferencesDesc":
-    "מותגים שהבחירות הוויזואליות והתקשורתיות שלהם יכולות להתוות כיוון.",
+    "למי להתייחס לטעם — סמנו מה מוצא חן; לא נחקה.",
   "brief.competitorsSuggested": "הצעות עבור {industry}",
   "brief.competitorsSelected": "נבחר",
   "brief.market": "שוק / אזור",
@@ -252,7 +252,7 @@ const he: Dict = {
   "brief.price.accessible": "נגיש",
   "brief.price.premium": "פרימיום",
   "brief.price.luxury": "יוקרה",
-  "brief.ph.competitorSearch": "סינון הצעות לפי שם או URL…",
+  "brief.ph.competitorSearch": "שם או URL להוספה…",
   "brief.addCompany": "הוספת חברה ידנית",
   "brief.addUrl": "הוספת URL לאתר",
   "brief.comp.why": "למה הוצע?",
@@ -264,7 +264,7 @@ const he: Dict = {
   "brief.comp.refresh": "רענון הצעות",
   "brief.comp.showMore": "הצג עוד",
   "brief.comp.emptyDirect":
-    "אין התאמות אוטומטיות לתעשייה הזו — נסו רפרנסים או תעשייה אחרת.",
+    "אין הצעות אוטומטיות — הוסיפו שם או URL, או פתחו רפרנסים.",
   "brief.comp.selectIndustry":
     "בחרו תעשייה למעלה כדי לראות הצעות.",
   "brief.comp.noMatches":
@@ -272,12 +272,14 @@ const he: Dict = {
   "brief.comp.suggested": "מוצע",
   "brief.comp.yourPicks": "הבחירה שלך",
   "brief.comp.matches": "{count} התאמות",
-  "brief.comp.tapToAdd": "לחצו כדי להוסיף",
+  "brief.comp.tapToAdd": "+ להוספה · × אם לא מתאים",
   "brief.comp.selected": "נבחר",
   "brief.comp.alreadySelected": "כבר נבחר",
   "brief.comp.limitReached": "הגעתם למגבלה",
   "brief.comp.invalidUrl": "קישור לא תקין",
   "brief.comp.dismissed": "ההצעה נדחתה",
+  "brief.comp.aspectsHint":
+    "סמנו מה מוצא חן ברפרנס — זה מנווט אסטרטגיה ויצירה.",
   "brief.comp.likedAspects": "מה מוצא חן",
   "brief.comp.aspect.logo": "לוגו",
   "brief.comp.aspect.typography": "טיפוגרפיה",
@@ -557,7 +559,7 @@ const he: Dict = {
     "AI מרחיב את השדה. אסטרטגיה מציבה גבולות. טעם מחליט מה יוצא.",
   "method.step01.title": "Brand signal",
   "method.step01.body":
-    "הלקוח מגדיר משמעות, קהל ואילוצים לפני שסימן אחד מצויר.",
+    "בשתי דקות: ממי להתרחק, למי להתייחס ומה מוצא חן — לפני סימן ראשון.",
   "method.step01.owner": "Human + GPT",
   "method.step02.title": "סירוב לקטגוריה",
   "method.step02.body":

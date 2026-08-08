@@ -2981,6 +2981,10 @@ textarea:focus-visible {
   margin: 0;
 }
 
+.competitor-note-accent {
+  color: rgba(32, 31, 30, 0.72);
+}
+
 .competitor-specimens {
   display: grid;
   gap: 12px;
@@ -3081,6 +3085,21 @@ textarea:focus-visible {
   margin: 0;
 }
 
+.competitor-specimen-site {
+  color: var(--acid);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+  text-decoration: none;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.competitor-specimen-site:hover {
+  text-decoration: underline;
+}
+
 .competitor-specimen-aspects {
   border-top: 1px solid rgba(228, 224, 224, 0.14);
   display: flex;
@@ -3147,17 +3166,34 @@ textarea:focus-visible {
   background: transparent;
   border: 1px dashed rgba(32, 31, 30, 0.28);
   color: var(--ink);
-  cursor: pointer;
   display: grid;
-  gap: 10px;
-  grid-template-columns: auto 1fr auto;
+  gap: 0;
+  grid-template-columns: 1fr auto;
   min-width: 0;
-  padding: 12px 12px;
-  text-align: left;
+  position: relative;
   transition:
     background 160ms ease,
     border-color 160ms ease,
     color 160ms ease;
+  z-index: 0;
+}
+
+.competitor-pool-tile.is-tip {
+  z-index: 4;
+}
+
+.competitor-pool-add {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr;
+  min-width: 0;
+  padding: 12px 4px 12px 12px;
+  text-align: left;
 }
 
 .competitor-pool-mark {
@@ -3178,14 +3214,24 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
-.competitor-pool-plus {
-  color: rgba(32, 31, 30, 0.35);
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 16px;
+.competitor-pool-dismiss {
+  align-self: stretch;
+  background: none;
+  border: 0;
+  color: rgba(32, 31, 30, 0.28);
+  cursor: pointer;
+  font-size: 15px;
   line-height: 1;
+  padding: 0 10px;
+  transition: color 140ms ease;
 }
 
-.competitor-pool-tile:hover {
+.competitor-pool-dismiss:hover {
+  color: var(--ink);
+}
+
+.competitor-pool-tile:hover,
+.competitor-pool-tile.is-tip {
   background: var(--ink);
   border-color: var(--ink);
   border-style: solid;
@@ -3193,8 +3239,80 @@ textarea:focus-visible {
 }
 
 .competitor-pool-tile:hover .competitor-pool-mark,
-.competitor-pool-tile:hover .competitor-pool-plus {
+.competitor-pool-tile.is-tip .competitor-pool-mark {
   color: var(--acid);
+}
+
+.competitor-pool-tile:hover .competitor-pool-dismiss,
+.competitor-pool-tile.is-tip .competitor-pool-dismiss {
+  color: rgba(228, 224, 224, 0.42);
+}
+
+.competitor-pool-tile:hover .competitor-pool-dismiss:hover,
+.competitor-pool-tile.is-tip .competitor-pool-dismiss:hover {
+  color: var(--acid);
+}
+
+.competitor-pool-tip {
+  background: var(--ink);
+  border: 1px solid rgba(255, 207, 104, 0.35);
+  bottom: calc(100% + 10px);
+  box-shadow: 0 12px 28px rgba(17, 17, 15, 0.22);
+  color: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  left: 50%;
+  max-width: min(260px, 78vw);
+  opacity: 0;
+  padding: 12px 14px;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%) translateY(6px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+  width: max-content;
+  z-index: 5;
+}
+
+.competitor-pool-tip::after {
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--ink);
+  bottom: -6px;
+  content: "";
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.competitor-pool-tip-name {
+  color: var(--acid);
+  font-size: 13px;
+  font-weight: 560;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.competitor-pool-tip-reason {
+  color: rgba(228, 224, 224, 0.62);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+
+.competitor-pool-tile:hover .competitor-pool-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  transition-delay: 420ms;
+}
+
+.competitor-pool-tile.is-tip .competitor-pool-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  transition-delay: 0ms;
 }
 
 .competitor-pool-more {

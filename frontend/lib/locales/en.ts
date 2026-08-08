@@ -220,10 +220,10 @@ const en = {
   "brief.chapter.feelDesc": "Personality and visual direction for the mark.",
   "brief.chapter.context": "Context",
   "brief.chapter.contextDesc":
-    "Audience, market, competitors, color, and constraints — only if useful.",
+    "Who to avoid, who to reference, market and color — two minutes of direction.",
   "brief.chapter.optional": "Optional — improves fit",
   "brief.note":
-    "A focused brief gives the system taste, boundaries and a reason for every visual decision.",
+    "Add who you compete with, who you admire, and what you like — the system keeps those boundaries in every concept.",
   "brief.template": "Brief template",
   "brief.brandName": "Brand name",
   "brief.coreIdea": "Core idea",
@@ -234,10 +234,10 @@ const en = {
   "brief.competitors": "Competitors",
   "brief.directCompetitors": "Direct",
   "brief.directCompetitorsDesc":
-    "Who you compete with — similar offer and audience.",
+    "Who to stay visually distinct from — similar offer and audience.",
   "brief.brandReferences": "References",
   "brief.brandReferencesDesc":
-    "Brands you admire visually — even outside your category.",
+    "Who to reference for taste — mark what you like; we will not imitate.",
   "brief.competitorsSuggested": "Suggested for {industry}",
   "brief.competitorsSelected": "Selected",
   "brief.market": "Market / region",
@@ -250,7 +250,7 @@ const en = {
   "brief.price.accessible": "Accessible",
   "brief.price.premium": "Premium",
   "brief.price.luxury": "Luxury",
-  "brief.ph.competitorSearch": "Search the list, or paste a URL to add…",
+  "brief.ph.competitorSearch": "Type a name or paste a URL to add…",
   "brief.addCompany": "Add company manually",
   "brief.addUrl": "Add website URL",
   "brief.comp.why": "Why suggested?",
@@ -262,12 +262,12 @@ const en = {
   "brief.comp.refresh": "Refresh suggestions",
   "brief.comp.showMore": "Show more",
   "brief.comp.emptyDirect":
-    "No automatic matches for this industry — try References or another industry.",
+    "No automatic matches — add a name or URL, or try References.",
   "brief.comp.selectIndustry":
     "Choose an industry above to see suggestions.",
   "brief.comp.selected": "Selected",
   "brief.comp.yourPicks": "Your picks",
-  "brief.comp.tapToAdd": "Tap to add",
+  "brief.comp.tapToAdd": "Tap + to add · × if not a fit",
   "brief.comp.matches": "{count} matches",
   "brief.comp.suggested": "Suggested",
   "brief.comp.noMatches": "No matches — Add will save this name or URL.",
@@ -275,6 +275,8 @@ const en = {
   "brief.comp.limitReached": "Limit reached",
   "brief.comp.invalidUrl": "Invalid link",
   "brief.comp.dismissed": "Suggestion dismissed",
+  "brief.comp.aspectsHint":
+    "Mark what you like on a reference — it steers strategy and generation.",
   "brief.comp.likedAspects": "Like:",
   "brief.comp.aspect.logo": "Logo",
   "brief.comp.aspect.typography": "Typography",
@@ -554,7 +556,7 @@ const en = {
     "AI expands the field. Strategy sets the boundaries. Taste decides what ships.",
   "method.step01.title": "Brand signal",
   "method.step01.body":
-    "The client defines meaning, audience and constraints before any mark is drawn.",
+    "In two minutes: who to avoid, who to reference, and what you like — before any mark is drawn.",
   "method.step01.owner": "Human + GPT",
   "method.step02.title": "Category refusal",
   "method.step02.body":

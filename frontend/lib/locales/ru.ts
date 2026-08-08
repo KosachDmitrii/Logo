@@ -224,10 +224,10 @@ const ru: Dict = {
   "brief.chapter.feelDesc": "Характер и визуальное направление знака.",
   "brief.chapter.context": "Контекст",
   "brief.chapter.contextDesc":
-    "Аудитория, рынок, конкуренты, цвет и ограничения — только если нужно.",
+    "Кого избегать, на кого равняться, рынок и цвет — две минуты направления.",
   "brief.chapter.optional": "Опционально — улучшает попадание",
   "brief.note":
-    "Сфокусированный бриф даёт системе вкус, границы и причину каждого визуального решения.",
+    "Добавьте, с кем конкурируете, кем восхищаетесь и что нравится — система держит эти границы в каждом концепте.",
   "brief.template": "Шаблон брифа",
   "brief.brandName": "Название бренда",
   "brief.coreIdea": "Ключевая идея",
@@ -238,10 +238,10 @@ const ru: Dict = {
   "brief.competitors": "Конкуренты",
   "brief.directCompetitors": "Прямые",
   "brief.directCompetitorsDesc":
-    "С кем вы конкурируете — похожее предложение и аудитория.",
+    "От кого держаться визуально отдельно — похожее предложение и аудитория.",
   "brief.brandReferences": "Референсы",
   "brief.brandReferencesDesc":
-    "Бренды, которые нравятся визуально — даже из другой категории.",
+    "На кого равняться по вкусу — отметьте, что нравится; копировать не будем.",
   "brief.competitorsSuggested": "Подсказки для {industry}",
   "brief.competitorsSelected": "Выбрано",
   "brief.market": "Рынок / регион",
@@ -254,7 +254,7 @@ const ru: Dict = {
   "brief.price.accessible": "Доступный",
   "brief.price.premium": "Премиум",
   "brief.price.luxury": "Люкс",
-  "brief.ph.competitorSearch": "Поиск по списку или URL, чтобы добавить…",
+  "brief.ph.competitorSearch": "Имя или URL, чтобы добавить…",
   "brief.addCompany": "Добавить компанию вручную",
   "brief.addUrl": "Добавить URL сайта",
   "brief.comp.why": "Почему предложено?",
@@ -266,12 +266,12 @@ const ru: Dict = {
   "brief.comp.refresh": "Обновить рекомендации",
   "brief.comp.showMore": "Ещё",
   "brief.comp.emptyDirect":
-    "Для этой индустрии нет автоподсказок — попробуйте Референсы или другую индустрию.",
+    "Нет автоподсказок — добавьте имя или URL, либо откройте Референсы.",
   "brief.comp.selectIndustry":
     "Выберите индустрию выше, чтобы увидеть подсказки.",
   "brief.comp.selected": "Выбрано",
   "brief.comp.yourPicks": "Ваш выбор",
-  "brief.comp.tapToAdd": "Нажмите, чтобы добавить",
+  "brief.comp.tapToAdd": "+ добавить · × если не подходит",
   "brief.comp.matches": "{count} совпадений",
   "brief.comp.suggested": "Предложено",
   "brief.comp.noMatches": "Нет совпадений — «Добавить» сохранит это имя или URL.",
@@ -279,6 +279,8 @@ const ru: Dict = {
   "brief.comp.limitReached": "Достигнут лимит",
   "brief.comp.invalidUrl": "Некорректная ссылка",
   "brief.comp.dismissed": "Рекомендация отклонена",
+  "brief.comp.aspectsHint":
+    "Отметьте, что нравится в референсе — это рулит стратегией и генерацией.",
   "brief.comp.likedAspects": "Нравится:",
   "brief.comp.aspect.logo": "Логотип",
   "brief.comp.aspect.typography": "Типографика",
@@ -558,7 +560,7 @@ const ru: Dict = {
     "AI расширяет поле. Стратегия ставит границы. Вкус решает, что уходит в работу.",
   "method.step01.title": "Brand signal",
   "method.step01.body":
-    "Клиент задаёт смысл, аудиторию и ограничения до того, как нарисован хоть один знак.",
+    "За две минуты: кого избегать, на кого равняться и что нравится — до первого знака.",
   "method.step01.owner": "Human + GPT",
   "method.step02.title": "Отказ от категории",
   "method.step02.body":

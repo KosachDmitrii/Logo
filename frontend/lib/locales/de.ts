@@ -221,10 +221,10 @@ const de: Dict = {
   "brief.chapter.feelDesc": "Persönlichkeit und visuelle Richtung für das Zeichen.",
   "brief.chapter.context": "Kontext",
   "brief.chapter.contextDesc":
-    "Audience, Markt, Wettbewerber, Farbe und Limits — nur wenn nötig.",
+    "Wen meiden, wen referenzieren, Markt und Farbe — zwei Minuten Richtung.",
   "brief.chapter.optional": "Optional — verbessert die Passung",
   "brief.note":
-    "Ein fokussiertes Briefing gibt dem System Geschmack, Grenzen und einen Grund für jede visuelle Entscheidung.",
+    "Wen Sie meiden, wen Sie bewundern und was gefällt — das System hält diese Grenzen in jedem Konzept.",
   "brief.template": "Briefing-Vorlage",
   "brief.brandName": "Markenname",
   "brief.coreIdea": "Kernidee",
@@ -235,10 +235,10 @@ const de: Dict = {
   "brief.competitors": "Wettbewerber",
   "brief.directCompetitors": "Direkte Wettbewerber",
   "brief.directCompetitorsDesc":
-    "Unternehmen mit ähnlichem Angebot, Publikum und Marktpositionierung.",
+    "Von wem Sie sich visuell absetzen — ähnliches Angebot und Publikum.",
   "brief.brandReferences": "Markenreferenzen",
   "brief.brandReferencesDesc":
-    "Marken, deren visuelle und kommunikative Lösungen eine Richtung vorgeben können.",
+    "Wen Sie für den Geschmack referenzieren — markieren Sie, was gefällt; wir imitieren nicht.",
   "brief.competitorsSuggested": "Vorschläge für {industry}",
   "brief.competitorsSelected": "Ausgewählt",
   "brief.market": "Markt / Region",
@@ -251,7 +251,7 @@ const de: Dict = {
   "brief.price.accessible": "Zugänglich",
   "brief.price.premium": "Premium",
   "brief.price.luxury": "Luxus",
-  "brief.ph.competitorSearch": "Vorschläge nach Name oder URL filtern…",
+  "brief.ph.competitorSearch": "Name oder URL zum Hinzufügen…",
   "brief.addCompany": "Unternehmen manuell hinzufügen",
   "brief.addUrl": "Website-URL hinzufügen",
   "brief.comp.why": "Warum vorgeschlagen?",
@@ -263,7 +263,7 @@ const de: Dict = {
   "brief.comp.refresh": "Vorschläge aktualisieren",
   "brief.comp.showMore": "Mehr anzeigen",
   "brief.comp.emptyDirect":
-    "Keine automatischen Treffer für diese Branche — versuchen Sie Referenzen oder eine andere Branche.",
+    "Keine automatischen Treffer — Name oder URL hinzufügen, oder Referenzen öffnen.",
   "brief.comp.selectIndustry":
     "Wählen Sie oben eine Branche, um Vorschläge zu sehen.",
   "brief.comp.noMatches":
@@ -271,12 +271,14 @@ const de: Dict = {
   "brief.comp.suggested": "Vorschläge",
   "brief.comp.yourPicks": "Ihre Auswahl",
   "brief.comp.matches": "{count} Treffer",
-  "brief.comp.tapToAdd": "Tippen zum Hinzufügen",
+  "brief.comp.tapToAdd": "+ hinzufügen · × wenn unpassend",
   "brief.comp.selected": "Ausgewählt",
   "brief.comp.alreadySelected": "Bereits ausgewählt",
   "brief.comp.limitReached": "Limit erreicht",
   "brief.comp.invalidUrl": "Ungültiger Link",
   "brief.comp.dismissed": "Vorschlag verworfen",
+  "brief.comp.aspectsHint":
+    "Markieren Sie, was an einer Referenz gefällt — das steuert Strategie und Generation.",
   "brief.comp.likedAspects": "Was gefällt",
   "brief.comp.aspect.logo": "Logo",
   "brief.comp.aspect.typography": "Typografie",
@@ -556,7 +558,7 @@ const de: Dict = {
     "KI weitet das Feld. Strategie setzt die Grenzen. Geschmack entscheidet, was shippt.",
   "method.step01.title": "Markensignal",
   "method.step01.body":
-    "Der Klient definiert Bedeutung, Zielgruppe und Constraints, bevor ein Zeichen gezeichnet wird.",
+    "In zwei Minuten: wen meiden, wen referenzieren und was gefällt — bevor ein Zeichen gezeichnet wird.",
   "method.step01.owner": "Mensch + GPT",
   "method.step02.title": "Kategorie-Ablehnung",
   "method.step02.body":

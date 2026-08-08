@@ -221,10 +221,10 @@ const es: Dict = {
   "brief.chapter.feelDesc": "Personalidad y dirección visual de la marca.",
   "brief.chapter.context": "Contexto",
   "brief.chapter.contextDesc":
-    "Audiencia, mercado, competidores, color y límites — solo si ayuda.",
+    "A quién evitar, a quién referenciar, mercado y color — dos minutos de dirección.",
   "brief.chapter.optional": "Opcional — mejora el encaje",
   "brief.note":
-    "Un brief enfocado da al sistema gusto, límites y una razón para cada decisión visual.",
+    "Añade con quién compites, a quién admiras y qué te gusta — el sistema guarda esos límites en cada concepto.",
   "brief.template": "Plantilla de brief",
   "brief.brandName": "Nombre de marca",
   "brief.coreIdea": "Idea central",
@@ -235,10 +235,10 @@ const es: Dict = {
   "brief.competitors": "Competidores",
   "brief.directCompetitors": "Competidores directos",
   "brief.directCompetitorsDesc":
-    "Empresas con oferta, audiencia y posicionamiento de mercado similares.",
+    "De quién mantenerse visualmente distinto — oferta y audiencia similares.",
   "brief.brandReferences": "Referencias de marca",
   "brief.brandReferencesDesc":
-    "Marcas cuyas decisiones visuales y de comunicación pueden marcar la dirección.",
+    "A quién referenciar por gusto — marca qué te gusta; no imitamos.",
   "brief.competitorsSuggested": "Sugerencias para {industry}",
   "brief.competitorsSelected": "Seleccionado",
   "brief.market": "Mercado / región",
@@ -251,7 +251,7 @@ const es: Dict = {
   "brief.price.accessible": "Accesible",
   "brief.price.premium": "Premium",
   "brief.price.luxury": "Lujo",
-  "brief.ph.competitorSearch": "Filtrar sugerencias por nombre o URL…",
+  "brief.ph.competitorSearch": "Nombre o URL para añadir…",
   "brief.addCompany": "Añadir empresa manualmente",
   "brief.addUrl": "Añadir URL del sitio",
   "brief.comp.why": "¿Por qué se sugiere?",
@@ -263,7 +263,7 @@ const es: Dict = {
   "brief.comp.refresh": "Actualizar sugerencias",
   "brief.comp.showMore": "Mostrar más",
   "brief.comp.emptyDirect":
-    "No hay coincidencias automáticas para esta industria — prueba Referencias u otra industria.",
+    "Sin coincidencias automáticas — añade nombre o URL, o abre Referencias.",
   "brief.comp.selectIndustry":
     "Elige una industria arriba para ver sugerencias.",
   "brief.comp.noMatches":
@@ -271,12 +271,14 @@ const es: Dict = {
   "brief.comp.suggested": "Sugerido",
   "brief.comp.yourPicks": "Tu selección",
   "brief.comp.matches": "{count} coincidencias",
-  "brief.comp.tapToAdd": "Toca para añadir",
+  "brief.comp.tapToAdd": "+ para añadir · × si no encaja",
   "brief.comp.selected": "Seleccionado",
   "brief.comp.alreadySelected": "Ya seleccionado",
   "brief.comp.limitReached": "Límite alcanzado",
   "brief.comp.invalidUrl": "Enlace no válido",
   "brief.comp.dismissed": "Sugerencia descartada",
+  "brief.comp.aspectsHint":
+    "Marca qué te gusta en una referencia — guía la estrategia y la generación.",
   "brief.comp.likedAspects": "Qué te gusta",
   "brief.comp.aspect.logo": "Logo",
   "brief.comp.aspect.typography": "Tipografía",
@@ -556,7 +558,7 @@ const es: Dict = {
     "La IA amplía el campo. La estrategia fija los límites. El gusto decide qué sale.",
   "method.step01.title": "Señal de marca",
   "method.step01.body":
-    "El cliente define significado, audiencia y restricciones antes de dibujar ninguna marca.",
+    "En dos minutos: a quién evitar, a quién referenciar y qué te gusta — antes de dibujar.",
   "method.step01.owner": "Humano + GPT",
   "method.step02.title": "Rechazo de categoría",
   "method.step02.body":

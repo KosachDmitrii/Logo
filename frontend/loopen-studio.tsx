@@ -848,9 +848,13 @@ function LoopenStudioApp({
       alreadySelected: t(locale, "brief.comp.alreadySelected"),
       limitReached: t(locale, "brief.comp.limitReached"),
       likedAspects: t(locale, "brief.comp.likedAspects"),
+      aspectsHint: t(locale, "brief.comp.aspectsHint"),
       searchPlaceholder: t(locale, "brief.ph.competitorSearch"),
       add: t(locale, "brief.comp.add"),
       invalidUrl: t(locale, "brief.comp.invalidUrl"),
+      notSuitable: t(locale, "brief.comp.notSuitable"),
+      dismissed: t(locale, "brief.comp.dismissed"),
+      openSite: t(locale, "brief.comp.openSite"),
       aspect: {
         logo: t(locale, "brief.comp.aspect.logo"),
         typography: t(locale, "brief.comp.aspect.typography"),

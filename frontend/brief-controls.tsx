@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { CompetitorEntry, LikedAspect } from "./lib/competitors/types.ts";
 import { BRIEF_LIMITS } from "./lib/brief-options.ts";
 import {
@@ -79,9 +79,13 @@ type FieldLabels = {
   alreadySelected: string;
   limitReached: string;
   likedAspects: string;
+  aspectsHint: string;
   searchPlaceholder: string;
   add: string;
   invalidUrl: string;
+  notSuitable: string;
+  dismissed: string;
+  openSite: string;
   aspect: Record<LikedAspect, string>;
 };
 
@@ -122,12 +126,31 @@ export function CompetitorField({
   const [section, setSection] = useState<CompetitorSectionKey>("direct");
   const [status, setStatus] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [tipKey, setTipKey] = useState<string | null>(null);
+  const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [visibleCount, setVisibleCount] = useState({
     direct: 8,
     references: 8,
   });
 
   const active = section === "direct" ? direct : references;
+
+  function clearTipTimer() {
+    if (tipTimer.current) {
+      clearTimeout(tipTimer.current);
+      tipTimer.current = null;
+    }
+  }
+
+  function showTipSoon(key: string) {
+    clearTipTimer();
+    tipTimer.current = setTimeout(() => setTipKey(key), 420);
+  }
+
+  function hideTip() {
+    clearTipTimer();
+    setTipKey(null);
+  }
 
   const selectedKeys = useMemo(
     () => new Set(active.value.map((entry) => nameKey(entry.name))),
@@ -158,6 +181,11 @@ export function CompetitorField({
   );
   const hasMoreSuggestions =
     availableSuggestions.length > visibleCount[section];
+
+  const needsAspectHint =
+    Boolean(active.showLikedAspects) &&
+    active.value.length > 0 &&
+    active.value.every((entry) => !(entry.likedAspects?.length));
 
   function flash(message: string) {
     setStatus(message);
@@ -190,6 +218,21 @@ export function CompetitorField({
     setStatus(null);
   }
 
+  function dismissSuggestion(entry: CompetitorEntry) {
+    const key = nameKey(entry.name);
+    if (!key) return;
+    if (!rejectedKeys.has(key)) {
+      active.onRejectedChange([...active.rejected, entry.name]);
+    }
+    flash(labels.dismissed);
+    if (
+      availableSuggestions.length - 1 > visibleCount[section] &&
+      visibleCount[section] < 12
+    ) {
+      active.onShowMore();
+    }
+  }
+
   function toggleEntry(entry: CompetitorEntry) {
     const key = nameKey(entry.name);
     if (selectedKeys.has(key)) {
@@ -212,6 +255,7 @@ export function CompetitorField({
         source: entry.source ?? "industry",
       },
     ]);
+    setStatus(null);
   }
 
   function toggleLikedAspect(entry: CompetitorEntry, aspect: LikedAspect) {
@@ -314,6 +358,11 @@ export function CompetitorField({
 
       {emptyMessage ? <p className="competitor-note">{emptyMessage}</p> : null}
       {status ? <p className="competitor-note">{status}</p> : null}
+      {needsAspectHint ? (
+        <p className="competitor-note competitor-note-accent">
+          {labels.aspectsHint}
+        </p>
+      ) : null}
 
       {active.value.length > 0 ? (
         <div
@@ -327,6 +376,7 @@ export function CompetitorField({
             const key = nameKey(entry.name);
             const name = displayName(entry);
             const description = entry.reason?.trim() || entry.notes?.trim();
+            const site = entryWebsite(entry);
             return (
               <article
                 key={`${section}-specimen-${key}`}
@@ -350,6 +400,16 @@ export function CompetitorField({
                   <h4 className="competitor-specimen-name">{name}</h4>
                   {description ? (
                     <p className="competitor-specimen-desc">{description}</p>
+                  ) : null}
+                  {site ? (
+                    <a
+                      className="competitor-specimen-site"
+                      href={site}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {labels.openSite}
+                    </a>
                   ) : null}
                 </div>
                 {active.showLikedAspects ? (
@@ -387,25 +447,76 @@ export function CompetitorField({
         <div className="competitor-pool">
           <span className="competitor-pool-label">{labels.tapToAdd}</span>
           <div className="competitor-pool-grid">
-            {visibleSuggestions.map((entry) => (
-              <button
-                key={`${section}-pool-${nameKey(entry.name)}`}
-                type="button"
-                className="competitor-pool-tile"
-                title={entry.reason || labels.tapToAdd}
-                onClick={() => toggleEntry(entry)}
-              >
-                <span className="competitor-pool-mark" aria-hidden="true">
-                  {brandMark(entry)}
-                </span>
-                <span className="competitor-pool-name">
-                  {displayName(entry)}
-                </span>
-                <span className="competitor-pool-plus" aria-hidden="true">
-                  +
-                </span>
-              </button>
-            ))}
+            {visibleSuggestions.map((entry) => {
+              const key = nameKey(entry.name);
+              const name = displayName(entry);
+              const fullName = entry.name.trim() || name;
+              const reason = entry.reason?.trim();
+              const tipOpen = tipKey === key;
+              return (
+                <div
+                  key={`${section}-pool-${key}`}
+                  className={
+                    tipOpen
+                      ? "competitor-pool-tile is-tip"
+                      : "competitor-pool-tile"
+                  }
+                  onPointerLeave={hideTip}
+                  onPointerCancel={hideTip}
+                  onPointerDown={(event) => {
+                    if (event.pointerType === "touch") {
+                      showTipSoon(key);
+                    }
+                  }}
+                  onPointerUp={(event) => {
+                    if (event.pointerType === "touch") {
+                      clearTipTimer();
+                      window.setTimeout(hideTip, 900);
+                    }
+                  }}
+                >
+                  <div className="competitor-pool-tip" role="tooltip">
+                    <strong className="competitor-pool-tip-name">
+                      {fullName}
+                    </strong>
+                    {reason ? (
+                      <span className="competitor-pool-tip-reason">
+                        {reason}
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="competitor-pool-add"
+                    aria-label={
+                      reason
+                        ? `${fullName}. ${reason}`
+                        : `${labels.add} ${fullName}`
+                    }
+                    onClick={() => {
+                      hideTip();
+                      toggleEntry(entry);
+                    }}
+                  >
+                    <span className="competitor-pool-mark" aria-hidden="true">
+                      {brandMark(entry)}
+                    </span>
+                    <span className="competitor-pool-name">{name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="competitor-pool-dismiss"
+                    aria-label={`${labels.notSuitable}: ${fullName}`}
+                    onClick={() => {
+                      hideTip();
+                      dismissSuggestion(entry);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
             {hasMoreSuggestions ? (
               <button
                 type="button"
