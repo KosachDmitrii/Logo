@@ -1,3 +1,11 @@
+import type {
+  CompanyScale,
+  CompetitorEntry,
+  PriceSegment,
+} from "./brief-options.ts";
+
+export type { CompetitorEntry, CompanyScale, PriceSegment };
+
 export type GeneratedConcept = {
   directionKey: string;
   directionTitle: string;
@@ -23,12 +31,19 @@ export type PremiumBrief = {
   audience?: string;
   avoid?: string;
   companyDescription?: string;
+  /** Flattened direct competitors for prompts / legacy clients. */
   competitors?: string;
+  directCompetitors?: CompetitorEntry[];
+  brandReferences?: CompetitorEntry[];
   colorApproach?: "propose" | "existing" | "mood";
   brandColors?: string;
   colorMood?: string;
   coreIdea?: string;
+  /** Stable IndustryId when known; free text for "other". */
   industry?: string;
+  market?: string;
+  companyScale?: CompanyScale;
+  priceSegment?: PriceSegment;
   logoType?: "abstract" | "monogram" | "wordmark" | "emblem" | "combination";
   personalities?: string[];
   positioning?: string;
@@ -63,7 +78,14 @@ export type StudioSessionSnapshot = {
   companyDescription: string;
   audience: string;
   positioning: string;
+  market: string;
+  companyScale: CompanyScale | "";
+  priceSegment: PriceSegment | "";
   competitors: string;
+  directCompetitors: CompetitorEntry[];
+  brandReferences: CompetitorEntry[];
+  rejectedDirect: string[];
+  rejectedReferences: string[];
   colorApproach: NonNullable<PremiumBrief["colorApproach"]>;
   brandColors: string;
   colorMood: string;

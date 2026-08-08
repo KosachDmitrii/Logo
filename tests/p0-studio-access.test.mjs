@@ -81,7 +81,7 @@ test("P0 signals billing and hard spend caps are wired", async () => {
   assert.match(checkout, /checkout\.sessions\.create/);
   assert.match(webhook, /grantPackSignals/);
   assert.match(studio, /signal-vault|Signal vault/);
-  assert.match(studio, /Enter the/);
+  assert.match(studio, /auth\.signin\.title\.1|Enter the/);
   assert.match(studio, /handlePaymentRequired/);
   assert.match(studio, /status === 402/);
 });

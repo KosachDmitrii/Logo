@@ -31,13 +31,20 @@ import {
   t,
   type AppLocale,
 } from "./lib/i18n";
+import { buildBrandGuideHtml } from "./lib/brand-guide";
 import { buildLockupSvg } from "./lib/lockup-export";
 import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
+import { CompetitorField } from "./brief-controls";
 import {
-  INDUSTRY_OPTIONS,
+  asBriefText,
+  formatCompetitorEntries,
+  INDUSTRY_SELECT_OPTIONS,
   optionKey,
+  parseCompetitorEntries,
   splitIndustry,
 } from "./lib/brief-options";
+import { suggestCompetitors } from "./lib/competitors";
+import type { CompanyScale, PriceSegment } from "./lib/competitors";
 import {
   clearStudioSession,
   createEmptyStudioDraft,
@@ -50,6 +57,7 @@ import {
 } from "./lib/studio-session";
 import type {
   BrandStrategy,
+  CompetitorEntry,
   GeneratedConcept,
   PremiumBrief,
   StudioAsset,
@@ -213,16 +221,20 @@ const concepts: Concept[] = [
 ];
 
 const personalityOptions = [
-  "Architectural",
-  "Intelligent",
-  "Playful",
+  "Minimal",
+  "Refined",
+  "Quiet",
+  "Geometric",
   "Precise",
-  "Warm",
-  "Experimental",
-  "Bold",
   "Calm",
+  "Architectural",
   "Technical",
+  "Intelligent",
   "Editorial",
+  "Warm",
+  "Playful",
+  "Bold",
+  "Experimental",
 ];
 
 type BriefTemplate = {
@@ -235,7 +247,11 @@ type BriefTemplate = {
   companyDescription: string;
   audience: string;
   positioning: string;
-  competitors: string;
+  market: string;
+  companyScale: CompanyScale | "";
+  priceSegment: PriceSegment | "";
+  directCompetitors: string[];
+  brandReferences: string[];
   colorApproach: NonNullable<PremiumBrief["colorApproach"]>;
   brandColors: string;
   colorMood: string;
@@ -246,6 +262,10 @@ type BriefTemplate = {
   descriptor: string;
 };
 
+function entriesFromNames(names: string[]): CompetitorEntry[] {
+  return names.map((name) => ({ name, source: "manual" as const }));
+}
+
 const BRIEF_TEMPLATES: BriefTemplate[] = [
   {
     id: "ketchup",
@@ -254,15 +274,18 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     brandName: "Ketchup",
     coreIdea:
       "Ketchup is an architecture and spatial-design studio that turns constraints into distinctive, generous places. The identity should communicate intelligent transformation, confident authorship and an unexpected human quality. Create a memorable symbol that feels specific to Ketchup rather than to architecture in general.",
-    industry: "Architecture",
+    industry: "architecture",
     companyDescription:
       "Ketchup is an independent architecture and spatial-design studio working across residential, hospitality, retail and cultural projects. The studio treats budgets, sites, regulations and existing structures as creative material. Its work combines rigorous planning, clear construction and generous public or shared space with one surprising intervention that makes each project recognisable, useful and emotionally engaging.",
     audience:
       "Design-literate private clients, progressive developers, hospitality and retail brands, cultural institutions and entrepreneurs. They value original thinking and strong authorship, but also expect buildability, commercial intelligence, clarity, reliability and lasting cultural relevance.",
     positioning:
       "A sharp, independent architecture practice positioned between corporate predictability and self-indulgent experimentation. Ketchup is conceptually bold but practical, playful without becoming childish, and precise without feeling sterile. The identity should feel confident in an architecture biennale, on construction drawings and on a building façade.",
-    competitors:
-      "Reference landscape: OMA, MVRDV, Snøhetta, Assemble, Space10, Schemata Architects, Studio Muoto and contemporary independent architecture practices. Do not imitate their identities, projects or signature buildings; use them only as a benchmark for conceptual clarity, cultural confidence and professional execution.",
+    market: "Europe",
+    companyScale: "independent",
+    priceSegment: "premium",
+    directCompetitors: ["OMA", "MVRDV", "Snøhetta", "Assemble", "Studio Muoto"],
+    brandReferences: ["Pentagram", "Studio Dumbar", "Space10"],
     colorApproach: "propose",
     brandColors: "",
     colorMood:
@@ -274,11 +297,12 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     avoid:
       "Avoid generic house and roof icons, property-development branding, food or ketchup imagery, obvious stock-logo geometry and close resemblance to an existing identity. No 3D rendering, perspective, mockup, gradients, shadows, textures, fine illustrative detail, text, letters or pseudo-text inside the generated symbol.",
     personalities: [
-      "Architectural",
-      "Intelligent",
-      "Playful",
+      "Minimal",
+      "Refined",
+      "Quiet",
+      "Geometric",
       "Precise",
-      "Experimental",
+      "Architectural",
     ],
     descriptor: "Architecture with an unexpected opening",
   },
@@ -289,15 +313,24 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     brandName: "Northline",
     coreIdea:
       "Northline is a specialty coffee roastery and café brand built around clarity, craft and a quiet sense of northern light. The identity should feel precise and hospitable — a mark that suggests route, roast and ritual without becoming a coffee-cup cliché.",
-    industry: "Food & Beverage",
+    industry: "food-beverage",
     companyDescription:
       "Northline roasts single-origin and blend coffees for cafés, offices and home brewing. The brand runs a flagship café, supplies wholesale partners and publishes tasting notes with the same care as its roasting logs. Northline values transparency of origin, consistent extraction and a calm, design-led guest experience.",
     audience:
       "Urban coffee drinkers, independent café owners, design-conscious offices and home baristas who care about origin, freshness and a refined everyday ritual rather than loud lifestyle marketing.",
     positioning:
       "A modern roasting brand between industrial commodity coffee and precious third-wave theatre. Northline is warm but exact, hospitable without being cute, and serious about taste without sounding academic.",
-    competitors:
-      "Reference landscape: Blue Bottle, Tim Wendelboe, April Coffee, La Cabra, Square Mile and strong independent local roasters. Do not imitate their marks; use them only as a benchmark for craft credibility and café-ready systems.",
+    market: "Northern Europe",
+    companyScale: "independent",
+    priceSegment: "premium",
+    directCompetitors: [
+      "Blue Bottle",
+      "Tim Wendelboe",
+      "April Coffee",
+      "La Cabra",
+      "Square Mile",
+    ],
+    brandReferences: ["Pentagram", "Mucho", "Manual"],
     colorApproach: "propose",
     brandColors: "",
     colorMood:
@@ -318,15 +351,18 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     brandName: "Voltara",
     coreIdea:
       "Voltara is a clean-energy and home-electrification company helping households and small businesses switch to smarter power. The identity should communicate reliable modern infrastructure with a human, optimistic charge — not a generic lightning bolt utility brand.",
-    industry: "Clean Energy",
+    industry: "clean-energy",
     companyDescription:
       "Voltara designs and installs solar, battery storage and electrification upgrades for homes and light commercial sites. The company combines engineering clarity with a consumer-friendly service model: site assessment, financing options, installation and ongoing monitoring. Voltara wants to feel like the trusted operator of a cleaner everyday grid.",
     audience:
       "Homeowners, property managers and small-business operators who want lower energy costs, resilience and a credible green transition without dealing with opaque contractors.",
     positioning:
       "A practical clean-energy brand between corporate utilities and lifestyle eco startups. Voltara is technical but approachable, optimistic without greenwashing, and precise enough for engineering docs while remaining friendly on a van or app icon.",
-    competitors:
-      "Reference landscape: Tesla Energy, Sunrun, Octopus Energy, Enphase and strong regional installers. Do not imitate their identities; use them only as a benchmark for trust, modernity and service clarity.",
+    market: "USA",
+    companyScale: "mid-size",
+    priceSegment: "accessible",
+    directCompetitors: ["Sunrun", "Octopus Energy", "Enphase"],
+    brandReferences: ["Pentagram", "Collins", "Base Design"],
     colorApproach: "propose",
     brandColors: "",
     colorMood:
@@ -347,15 +383,18 @@ const BRIEF_TEMPLATES: BriefTemplate[] = [
     brandName: "Muchachos",
     coreIdea:
       "Muchachos is a contemporary barber shop built on sharp craft, masculine hospitality and neighbourhood ritual. The identity should feel confident and brotherly without becoming a cliché scissors brand — a mark that owns the chair, the line-up and the after-hours atmosphere.",
-    industry: "Beauty & Wellness",
+    industry: "beauty-wellness",
     companyDescription:
       "Muchachos is an independent barber shop offering classic and modern cuts, fades, beard work and grooming rituals in a social, well-run space. The shop mixes precise technique with warm service: walk-ins and bookings, good music, clean stations and a culture where regulars feel known. Muchachos wants to feel like the best chair on the block — sharp, welcoming and culturally specific.",
     audience:
       "Men and style-conscious locals who want a reliable cut, a strong vibe and a shop that feels social rather than clinical. They care about craft, atmosphere, consistency and a brand that looks as sharp as the finish.",
     positioning:
       "A modern barber brand between old-school nostalgia kitsch and luxury spa grooming. Muchachos is bold but friendly, precise without feeling sterile, and culturally warm without becoming costume Latino. The identity should work on a storefront, apron, Instagram avatar and appointment card.",
-    competitors:
-      "Reference landscape: Blind Barber, Schorem, Fellow Barber, local independent barbershops and strong neighbourhood grooming rooms. Do not imitate their marks; use them only as a benchmark for craft credibility, shop culture and street-level presence.",
+    market: "Local neighbourhood",
+    companyScale: "independent",
+    priceSegment: "accessible",
+    directCompetitors: ["Blind Barber", "Schorem", "Fellow Barber"],
+    brandReferences: ["Pentagram", "Mucho", "Manual"],
     colorApproach: "propose",
     brandColors: "",
     colorMood:
@@ -671,14 +710,37 @@ function LoopenStudioApp({
   const [industryOther, setIndustryOther] = useState(
     () => splitIndustry(initialDraft.industry).other,
   );
-  const industry =
-    industryChoice === "Other" ? industryOther.trim() : industryChoice;
+  const isOtherIndustry =
+    industryChoice === "Other" || industryChoice === "other";
+  const industry = isOtherIndustry ? industryOther.trim() : industryChoice;
   const [companyDescription, setCompanyDescription] = useState(
     initialDraft.companyDescription,
   );
   const [audience, setAudience] = useState(initialDraft.audience);
   const [positioning, setPositioning] = useState(initialDraft.positioning);
-  const [competitors, setCompetitors] = useState(initialDraft.competitors);
+  const [market, setMarket] = useState(initialDraft.market ?? "");
+  const [companyScale, setCompanyScale] = useState<CompanyScale | "">(
+    initialDraft.companyScale ?? "",
+  );
+  const [priceSegment, setPriceSegment] = useState<PriceSegment | "">(
+    initialDraft.priceSegment ?? "",
+  );
+  const [directCompetitors, setDirectCompetitors] = useState<CompetitorEntry[]>(
+    () => parseCompetitorEntries(initialDraft.directCompetitors),
+  );
+  const [brandReferences, setBrandReferences] = useState<CompetitorEntry[]>(
+    () => parseCompetitorEntries(initialDraft.brandReferences),
+  );
+  const [rejectedDirect, setRejectedDirect] = useState<string[]>(
+    () => initialDraft.rejectedDirect ?? [],
+  );
+  const [rejectedReferences, setRejectedReferences] = useState<string[]>(
+    () => initialDraft.rejectedReferences ?? [],
+  );
+  const [directLimit, setDirectLimit] = useState(10);
+  const [referenceLimit, setReferenceLimit] = useState(8);
+  const competitors = formatCompetitorEntries(directCompetitors);
+
   const [colorApproach, setColorApproach] =
     useState<NonNullable<PremiumBrief["colorApproach"]>>(initialDraft.colorApproach);
   const [brandColors, setBrandColors] = useState(initialDraft.brandColors);
@@ -690,6 +752,12 @@ function LoopenStudioApp({
   const [strategy, setStrategy] = useState<BrandStrategy | null>(initialDraft.strategy);
   const [isStrategyOpen, setIsStrategyOpen] = useState(false);
   const [personalities, setPersonalities] = useState(initialDraft.personalities);
+  const [openBriefChapter, setOpenBriefChapter] = useState<
+    "who" | "feel" | "context" | null
+  >(null);
+  const toggleBriefChapter = (chapter: "who" | "feel" | "context") => {
+    setOpenBriefChapter((current) => (current === chapter ? null : chapter));
+  };
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingMore, setIsGeneratingMore] = useState(false);
   const [notice, setNotice] = useState(restoreNotice);
@@ -735,6 +803,72 @@ function LoopenStudioApp({
     };
   });
   const locale = emailPrefs.briefLocale;
+  const competitorSuggestions = useMemo(
+    () =>
+      suggestCompetitors({
+        industry,
+        companyDescription,
+        positioning,
+        audience,
+        market,
+        companyScale: companyScale || undefined,
+        priceSegment: priceSegment || undefined,
+        locale,
+        selectedDirect: directCompetitors,
+        selectedReferences: brandReferences,
+        rejectedDirect,
+        rejectedReferences,
+        directLimit,
+        referenceLimit,
+      }),
+    [
+      audience,
+      brandReferences,
+      companyDescription,
+      companyScale,
+      directCompetitors,
+      directLimit,
+      industry,
+      locale,
+      market,
+      positioning,
+      priceSegment,
+      referenceLimit,
+      rejectedDirect,
+      rejectedReferences,
+    ],
+  );
+  const competitorFieldLabels = useMemo(
+    () => ({
+      remove: t(locale, "brief.comp.remove"),
+      showMore: t(locale, "brief.comp.showMore"),
+      emptyDirect: t(locale, "brief.comp.emptyDirect"),
+      selectIndustry: t(locale, "brief.comp.selectIndustry"),
+      tapToAdd: t(locale, "brief.comp.tapToAdd"),
+      alreadySelected: t(locale, "brief.comp.alreadySelected"),
+      limitReached: t(locale, "brief.comp.limitReached"),
+      likedAspects: t(locale, "brief.comp.likedAspects"),
+      searchPlaceholder: t(locale, "brief.ph.competitorSearch"),
+      add: t(locale, "brief.comp.add"),
+      invalidUrl: t(locale, "brief.comp.invalidUrl"),
+      aspect: {
+        logo: t(locale, "brief.comp.aspect.logo"),
+        typography: t(locale, "brief.comp.aspect.typography"),
+        color: t(locale, "brief.comp.aspect.color"),
+        layout: t(locale, "brief.comp.aspect.layout"),
+        motion: t(locale, "brief.comp.aspect.motion"),
+        tone: t(locale, "brief.comp.aspect.tone"),
+      },
+    }),
+    [locale],
+  );
+  const isOtherIndustryChoice =
+    industryChoice === "other" || industryChoice === "Other";
+  const competitorIndustryKnown =
+    Boolean(industryChoice) && !isOtherIndustryChoice;
+  const competitorIndustryReady =
+    competitorIndustryKnown ||
+    (isOtherIndustryChoice && Boolean(industryOther.trim()));
   const [localeStatus, setLocaleStatus] = useState("");
   const [localeSaving, setLocaleSaving] = useState(false);
   const [prefsStatus, setPrefsStatus] = useState("");
@@ -1767,7 +1901,14 @@ function LoopenStudioApp({
       companyDescription,
       audience,
       positioning,
+      market,
+      companyScale,
+      priceSegment,
       competitors,
+      directCompetitors,
+      brandReferences,
+      rejectedDirect,
+      rejectedReferences,
       colorApproach,
       brandColors,
       colorMood,
@@ -1815,7 +1956,14 @@ function LoopenStudioApp({
     companyDescription,
     audience,
     positioning,
+    market,
+    companyScale,
+    priceSegment,
     competitors,
+    directCompetitors,
+    brandReferences,
+    rejectedDirect,
+    rejectedReferences,
     colorApproach,
     brandColors,
     colorMood,
@@ -1904,9 +2052,26 @@ function LoopenStudioApp({
       setCoreIdea(nextCoreIdea);
       assignIndustry(nextIndustry);
       setCompanyDescription(payload.project.brief.companyDescription ?? "");
-      setAudience(payload.project.brief.audience ?? "");
-      setPositioning(payload.project.brief.positioning ?? "");
-      setCompetitors(payload.project.brief.competitors ?? "");
+      setAudience(asBriefText(payload.project.brief.audience));
+      setPositioning(asBriefText(payload.project.brief.positioning));
+      setMarket(payload.project.brief.market ?? "");
+      setCompanyScale(
+        (payload.project.brief.companyScale as CompanyScale | "") || "",
+      );
+      setPriceSegment(
+        (payload.project.brief.priceSegment as PriceSegment | "") || "",
+      );
+      setDirectCompetitors(
+        parseCompetitorEntries(
+          payload.project.brief.directCompetitors ??
+            payload.project.brief.competitors,
+        ),
+      );
+      setBrandReferences(
+        parseCompetitorEntries(payload.project.brief.brandReferences),
+      );
+      setRejectedDirect([]);
+      setRejectedReferences([]);
       setColorApproach(payload.project.brief.colorApproach ?? "propose");
       setBrandColors(payload.project.brief.brandColors ?? "");
       setColorMood(payload.project.brief.colorMood ?? "");
@@ -1915,6 +2080,7 @@ function LoopenStudioApp({
       setAvoid(payload.project.brief.avoid ?? "");
       setStrategy(payload.project.brief.strategy ?? null);
       setPersonalities(payload.project.brief.personalities ?? []);
+      setOpenBriefChapter(null);
       setActiveTemplateId(
         resolveBriefTemplateId({
           brandName: nextBrand,
@@ -2034,7 +2200,15 @@ function LoopenStudioApp({
     setCompanyDescription("");
     setAudience("");
     setPositioning("");
-    setCompetitors("");
+    setMarket("");
+    setCompanyScale("");
+    setPriceSegment("");
+    setDirectCompetitors([]);
+    setBrandReferences([]);
+    setRejectedDirect([]);
+    setRejectedReferences([]);
+    setDirectLimit(10);
+    setReferenceLimit(8);
     setColorApproach("propose");
     setBrandColors("");
     setColorMood("");
@@ -2157,7 +2331,15 @@ function LoopenStudioApp({
     setCompanyDescription(template.companyDescription);
     setAudience(template.audience);
     setPositioning(template.positioning);
-    setCompetitors(template.competitors);
+    setMarket(template.market);
+    setCompanyScale(template.companyScale);
+    setPriceSegment(template.priceSegment);
+    setDirectCompetitors(entriesFromNames(template.directCompetitors));
+    setBrandReferences(entriesFromNames(template.brandReferences));
+    setRejectedDirect([]);
+    setRejectedReferences([]);
+    setDirectLimit(10);
+    setReferenceLimit(8);
     setColorApproach(template.colorApproach);
     setBrandColors(template.brandColors);
     setColorMood(template.colorMood);
@@ -2190,7 +2372,12 @@ function LoopenStudioApp({
           companyDescription,
           audience,
           positioning,
+          market,
+          companyScale: companyScale || undefined,
+          priceSegment: priceSegment || undefined,
           competitors,
+          brandReferences,
+          directCompetitors,
           colorApproach,
           brandColors,
           colorMood,
@@ -2592,19 +2779,109 @@ function LoopenStudioApp({
     }
   }
 
-  function printBrandGuide() {
+  async function printBrandGuide() {
     if (!projectId || !selectedVector) {
       setNotice(t(locale, "notice.chooseVectorGuide"));
       return;
     }
-    window.open(
-      apiUrl(
-        `/projects/${projectId}/brand-guide?assetId=${encodeURIComponent(selectedVector)}&color=${encodeURIComponent(lockupColor)}&descriptor=${encodeURIComponent(descriptor)}&name=${encodeURIComponent(wordmarkName || brandName)}`,
-      ),
-      "_blank",
-      "noopener,noreferrer",
-    );
-    setNotice(t(locale, "notice.guideOpened"));
+    setExportingKey("brand-guide");
+    try {
+      const assetResponse = await apiFetch(`/assets/${selectedVector}`);
+      if (!assetResponse.ok) {
+        const payload = (await assetResponse.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        showRequestError(
+          t(locale, "prod.export.guide"),
+          payload?.error ?? t(locale, "notice.assetLoadFailed"),
+        );
+        return;
+      }
+      const markSvg = await assetResponse.text();
+      const lockupBase = {
+        brandName: wordmarkName || brandName,
+        descriptor,
+        markScale,
+        wordmarkCase,
+        wordmarkSize,
+        descriptorSize,
+        wordmarkWeight,
+        wordmarkTracking,
+        wordmarkStyle,
+      };
+      const industryOption = INDUSTRY_SELECT_OPTIONS.find(
+        (item) => item.value === industryChoice,
+      );
+      const industryLabel = industryOption
+        ? t(locale, industryOption.labelKey)
+        : industryOther || industryChoice;
+      const html = buildBrandGuideHtml({
+        markSvg,
+        lockupBase,
+        optics: {
+          layout: lockupLayout,
+          layoutLabel: t(locale, `prod.layout.${lockupLayout}`),
+          wordmarkStyleLabel: t(locale, `prod.type.${wordmarkStyle}`),
+          wordmarkCaseLabel: t(locale, `prod.case.${wordmarkCase}`),
+          wordmarkWeight,
+          wordmarkTracking,
+          wordmarkSize,
+          descriptor,
+          descriptorSize,
+          markScale,
+          color: lockupColor,
+          markSizePx,
+        },
+        brief: {
+          brandName: wordmarkName || brandName,
+          coreIdea,
+          industry: industryLabel,
+          companyDescription,
+          positioning,
+          audience,
+          market,
+          companyScale,
+          priceSegment,
+          visualDirection,
+          colorApproach,
+          colorMood,
+          brandColors,
+          usage,
+          avoid,
+          personalities: personalities.map((item) => {
+            const key = item.toLowerCase();
+            return {
+              label: t(locale, `brief.person.${key}`),
+              description: t(locale, `brief.person.${key}.desc`),
+            };
+          }),
+          directCompetitors: directCompetitors.map((entry) => entry.name),
+          brandReferences: brandReferences.map((entry) => ({
+            name: entry.name,
+            aspects: entry.likedAspects?.map((aspect) =>
+              t(locale, `brief.comp.aspect.${aspect}`),
+            ),
+          })),
+          strategy,
+          conceptTitle: focusedGeneration?.directionTitle,
+          conceptSummary: focusedGeneration?.rationale,
+        },
+      });
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setNotice(t(locale, "notice.guideOpened"));
+    } catch (error) {
+      showRequestError(
+        t(locale, "prod.export.guide"),
+        error instanceof Error
+          ? error.message
+          : t(locale, "notice.exportFailed"),
+      );
+    } finally {
+      setExportingKey("");
+    }
   }
 
   async function deleteConcept(generation: GeneratedConcept) {
@@ -4031,7 +4308,7 @@ function LoopenStudioApp({
         </div>
 
         <div className="brief-panel">
-          <div className="premium-fields brief-template-select">
+          {/* <div className="premium-fields brief-template-select">
             <CreativeSelect
               label={t(locale, "brief.template")}
               value={activeTemplateId || "custom"}
@@ -4051,194 +4328,466 @@ function LoopenStudioApp({
                 })),
               ]}
             />
-          </div>
-          <div className="field-row">
-            <label htmlFor="brand-name">{t(locale, "brief.brandName")} *</label>
-            <span>01</span>
-            <input
-              id="brand-name"
-              value={brandName}
-              placeholder={t(locale, "brief.ph.brandName")}
-              onChange={(event) => {
-                const next = event.target.value;
-                setWordmarkName((current) =>
-                  !current.trim() || current === brandName ? next : current,
-                );
-                setBrandName(next);
-                setActiveTemplateId((current) => {
-                  const template = BRIEF_TEMPLATES.find((item) => item.id === current);
-                  if (template && next !== template.brandName) return "";
-                  return current;
-                });
-              }}
-              required
-            />
-          </div>
-          <div className="field-row">
-            <label htmlFor="brand-idea">{t(locale, "brief.coreIdea")} *</label>
-            <span>02</span>
-            <textarea
-              id="brand-idea"
-              rows={2}
-              value={coreIdea}
-              placeholder={t(locale, "brief.ph.coreIdea")}
-              onChange={(event) => setCoreIdea(event.target.value)}
-              required
-            />
-          </div>
-          <div className="premium-fields">
-            <div className="industry-field">
-              <CreativeSelect
-                label={`${t(locale, "brief.industry")} *`}
-                value={industryChoice}
-                placeholder={t(locale, "brief.ph.industry")}
-                scrollable
-                onChange={(value) => {
-                  setIndustryChoice(value);
-                  if (value !== "Other") setIndustryOther("");
-                }}
-                options={INDUSTRY_OPTIONS.map((item) => ({
-                  value: item,
-                  label: t(locale, optionKey("brief.ind", item)),
-                }))}
-              />
-              {industryChoice === "Other" && (
-                <label>
-                  <span className="mini-label">{t(locale, "brief.industryOther")}</span>
+          </div> */}
+          <div className="brief-chapter">
+            <button
+              type="button"
+              className="brief-chapter-toggle"
+              aria-expanded={openBriefChapter === "who"}
+              onClick={() => toggleBriefChapter("who")}
+            >
+              <span className="brief-chapter-chevron" aria-hidden="true">
+                {openBriefChapter === "who" ? "−" : "+"}
+              </span>
+              <div>
+                <h3>{t(locale, "brief.chapter.who")}</h3>
+                <p>{t(locale, "brief.chapter.whoDesc")}</p>
+              </div>
+              <span className="brief-chapter-index">01</span>
+            </button>
+            {openBriefChapter === "who" ? (
+              <div className="brief-chapter-body">
+                <div className="field-row">
+                  <label htmlFor="brand-name">
+                    {t(locale, "brief.brandName")} *
+                  </label>
+                  <span aria-hidden="true" />
                   <input
-                    value={industryOther}
-                    placeholder={t(locale, "brief.ph.industryOther")}
-                    onChange={(event) => setIndustryOther(event.target.value)}
+                    id="brand-name"
+                    value={brandName}
+                    placeholder={t(locale, "brief.ph.brandName")}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setWordmarkName((current) =>
+                        !current.trim() || current === brandName
+                          ? next
+                          : current,
+                      );
+                      setBrandName(next);
+                      setActiveTemplateId((current) => {
+                        const template = BRIEF_TEMPLATES.find(
+                          (item) => item.id === current,
+                        );
+                        if (template && next !== template.brandName) return "";
+                        return current;
+                      });
+                    }}
                     required
                   />
-                </label>
-              )}
-            </div>
-            <label>
-              <span className="mini-label">{t(locale, "brief.companyDoes")} *</span>
-              <textarea
-                value={companyDescription}
-                placeholder={t(locale, "brief.ph.companyDoes")}
-                onChange={(event) => setCompanyDescription(event.target.value)}
-                rows={3}
-                required
-              />
-            </label>
-            <label>
-              <span className="mini-label">{t(locale, "brief.positioning")}</span>
-              <textarea
-                value={positioning}
-                placeholder={t(locale, "brief.ph.positioning")}
-                onChange={(event) => setPositioning(event.target.value)}
-                rows={2}
-              />
-            </label>
-            <label>
-              <span className="mini-label">{t(locale, "brief.competitors")}</span>
-              <textarea
-                value={competitors}
-                placeholder={t(locale, "brief.ph.competitors")}
-                onChange={(event) => setCompetitors(event.target.value)}
-                rows={2}
-              />
-            </label>
+                </div>
+                <div className="field-row">
+                  <label htmlFor="brand-idea">
+                    {t(locale, "brief.coreIdea")} *
+                  </label>
+                  <span aria-hidden="true" />
+                  <textarea
+                    id="brand-idea"
+                    rows={2}
+                    value={coreIdea}
+                    placeholder={t(locale, "brief.ph.coreIdea")}
+                    onChange={(event) => setCoreIdea(event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="premium-fields">
+                  <div className="industry-field wide-field">
+                    <CreativeSelect
+                      label={`${t(locale, "brief.industry")} *`}
+                      value={industryChoice}
+                      placeholder={t(locale, "brief.ph.industry")}
+                      scrollable
+                      onChange={(value) => {
+                        setIndustryChoice(value);
+                        if (value !== "other" && value !== "Other") {
+                          setIndustryOther("");
+                        }
+                      }}
+                      options={INDUSTRY_SELECT_OPTIONS.map((item) => ({
+                        value: item.value,
+                        label: t(locale, item.labelKey),
+                      }))}
+                    />
+                    {isOtherIndustry && (
+                      <label>
+                        <span className="mini-label">
+                          {t(locale, "brief.industryOther")}
+                        </span>
+                        <input
+                          value={industryOther}
+                          placeholder={t(locale, "brief.ph.industryOther")}
+                          onChange={(event) =>
+                            setIndustryOther(event.target.value)
+                          }
+                          required
+                        />
+                      </label>
+                    )}
+                  </div>
+                  <label className="wide-field">
+                    <span className="mini-label">
+                      {t(locale, "brief.companyDoes")} *
+                    </span>
+                    <textarea
+                      value={companyDescription}
+                      placeholder={t(locale, "brief.ph.companyDoes")}
+                      onChange={(event) =>
+                        setCompanyDescription(event.target.value)
+                      }
+                      rows={3}
+                      required
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
           </div>
-          <div className="personality-row">
-            <div className="field-label">
-              <label>{t(locale, "brief.personality")}</label>
-              <span>03</span>
-            </div>
-            <div className="chips">
-              {personalityOptions.map((item) => {
-                const active = personalities.includes(item);
-                return (
-                  <button
-                    key={item}
-                    className={active ? "chip active" : "chip"}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => togglePersonality(item)}
-                  >
-                    {active && <span>●</span>}
-                    {t(locale, `brief.person.${item.toLowerCase()}`)}
-                  </button>
-                );
-              })}
-            </div>
+
+          <div className="brief-chapter">
+            <button
+              type="button"
+              className="brief-chapter-toggle"
+              aria-expanded={openBriefChapter === "feel"}
+              onClick={() => toggleBriefChapter("feel")}
+            >
+              <span className="brief-chapter-chevron" aria-hidden="true">
+                {openBriefChapter === "feel" ? "−" : "+"}
+              </span>
+              <div>
+                <h3>{t(locale, "brief.chapter.feel")}</h3>
+                <p>{t(locale, "brief.chapter.feelDesc")}</p>
+              </div>
+              <span className="brief-chapter-index">02</span>
+            </button>
+            {openBriefChapter === "feel" ? (
+              <div className="brief-chapter-body">
+                <div className="personality-field">
+                  <span className="mini-label">
+                    {t(locale, "brief.personality")}
+                  </span>
+                  {personalities.length > 0 ? (
+                    <div className="competitor-specimens competitor-specimens-compact">
+                      {personalities.map((item, index) => {
+                        const key = item.toLowerCase();
+                        const label = t(locale, `brief.person.${key}`);
+                        return (
+                          <article
+                            key={`personality-${item}`}
+                            className="competitor-specimen"
+                            style={{ animationDelay: `${index * 40}ms` }}
+                          >
+                            <div className="competitor-specimen-top">
+                              <span
+                                className="competitor-specimen-mark"
+                                aria-hidden="true"
+                              >
+                                {item.charAt(0)}
+                              </span>
+                              <button
+                                type="button"
+                                className="competitor-specimen-remove"
+                                onClick={() => togglePersonality(item)}
+                                aria-label={`${t(locale, "brief.comp.remove")} ${label}`}
+                              >
+                                ×
+                              </button>
+                            </div>
+                            <div className="competitor-specimen-body">
+                              <h4 className="competitor-specimen-name">
+                                {label}
+                              </h4>
+                              <p className="competitor-specimen-desc">
+                                {t(locale, `brief.person.${key}.desc`)}
+                              </p>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                  {personalityOptions.some(
+                    (item) => !personalities.includes(item),
+                  ) ? (
+                    <div className="competitor-pool">
+                      <span className="competitor-pool-label">
+                        {t(locale, "brief.comp.tapToAdd")}
+                      </span>
+                      <div className="competitor-pool-grid">
+                        {personalityOptions
+                          .filter((item) => !personalities.includes(item))
+                          .map((item) => {
+                            const key = item.toLowerCase();
+                            const label = t(locale, `brief.person.${key}`);
+                            return (
+                              <button
+                                key={`personality-pool-${item}`}
+                                type="button"
+                                className="competitor-pool-tile"
+                                title={t(locale, `brief.person.${key}.desc`)}
+                                onClick={() => togglePersonality(item)}
+                              >
+                                <span
+                                  className="competitor-pool-mark"
+                                  aria-hidden="true"
+                                >
+                                  {item.charAt(0)}
+                                </span>
+                                <span className="competitor-pool-name">
+                                  {label}
+                                </span>
+                                <span
+                                  className="competitor-pool-plus"
+                                  aria-hidden="true"
+                                >
+                                  +
+                                </span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="premium-fields">
+                  <label className="wide-field">
+                    <span className="mini-label">
+                      {t(locale, "brief.visualDirection")}
+                    </span>
+                    <textarea
+                      value={visualDirection}
+                      placeholder={t(locale, "brief.ph.visualDirection")}
+                      onChange={(event) =>
+                        setVisualDirection(event.target.value)
+                      }
+                      rows={3}
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
           </div>
-          <div className="premium-fields production-brief">
-            <label>
-              <span className="mini-label">{t(locale, "brief.visualDirection")}</span>
-              <textarea
-                value={visualDirection}
-                placeholder={t(locale, "brief.ph.visualDirection")}
-                onChange={(event) => setVisualDirection(event.target.value)}
-                rows={3}
-              />
-            </label>
-            <label>
-              <span className="mini-label">{t(locale, "brief.audience")}</span>
-              <textarea
-                value={audience}
-                placeholder={t(locale, "brief.ph.audience")}
-                onChange={(event) => setAudience(event.target.value)}
-                rows={2}
-              />
-            </label>
-            <CreativeSelect
-              label={t(locale, "brief.colorStrategy")}
-              value={colorApproach}
-              onChange={(value) =>
-                setColorApproach(
-                  value as NonNullable<PremiumBrief["colorApproach"]>,
-                )
-              }
-              options={[
-                { value: "propose", label: t(locale, "brief.color.propose") },
-                { value: "existing", label: t(locale, "brief.color.existing") },
-                { value: "mood", label: t(locale, "brief.color.mood") },
-              ]}
-            />
-            {colorApproach === "existing" && (
-              <label>
-                <span className="mini-label">{t(locale, "brief.existingColors")}</span>
-                <textarea
-                  value={brandColors}
-                  onChange={(event) => setBrandColors(event.target.value)}
-                  rows={2}
-                  placeholder={t(locale, "brief.ph.existingColors")}
-                />
-              </label>
-            )}
-            {colorApproach !== "existing" && (
-              <label>
-                <span className="mini-label">{t(locale, "brief.colorMood")}</span>
-                <textarea
-                  value={colorMood}
-                  placeholder={t(locale, "brief.ph.colorMood")}
-                  onChange={(event) => setColorMood(event.target.value)}
-                  rows={2}
-                />
-              </label>
-            )}
-            <label>
-              <span className="mini-label">{t(locale, "brief.usage")}</span>
-              <textarea
-                value={usage}
-                placeholder={t(locale, "brief.ph.usage")}
-                onChange={(event) => setUsage(event.target.value)}
-                rows={2}
-              />
-            </label>
-            <label className="wide-field">
-              <span className="mini-label">{t(locale, "brief.avoid")}</span>
-              <textarea
-                value={avoid}
-                placeholder={t(locale, "brief.ph.avoid")}
-                onChange={(event) => setAvoid(event.target.value)}
-                rows={3}
-              />
-            </label>
+
+          <div className="brief-chapter">
+            <button
+              type="button"
+              className="brief-chapter-toggle"
+              aria-expanded={openBriefChapter === "context"}
+              onClick={() => toggleBriefChapter("context")}
+            >
+              <span className="brief-chapter-chevron" aria-hidden="true">
+                {openBriefChapter === "context" ? "−" : "+"}
+              </span>
+              <div>
+                <h3>{t(locale, "brief.chapter.context")}</h3>
+                <p>{t(locale, "brief.chapter.contextDesc")}</p>
+              </div>
+              <span className="brief-chapter-index">03</span>
+            </button>
+            {openBriefChapter === "context" ? (
+              <div className="brief-chapter-body">
+                <div className="premium-fields production-brief">
+                  <label>
+                    <span className="mini-label">
+                      {t(locale, "brief.positioning")}
+                    </span>
+                    <textarea
+                      value={positioning}
+                      placeholder={t(locale, "brief.ph.positioning")}
+                      onChange={(event) => setPositioning(event.target.value)}
+                      rows={2}
+                    />
+                  </label>
+                  <label>
+                    <span className="mini-label">
+                      {t(locale, "brief.audience")}
+                    </span>
+                    <textarea
+                      value={audience}
+                      placeholder={t(locale, "brief.ph.audience")}
+                      onChange={(event) => setAudience(event.target.value)}
+                      rows={2}
+                    />
+                  </label>
+                  <label>
+                    <span className="mini-label">{t(locale, "brief.market")}</span>
+                    <input
+                      value={market}
+                      placeholder={t(locale, "brief.ph.market")}
+                      onChange={(event) => setMarket(event.target.value)}
+                    />
+                  </label>
+                  <div className="brief-segment-pair">
+                    <div className="brief-segment-row">
+                      <span className="mini-label">
+                        {t(locale, "brief.companyScale")}
+                      </span>
+                      <div className="chips">
+                        {(
+                          [
+                            ["independent", "brief.scale.independent"],
+                            ["mid-size", "brief.scale.midSize"],
+                            ["global", "brief.scale.global"],
+                          ] as const
+                        ).map(([value, key]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={
+                              companyScale === value ? "chip active" : "chip"
+                            }
+                            aria-pressed={companyScale === value}
+                            onClick={() =>
+                              setCompanyScale((current) =>
+                                current === value ? "" : value,
+                              )
+                            }
+                          >
+                            {t(locale, key)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="brief-segment-row">
+                      <span className="mini-label">
+                        {t(locale, "brief.priceSegment")}
+                      </span>
+                      <div className="chips">
+                        {(
+                          [
+                            ["accessible", "brief.price.accessible"],
+                            ["premium", "brief.price.premium"],
+                            ["luxury", "brief.price.luxury"],
+                          ] as const
+                        ).map(([value, key]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={
+                              priceSegment === value ? "chip active" : "chip"
+                            }
+                            aria-pressed={priceSegment === value}
+                            onClick={() =>
+                              setPriceSegment((current) =>
+                                current === value ? "" : value,
+                              )
+                            }
+                          >
+                            {t(locale, key)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {competitorIndustryReady ? (
+                    <CompetitorField
+                      title={t(locale, "brief.competitors")}
+                      labels={competitorFieldLabels}
+                      suggestionsReady={competitorIndustryKnown}
+                      direct={{
+                        label: t(locale, "brief.directCompetitors"),
+                        hint: t(locale, "brief.directCompetitorsDesc"),
+                        suggestions: competitorIndustryKnown
+                          ? competitorSuggestions.direct
+                          : [],
+                        value: directCompetitors,
+                        onChange: setDirectCompetitors,
+                        rejected: rejectedDirect,
+                        onRejectedChange: setRejectedDirect,
+                        onShowMore: () =>
+                          setDirectLimit((value) => value + 4),
+                        needsManualInput:
+                          competitorIndustryKnown &&
+                          competitorSuggestions.needsManualInput,
+                      }}
+                      references={{
+                        label: t(locale, "brief.brandReferences"),
+                        hint: t(locale, "brief.brandReferencesDesc"),
+                        suggestions: competitorIndustryKnown
+                          ? competitorSuggestions.references
+                          : [],
+                        value: brandReferences,
+                        onChange: setBrandReferences,
+                        rejected: rejectedReferences,
+                        onRejectedChange: setRejectedReferences,
+                        onShowMore: () =>
+                          setReferenceLimit((value) => value + 4),
+                        showLikedAspects: true,
+                      }}
+                    />
+                  ) : null}
+                  <div className="brief-half-field">
+                    <CreativeSelect
+                      label={t(locale, "brief.colorStrategy")}
+                      value={colorApproach}
+                      onChange={(value) =>
+                        setColorApproach(
+                          value as NonNullable<PremiumBrief["colorApproach"]>,
+                        )
+                      }
+                      options={[
+                        {
+                          value: "propose",
+                          label: t(locale, "brief.color.propose"),
+                        },
+                        {
+                          value: "existing",
+                          label: t(locale, "brief.color.existing"),
+                        },
+                        {
+                          value: "mood",
+                          label: t(locale, "brief.color.mood"),
+                        },
+                      ]}
+                    />
+                  </div>
+                  {colorApproach === "existing" && (
+                    <label className="wide-field">
+                      <span className="mini-label">
+                        {t(locale, "brief.existingColors")}
+                      </span>
+                      <textarea
+                        value={brandColors}
+                        onChange={(event) =>
+                          setBrandColors(event.target.value)
+                        }
+                        rows={2}
+                        placeholder={t(locale, "brief.ph.existingColors")}
+                      />
+                    </label>
+                  )}
+                  {colorApproach !== "existing" && (
+                    <label className="wide-field">
+                      <span className="mini-label">
+                        {t(locale, "brief.colorMood")}
+                      </span>
+                      <textarea
+                        value={colorMood}
+                        placeholder={t(locale, "brief.ph.colorMood")}
+                        onChange={(event) => setColorMood(event.target.value)}
+                        rows={2}
+                      />
+                    </label>
+                  )}
+                  <label>
+                    <span className="mini-label">{t(locale, "brief.usage")}</span>
+                    <textarea
+                      value={usage}
+                      placeholder={t(locale, "brief.ph.usage")}
+                      onChange={(event) => setUsage(event.target.value)}
+                      rows={2}
+                    />
+                  </label>
+                  <label className="wide-field">
+                    <span className="mini-label">{t(locale, "brief.avoid")}</span>
+                    <textarea
+                      value={avoid}
+                      placeholder={t(locale, "brief.ph.avoid")}
+                      onChange={(event) => setAvoid(event.target.value)}
+                      rows={3}
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
           </div>
           <div className="generate-row">
             <p>
@@ -5141,9 +5690,17 @@ function LoopenStudioApp({
               <button type="button" onClick={() => void exportLockup("png", "icon", 1024)} disabled={!selectedVector || Boolean(exportingKey)}>
                 {t(locale, "prod.export.social")} {exportingKey === "png-icon-1024" ? <RequestDrop label={t(locale, "prod.loader.social")} /> : "↓"}
               </button>
-              <button type="button" onClick={printBrandGuide} disabled={!selectedVector}>
+              <button
+                type="button"
+                onClick={() => void printBrandGuide()}
+                disabled={!selectedVector || Boolean(exportingKey)}
+              >
                 {t(locale, "prod.export.guide")}
-                <ActionArrow />
+                {exportingKey === "brand-guide" ? (
+                  <RequestDrop label={t(locale, "prod.loader.guide")} />
+                ) : (
+                  <ActionArrow />
+                )}
               </button>
             </div>
           </div>

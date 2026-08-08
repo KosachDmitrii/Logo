@@ -6,11 +6,15 @@ export type LogoBrief = {
   brandName: string;
   companyDescription: string;
   competitors: string;
+  brandReferences: string;
   colorApproach: "propose" | "existing" | "mood";
   brandColors: string;
   colorMood: string;
   coreIdea: string;
   industry: string;
+  market: string;
+  companyScale: string;
+  priceSegment: string;
   logoType: "abstract" | "monogram" | "wordmark" | "emblem" | "combination";
   personalities: string[];
   positioning: string;
@@ -170,7 +174,9 @@ Personality: ${brief.personalities.join(", ") || "intelligent, clear, memorable"
 Selected direction: ${directionTitle}
 Variant: ${variant === 1 ? "optically balanced and restrained" : "slightly bolder and more distinctive"}
 Visual direction: ${brief.visualDirection || "minimal, distinctive, ownable"}
+Market / scale / price: ${[brief.market, brief.companyScale, brief.priceSegment].filter(Boolean).join(" · ") || "unspecified"}
 Competitors to remain visually distinct from: ${brief.competitors || "common category leaders"}
+Brand references (visual taste only, not to imitate; follow liked aspects where noted): ${brief.brandReferences || "none supplied"}
 Avoid: ${brief.avoid || "literal industry icons and stock-logo clichés"}
 
 Image 0 is the approved source symbol. Preserve its central visual idea,
@@ -213,7 +219,13 @@ export function validateBrief(value: unknown): LogoBrief {
   const audience = cleanString(input.audience);
   const avoid = cleanString(input.avoid);
   const positioning = cleanString(input.positioning);
-  const competitors = cleanString(input.competitors);
+  const competitors = normalizeCompetitorField(
+    input.competitors ?? input.directCompetitors,
+  );
+  const brandReferences = normalizeCompetitorField(input.brandReferences);
+  const market = cleanString(input.market);
+  const companyScale = cleanString(input.companyScale);
+  const priceSegment = cleanString(input.priceSegment);
   const colorApproaches = ["propose", "existing", "mood"] as const;
   const colorApproach = colorApproaches.includes(
     input.colorApproach as (typeof colorApproaches)[number],
@@ -251,11 +263,15 @@ export function validateBrief(value: unknown): LogoBrief {
     brandName,
     companyDescription,
     competitors,
+    brandReferences,
     colorApproach,
     brandColors,
     colorMood,
     coreIdea,
     industry,
+    market,
+    companyScale,
+    priceSegment,
     logoType,
     personalities,
     positioning,
@@ -263,6 +279,55 @@ export function validateBrief(value: unknown): LogoBrief {
     visualDirection,
     briefLocale,
   };
+}
+
+const LIKED_ASPECTS = new Set([
+  "logo",
+  "typography",
+  "color",
+  "layout",
+  "motion",
+  "tone",
+]);
+
+function normalizeLikedAspects(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const key = item.trim().toLowerCase();
+    if (!LIKED_ASPECTS.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push(key);
+  }
+  return out;
+}
+
+function normalizeCompetitorField(value: unknown): string {
+  if (typeof value === "string") return cleanString(value);
+  if (!Array.isArray(value)) return "";
+  return value
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (!item || typeof item !== "object") return "";
+      const record = item as Record<string, unknown>;
+      const name = typeof record.name === "string" ? record.name.trim() : "";
+      const url =
+        (typeof record.website === "string" && record.website.trim()) ||
+        (typeof record.url === "string" && record.url.trim()) ||
+        "";
+      if (!name) return "";
+      const aspects = normalizeLikedAspects(
+        record.likedAspects ?? record.aspects,
+      );
+      const details: string[] = [];
+      if (url) details.push(url);
+      if (aspects.length) details.push(`like: ${aspects.join(", ")}`);
+      return details.length ? `${name} (${details.join("; ")})` : name;
+    })
+    .filter(Boolean)
+    .join(", ");
 }
 
 function redactBrandName(value: string, brandName: string) {
@@ -292,7 +357,9 @@ What they do: ${company}
 Idea the mark must express: ${coreIdea}
 Personality: ${brief.personalities.join(", ") || "intelligent, precise, memorable"}
 Positioning: ${positioning}
+Market / scale / price: ${[brief.market, brief.companyScale, brief.priceSegment].filter(Boolean).join(" · ") || "unspecified"}
 Stay distinct from: ${brief.competitors || "common category leaders"}
+Brand references (visual taste only, not to imitate; follow liked aspects where noted): ${brief.brandReferences || "none supplied"}
 Avoid: ${brief.avoid || "literal industry icons and stock-logo clichés"}
   `.trim();
 

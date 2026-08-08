@@ -1,4 +1,5 @@
-import type { StudioDraft, StudioSessionSnapshot } from "./studio-types";
+import { asBriefText, parseCompetitorEntries } from "./brief-options.ts";
+import type { StudioDraft, StudioSessionSnapshot } from "./studio-types.ts";
 
 export const STUDIO_SESSION_KEY = "loopen-studio-session-v1";
 
@@ -21,7 +22,14 @@ export function createEmptyStudioDraft(): StudioDraft {
     companyDescription: "",
     audience: "",
     positioning: "",
+    market: "",
+    companyScale: "",
+    priceSegment: "",
     competitors: "",
+    directCompetitors: [],
+    brandReferences: [],
+    rejectedDirect: [],
+    rejectedReferences: [],
     colorApproach: "propose",
     brandColors: "",
     colorMood: "",
@@ -53,6 +61,10 @@ export function createEmptyStudioDraft(): StudioDraft {
 }
 
 export function draftFromSnapshot(snapshot: StudioSessionSnapshot): StudioDraft {
+  const directCompetitors = parseCompetitorEntries(
+    snapshot.directCompetitors ?? snapshot.competitors,
+  );
+  const brandReferences = parseCompetitorEntries(snapshot.brandReferences);
   return {
     projectId: snapshot.projectId,
     activeTemplateId: snapshot.activeTemplateId ?? "",
@@ -60,9 +72,24 @@ export function draftFromSnapshot(snapshot: StudioSessionSnapshot): StudioDraft 
     coreIdea: snapshot.coreIdea ?? "",
     industry: snapshot.industry ?? "",
     companyDescription: snapshot.companyDescription ?? "",
-    audience: snapshot.audience ?? "",
-    positioning: snapshot.positioning ?? "",
-    competitors: snapshot.competitors ?? "",
+    audience: asBriefText(snapshot.audience),
+    positioning: asBriefText(snapshot.positioning),
+    market: snapshot.market ?? "",
+    companyScale: snapshot.companyScale ?? "",
+    priceSegment: snapshot.priceSegment ?? "",
+    competitors: asBriefText(snapshot.competitors),
+    directCompetitors,
+    brandReferences,
+    rejectedDirect: Array.isArray(snapshot.rejectedDirect)
+      ? snapshot.rejectedDirect.filter(
+          (item): item is string => typeof item === "string",
+        )
+      : [],
+    rejectedReferences: Array.isArray(snapshot.rejectedReferences)
+      ? snapshot.rejectedReferences.filter(
+          (item): item is string => typeof item === "string",
+        )
+      : [],
     colorApproach: snapshot.colorApproach ?? "propose",
     brandColors: snapshot.brandColors ?? "",
     colorMood: snapshot.colorMood ?? "",

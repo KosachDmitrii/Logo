@@ -81,7 +81,10 @@ function fallbackStrategy(brief: ReturnType<typeof validateBrief>): BrandStrateg
     competitorRisks: [
       brief.competitors
         ? `Avoid the dominant forms and typography used by ${brief.competitors}`
-        : "No competitors supplied — manual category review is still recommended",
+        : "No direct competitors supplied — add companies manually or paste a website URL",
+      brief.brandReferences
+        ? `Use ${brief.brandReferences} only as visual/communication taste references — prioritize the liked aspects where noted, and do not imitate marks or systems`
+        : "No brand references supplied — rely on category whitespace and brief personality",
       `Avoid ${brief.avoid || "literal category symbols and stock-logo geometry"}`,
     ],
     differentiation: `${brief.coreIdea} should become one ownable visual mechanism rather than a literal illustration of ${brief.industry}. Brief language preference: ${brief.briefLocale ?? "en"}.`,
