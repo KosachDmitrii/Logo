@@ -38,6 +38,11 @@ body {
   overflow-x: hidden;
 }
 
+.studio-boot {
+  min-height: 100vh;
+  width: 100%;
+}
+
 /* <i> is used for icons/arrows, not italics (<em>). */
 i {
   font-style: normal;
@@ -97,7 +102,7 @@ textarea:focus-visible {
   background: rgba(228, 224, 224, 0.9);
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: 100;
 }
 
 .wordmark {
@@ -4071,27 +4076,6 @@ textarea:focus-visible {
   width: 100%;
 }
 
-.lockup-rail .creative-select-menu {
-  background: #141312;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55);
-  color: #fff;
-  isolation: isolate;
-  left: 0;
-  right: 0;
-  width: 100%;
-}
-
-.lockup-rail .creative-select-menu button {
-  background: #141312;
-  border-bottom-color: rgba(255, 255, 255, 0.1);
-}
-
-.lockup-rail .creative-select-menu button:hover,
-.lockup-rail .creative-select-menu button[aria-selected="true"] {
-  background: #2a2418;
-}
-
 .creative-select {
   align-self: start;
   display: flex;
@@ -4164,21 +4148,6 @@ textarea:focus-visible {
   overscroll-behavior: contain;
 }
 
-.production-brief .creative-select-menu {
-  background: var(--acid);
-  border-color: rgba(32, 31, 30, 0.42);
-  color: var(--ink);
-}
-
-.production-brief .creative-select-menu button {
-  background: var(--acid);
-}
-
-.production-brief .creative-select-menu button:hover,
-.production-brief .creative-select-menu button[aria-selected="true"] {
-  background: #e6c45c;
-}
-
 .creative-select-menu button {
   align-items: center;
   background: #141312;
@@ -4213,6 +4182,49 @@ textarea:focus-visible {
 .creative-select-menu strong {
   font-size: 13px;
   font-weight: 500;
+}
+
+/* Brief + lockup menus: yellow panel like the color-approach select */
+.production-brief .creative-select-menu,
+.lockup-rail .creative-select-menu {
+  background: var(--acid);
+  border: 1px solid rgba(32, 31, 30, 0.42);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+}
+
+.lockup-rail .creative-select-menu {
+  left: 0;
+  min-width: 100%;
+  right: 0;
+  width: 100%;
+}
+
+.production-brief .creative-select-menu button,
+.lockup-rail .creative-select-menu button {
+  background: var(--acid);
+  border-bottom-color: rgba(32, 31, 30, 0.14);
+}
+
+.production-brief .creative-select-menu button:hover,
+.production-brief .creative-select-menu button[aria-selected="true"],
+.lockup-rail .creative-select-menu button:hover,
+.lockup-rail .creative-select-menu button[aria-selected="true"] {
+  background: #e6c45c;
+}
+
+.production-brief .creative-select-menu span,
+.production-brief .creative-select-menu i,
+.lockup-rail .creative-select-menu span,
+.lockup-rail .creative-select-menu i {
+  color: var(--ink);
+  opacity: 0.55;
+}
+
+.production-brief .creative-select-menu strong,
+.lockup-rail .creative-select-menu strong {
+  color: var(--ink);
+  font-weight: 650;
 }
 
 .editor-color-options {
@@ -4321,7 +4333,7 @@ textarea:focus-visible {
   display: flex;
   justify-content: center;
   min-height: 460px;
-  overflow: hidden;
+  overflow: visible;
   padding: 40px;
   position: relative;
 }
@@ -4357,10 +4369,18 @@ textarea:focus-visible {
 }
 
 .lockup-mark-slot {
+  align-items: center;
   box-sizing: border-box;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  overflow: visible;
+}
+
+.lockup-mark-rotate {
   flex: 0 0 auto;
   height: var(--mark-size, 112px);
-  overflow: hidden;
+  transform-origin: center center;
   width: var(--mark-size, 112px);
 }
 
@@ -4391,9 +4411,39 @@ textarea:focus-visible {
 .lockup-preview-type {
   display: flex;
   flex-direction: column;
+  gap: calc(var(--wordmark-size, 112px) * 0.14);
   justify-content: center;
   max-width: 100%;
   min-width: 0;
+}
+
+.lockup-type-slot {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  max-width: 100%;
+  overflow: visible;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+}
+
+.lockup-type-slot.is-draggable {
+  cursor: grab;
+}
+
+.lockup-type-slot.is-dragging {
+  cursor: grabbing;
+  z-index: 2;
+}
+
+.lockup-type-slot > strong,
+.lockup-type-slot > span {
+  flex: 0 0 auto;
+  pointer-events: none;
+  transform-origin: center center;
+  white-space: nowrap;
 }
 
 .lockup-preview strong {
@@ -4417,11 +4467,159 @@ textarea:focus-visible {
   font-weight: 500;
 }
 
+.lockup-preview-single,
+.lockup-preview-compare {
+  display: grid;
+  min-height: 100%;
+  min-width: 0;
+}
+
+.lockup-preview-compare {
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.lockup-preview-compare .lockup-preview {
+  min-height: 420px;
+}
+
+.lockup-rail .lockup-reset-block {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.lockup-rail .lockup-reset-block > .mini-label {
+  flex: 0 0 auto;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.lockup-rail .lockup-reset-offsets {
+  align-items: center;
+  background: rgba(255, 207, 104, 0.06);
+  border: 1px solid rgba(255, 207, 104, 0.28);
+  color: rgba(255, 207, 104, 0.72);
+  cursor: pointer;
+  display: flex;
+  flex: 1 1 auto;
+  font: 10px/1 var(--font-geist-mono), monospace;
+  gap: 12px;
+  justify-content: space-between;
+  letter-spacing: 0.12em;
+  min-width: 0;
+  padding: 11px 12px;
+  text-align: left;
+  text-transform: uppercase;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.lockup-rail .lockup-reset-offsets i {
+  font-size: 14px;
+  font-style: normal;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.lockup-rail .lockup-reset-offsets.is-dirty {
+  background: rgba(255, 207, 104, 0.14);
+  border-color: var(--acid);
+  color: var(--acid);
+}
+
+.lockup-rail .lockup-reset-offsets:hover:not(:disabled) {
+  background: var(--acid);
+  border-color: var(--acid);
+  color: var(--ink);
+}
+
+.lockup-rail .lockup-reset-offsets:hover:not(:disabled) i {
+  opacity: 1;
+}
+
+.lockup-rail .lockup-reset-offsets:disabled {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.28);
+  cursor: default;
+}
+
+.lockup-rail .lockup-reset-offsets:disabled i {
+  opacity: 0.4;
+}
+
+.lockup-util-row {
+  margin-top: 12px;
+}
+
+.lockup-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.lockup-preset-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr auto;
+}
+
+.lockup-preset-row > button {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: inherit;
+  cursor: pointer;
+  font: 11px var(--font-geist-mono), monospace;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.lockup-preset-delete {
+  min-width: 34px;
+  text-align: center;
+}
+
+.lockup-preview .descriptor-modern,
+.lockup-preview .descriptor-geometric {
+  font-family: var(--font-geist-mono), monospace;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.lockup-preview .descriptor-humanist {
+  font-family: "Avenir Next", "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.lockup-preview .descriptor-editorial {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.lockup-preview .descriptor-custom {
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+
+.lockup-preview .descriptor-google {
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+
 .lockup-preview span {
   font-family: var(--font-geist-mono), monospace;
   font-size: var(--descriptor-size, 12px);
   letter-spacing: 0.22em;
-  margin-top: calc(var(--wordmark-size, 112px) * 0.14);
+  margin-top: 0;
   text-transform: uppercase;
 }
 
@@ -4457,6 +4655,7 @@ textarea:focus-visible {
 
 .size-test {
   align-items: end;
+  justify-content: space-around;
   display: flex;
   gap: 28px;
   margin-top: 36px;
@@ -5388,7 +5587,7 @@ textarea:focus-visible {
   .loop-orbit {
     height: 0.42em;
     margin-bottom: -0.45em;
-    transform: rotate(-17deg) translateX(-120%);
+    transform: rotate(-17deg) translate3d(-94%, -25%, 0);
     width: 0.68em;
   }
 
@@ -5638,6 +5837,10 @@ textarea:focus-visible {
 
   .lockup-preview.icon .lockup-preview-fit {
     margin: auto;
+  }
+
+  .lockup-preview-compare {
+    grid-template-columns: 1fr;
   }
 
   .lockup-preview strong {

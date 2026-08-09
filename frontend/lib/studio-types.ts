@@ -3,8 +3,14 @@ import type {
   CompetitorEntry,
   PriceSegment,
 } from "./brief-options.ts";
+import type {
+  LockupLayout,
+  LockupOptics,
+  LockupPreset,
+} from "./lockup-optics.ts";
 
 export type { CompetitorEntry, CompanyScale, PriceSegment };
+export type { LockupLayout, LockupOptics, LockupPreset };
 
 export type GeneratedConcept = {
   directionKey: string;
@@ -103,17 +109,32 @@ export type StudioSessionSnapshot = {
   /** When true, stages 04–05 stay cleared (e.g. Reduce in progress). */
   productionLocked: boolean;
   vectorSourceMode: "refine" | "original";
-  lockupLayout: "horizontal" | "vertical" | "icon";
+  lockupLayout: LockupLayout;
   lockupColor: string;
   wordmarkName: string;
   descriptor: string;
   wordmarkStyle: string;
+  descriptorStyle: string;
+  wordmarkFontId: string | null;
+  descriptorFontId: string | null;
   wordmarkCase: "original" | "upper" | "lower";
   wordmarkWeight: number;
   wordmarkTracking: number;
   wordmarkSize: number;
   descriptorSize: number;
   markScale: number;
+  markFlipX: boolean;
+  markFlipY: boolean;
+  markRotate: number;
+  wordmarkRotate: number;
+  descriptorRotate: number;
+  wordmarkOffsetX: number;
+  wordmarkOffsetY: number;
+  descriptorOffsetX: number;
+  descriptorOffsetY: number;
+  lockupByLayout: Record<LockupLayout, Partial<LockupOptics>>;
+  lockupPresets: LockupPreset[];
+  compareSnapshot: (LockupOptics & { lockupLayout: LockupLayout }) | null;
 };
 
 /** Session fields without snapshot metadata (v, savedAt). */

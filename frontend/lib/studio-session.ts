@@ -1,5 +1,33 @@
 import { asBriefText, parseCompetitorEntries } from "./brief-options.ts";
+import {
+  clampLockupOffset,
+  clampRotate,
+  defaultLockupOptics,
+  type LockupLayout,
+  type LockupOptics,
+  type LockupPreset,
+} from "./lockup-optics.ts";
 import type { StudioDraft, StudioSessionSnapshot } from "./studio-types.ts";
+
+function asLockupLayout(value: unknown): LockupLayout {
+  if (value === "vertical" || value === "icon" || value === "horizontal") {
+    return value;
+  }
+  return "horizontal";
+}
+
+function asOpticsPartial(value: unknown): Partial<LockupOptics> {
+  if (!value || typeof value !== "object") return {};
+  const raw = value as Record<string, unknown>;
+  const next: Partial<LockupOptics> = {};
+  const defaults = defaultLockupOptics();
+  for (const key of Object.keys(defaults) as Array<keyof LockupOptics>) {
+    if (key in raw) {
+      (next as Record<string, unknown>)[key] = raw[key as string];
+    }
+  }
+  return next;
+}
 
 export const STUDIO_SESSION_KEY = "loopen-studio-session-v1";
 
@@ -47,16 +75,14 @@ export function createEmptyStudioDraft(): StudioDraft {
     productionLocked: false,
     vectorSourceMode: "refine",
     lockupLayout: "horizontal",
-    lockupColor: "#201f1e",
-    wordmarkName: "",
-    descriptor: "",
-    wordmarkStyle: "modern",
-    wordmarkCase: "original",
-    wordmarkWeight: 600,
-    wordmarkTracking: -3,
-    wordmarkSize: 112,
-    descriptorSize: 24,
-    markScale: 100,
+    ...defaultLockupOptics(),
+    lockupByLayout: {
+      horizontal: {},
+      vertical: {},
+      icon: {},
+    },
+    lockupPresets: [],
+    compareSnapshot: null,
   };
 }
 
@@ -106,17 +132,60 @@ export function draftFromSnapshot(snapshot: StudioSessionSnapshot): StudioDraft 
     selectedVector: snapshot.selectedVector ?? "",
     productionLocked: Boolean(snapshot.productionLocked),
     vectorSourceMode: snapshot.vectorSourceMode ?? "refine",
-    lockupLayout: snapshot.lockupLayout ?? "horizontal",
+    lockupLayout: asLockupLayout(snapshot.lockupLayout),
     lockupColor: snapshot.lockupColor ?? "#201f1e",
     wordmarkName: snapshot.wordmarkName ?? snapshot.brandName ?? "",
     descriptor: snapshot.descriptor ?? "",
     wordmarkStyle: snapshot.wordmarkStyle ?? "modern",
+    descriptorStyle: snapshot.descriptorStyle ?? "modern",
+    wordmarkFontId:
+      typeof snapshot.wordmarkFontId === "string"
+        ? snapshot.wordmarkFontId
+        : null,
+    descriptorFontId:
+      typeof snapshot.descriptorFontId === "string"
+        ? snapshot.descriptorFontId
+        : null,
     wordmarkCase: snapshot.wordmarkCase ?? "original",
     wordmarkWeight: snapshot.wordmarkWeight ?? 600,
     wordmarkTracking: snapshot.wordmarkTracking ?? -3,
     wordmarkSize: snapshot.wordmarkSize ?? 112,
     descriptorSize: snapshot.descriptorSize ?? 24,
     markScale: snapshot.markScale ?? 100,
+    markFlipX: Boolean(snapshot.markFlipX),
+    markFlipY: Boolean(snapshot.markFlipY),
+    markRotate: clampRotate(Number(snapshot.markRotate ?? 0)),
+    wordmarkRotate: clampRotate(Number(snapshot.wordmarkRotate ?? 0)),
+    descriptorRotate: clampRotate(Number(snapshot.descriptorRotate ?? 0)),
+    wordmarkOffsetX: clampLockupOffset(Number(snapshot.wordmarkOffsetX ?? 0)),
+    wordmarkOffsetY: clampLockupOffset(Number(snapshot.wordmarkOffsetY ?? 0)),
+    descriptorOffsetX: clampLockupOffset(
+      Number(snapshot.descriptorOffsetX ?? 0),
+    ),
+    descriptorOffsetY: clampLockupOffset(
+      Number(snapshot.descriptorOffsetY ?? 0),
+    ),
+    lockupByLayout: {
+      horizontal: asOpticsPartial(snapshot.lockupByLayout?.horizontal),
+      vertical: asOpticsPartial(snapshot.lockupByLayout?.vertical),
+      icon: asOpticsPartial(snapshot.lockupByLayout?.icon),
+    },
+    lockupPresets: Array.isArray(snapshot.lockupPresets)
+      ? (snapshot.lockupPresets as LockupPreset[]).filter(
+          (item) => item && typeof item.id === "string" && item.optics,
+        )
+      : [],
+    compareSnapshot:
+      snapshot.compareSnapshot && typeof snapshot.compareSnapshot === "object"
+        ? {
+            ...defaultLockupOptics(),
+            ...asOpticsPartial(snapshot.compareSnapshot),
+            lockupLayout: asLockupLayout(
+              (snapshot.compareSnapshot as { lockupLayout?: unknown })
+                .lockupLayout,
+            ),
+          }
+        : null,
   };
 }
 
@@ -181,7 +250,7 @@ export function getClientStudioSnapshot(): StudioSessionSnapshot | null {
   return window.__loopenStudioSessionCache ?? null;
 }
 
-/** No-op subscribe — snapshot is read once at boot; edits go through React state. */
+/** No-op subscribe — session is applied once in LoopenStudio after mount. */
 export function subscribeStudioSession(_onStoreChange?: () => void) {
   void _onStoreChange;
   return () => {};

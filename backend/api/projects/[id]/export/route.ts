@@ -1,4 +1,5 @@
 import { getStudioUser } from "@/backend/auth/session";
+import { lockupMarkSizePx } from "@/frontend/lib/lockup-export";
 import { prepareLockupMarkSvg } from "@/frontend/lib/lockup-svg";
 import { escapeXml, sanitizeSvg } from "@/backend/lib/mvp-runtime";
 import { selectOne } from "@/backend/lib/supabase";
@@ -75,13 +76,10 @@ export async function POST(
   const descriptorRaw = (input.descriptor ?? "").trim().slice(0, 80);
   const descriptorUpper = escapeXml(descriptorRaw.toUpperCase());
 
-  // Mirror preview formulas in frontend/loopen-studio.tsx + globals.css
-  const markScaleFactor = Math.min(4, Math.max(0.7, Number(input.markScale ?? 100) / 100));
+  // Mirror preview: mark size from Mark scale only (not wordmark size).
   const titleSize = Math.min(192, Math.max(24, Math.round(Number(input.wordmarkSize ?? 112))));
   const lineSize = Math.min(36, Math.max(6, Math.round(Number(input.descriptorSize ?? 24))));
-  const markSize = Math.round(
-    (layout === "vertical" ? titleSize * 2 : titleSize * 2.2) * markScaleFactor,
-  );
+  const markSize = lockupMarkSizePx(Number(input.markScale ?? 100));
   const typography = {
     editorial: {
       family: "Georgia, Times New Roman, serif",

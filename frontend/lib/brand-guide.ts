@@ -9,6 +9,7 @@ export type BrandGuideOptics = {
   layout: "horizontal" | "vertical" | "icon";
   layoutLabel: string;
   wordmarkStyleLabel: string;
+  descriptorStyleLabel?: string;
   wordmarkCaseLabel: string;
   wordmarkWeight: number;
   wordmarkTracking: number;
@@ -18,6 +19,15 @@ export type BrandGuideOptics = {
   markScale: number;
   color: string;
   markSizePx: number;
+  markFlipX?: boolean;
+  markFlipY?: boolean;
+  markRotate?: number;
+  wordmarkRotate?: number;
+  descriptorRotate?: number;
+  wordmarkOffsetX?: number;
+  wordmarkOffsetY?: number;
+  descriptorOffsetX?: number;
+  descriptorOffsetY?: number;
 };
 
 export type BrandGuideBrief = {
@@ -69,8 +79,30 @@ function list(items: string[]) {
   return `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
 }
 
-function lockupFrame(svg: string, label: string, tone: "light" | "dark" = "light") {
+function lockupFrame(
+  svg: string,
+  label: string,
+  tone: "light" | "dark" | "approved" = "light",
+) {
   return `<div class="lockup-frame ${tone}"><div class="lockup">${svg}</div><span>${escapeHtml(label)}</span></div>`;
+}
+
+/** Strip free transforms so alternate layouts stay readable in the guide. */
+function cleanLayoutBase(
+  base: Omit<LockupExportInput, "layout" | "color" | "markSvg">,
+): Omit<LockupExportInput, "layout" | "color" | "markSvg"> {
+  return {
+    ...base,
+    markFlipX: false,
+    markFlipY: false,
+    markRotate: 0,
+    wordmarkRotate: 0,
+    descriptorRotate: 0,
+    wordmarkOffsetX: 0,
+    wordmarkOffsetY: 0,
+    descriptorOffsetX: 0,
+    descriptorOffsetY: 0,
+  };
 }
 
 function buildLockups(
@@ -79,25 +111,40 @@ function buildLockups(
   color: string,
   layout: LockupExportInput["layout"],
 ) {
-  const common = { ...base, markSvg };
+  const approved = { ...base, markSvg };
+  const clean = { ...cleanLayoutBase(base), markSvg };
   const ink = /^#[0-9a-f]{6}$/i.test(color) ? color : "#201F1E";
   return {
-    primary: buildLockupSvg({ ...common, layout, color: ink }),
-    horizontal: buildLockupSvg({ ...common, layout: "horizontal", color: ink }),
-    vertical: buildLockupSvg({ ...common, layout: "vertical", color: ink }),
-    icon: buildLockupSvg({ ...common, layout: "icon", color: ink }),
-    primaryInverse: buildLockupSvg({ ...common, layout, color: "#FFFFFF" }),
+    /** Exact studio lockup — use this for cover + approved frame. */
+    primary: buildLockupSvg({ ...approved, layout, color: ink }),
+    primaryInverse: buildLockupSvg({
+      ...approved,
+      layout,
+      color: "#FFFFFF",
+    }),
+    /** Standard layout variants without free rotate/offset. */
+    horizontal: buildLockupSvg({
+      ...clean,
+      layout: "horizontal",
+      color: ink,
+    }),
+    vertical: buildLockupSvg({ ...clean, layout: "vertical", color: ink }),
+    icon: buildLockupSvg({ ...clean, layout: "icon", color: ink }),
     horizontalInverse: buildLockupSvg({
-      ...common,
+      ...clean,
       layout: "horizontal",
       color: "#FFFFFF",
     }),
     verticalInverse: buildLockupSvg({
-      ...common,
+      ...clean,
       layout: "vertical",
       color: "#FFFFFF",
     }),
-    iconInverse: buildLockupSvg({ ...common, layout: "icon", color: "#FFFFFF" }),
+    iconInverse: buildLockupSvg({
+      ...clean,
+      layout: "icon",
+      color: "#FFFFFF",
+    }),
   };
 }
 
@@ -136,8 +183,7 @@ export function buildBrandGuideHtml(input: {
     return `${item.name}${aspects}`;
   });
 
-  const coverLockup =
-    optics.layout === "icon" ? lockups.iconInverse : lockups.primaryInverse;
+  const coverLockup = lockups.primary;
 
   return `<!doctype html>
 <html lang="en">
@@ -158,18 +204,21 @@ h3{font-size:18px;letter-spacing:-.02em;margin:28px 0 12px}
 p{margin:0}
 .muted{color:rgba(32,31,30,.55)}
 .cover .muted,.cover .idea{color:rgba(255,255,255,.72)}
-.cover-lockup{display:grid;place-items:center;min-height:280px;padding:20px 0}
-.cover-lockup svg{max-width:min(520px,86%);max-height:300px;width:auto;height:auto}
+.cover-lockup{display:grid;place-items:center;min-height:300px;padding:8px 0}
+.cover-lockup-card{align-items:center;background:#f3f0ea;border:1px solid rgba(255,255,255,.28);display:flex;justify-content:center;max-width:min(640px,92%);min-height:240px;padding:36px 40px;width:100%;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cover-lockup-card svg{display:block;height:auto;max-height:280px;max-width:100%;width:auto}
 .idea{max-width:46ch;font-size:16px;line-height:1.45}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:28px 36px}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 .card{border-top:2px solid #201f1e;padding-top:14px}
 .card b{display:block;margin-bottom:8px}
 .card p,.card ul{margin:0;color:rgba(32,31,30,.78)}
-.lockup-frame{border:1px solid rgba(32,31,30,.14);display:flex;flex-direction:column;gap:14px;min-height:240px;padding:28px 22px 18px}
+.lockup-frame{border:1px solid rgba(32,31,30,.14);display:flex;flex-direction:column;gap:14px;min-height:260px;padding:28px 22px 18px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .lockup-frame.dark{background:#201f1e;border-color:#201f1e;color:#fff}
-.lockup{align-items:center;display:flex;flex:1;justify-content:center;min-height:160px}
-.lockup svg{max-width:100%;max-height:180px;width:auto;height:auto}
+.lockup-frame.approved{border-color:rgba(32,31,30,.28);grid-column:1/-1;min-height:320px}
+.lockup{align-items:center;display:flex;flex:1;justify-content:center;min-height:180px}
+.lockup svg{display:block;height:auto;max-height:240px;max-width:100%;width:auto}
+.lockup-frame.approved .lockup svg{max-height:300px}
 .lockup-frame span{font:11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;opacity:.6}
 .trait{border-top:1px solid rgba(32,31,30,.14);display:flex;flex-direction:column;gap:6px;padding:14px 0}
 .trait strong{font-size:15px;letter-spacing:-.02em}
@@ -179,7 +228,7 @@ p{margin:0}
 .spec b{font-weight:600}
 .spec span{color:rgba(32,31,30,.62);text-align:right}
 .palette{display:grid;grid-template-columns:repeat(4,1fr);gap:0;height:160px;margin-top:12px}
-.swatch{display:flex;align-items:flex-end;padding:12px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace}
+.swatch{display:flex;align-items:flex-end;padding:12px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .sizes{align-items:end;display:flex;flex-wrap:wrap;gap:28px;margin-top:18px}
 .size{display:flex;flex-direction:column;align-items:center;gap:8px}
 .size svg{display:block}
@@ -192,6 +241,7 @@ button{position:fixed;right:22px;bottom:22px;padding:14px 20px;border:0;backgrou
   main{max-width:none}
   .page{height:100vh;min-height:0}
   button{display:none}
+  .cover,.lockup-frame.dark,.swatch,.cover-lockup-card{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 @media (max-width:720px){
   .page{padding:32px 22px}
@@ -209,19 +259,20 @@ button{position:fixed;right:22px;bottom:22px;padding:14px 20px;border:0;backgrou
     <h1>${brand}</h1>
     ${brief.conceptTitle ? `<p class="muted" style="margin-top:14px">${escapeHtml(brief.conceptTitle)}</p>` : ""}
   </div>
-  <div class="cover-lockup">${coverLockup}</div>
+  <div class="cover-lockup"><div class="cover-lockup-card">${coverLockup}</div></div>
   <p class="idea">${escapeHtml(brief.coreIdea || brief.companyDescription || "")}</p>
 </section>
 
 <section class="page">
   <span class="eyebrow">01 / Logo system</span>
   <h2>Same mark. Every context.</h2>
-  <p class="muted">Lockups below match the studio preview — mark scale, wordmark optics, and descriptor included.</p>
+  <p class="muted">The approved lockup matches studio production. Alternate layouts below use the same mark and type without free transforms.</p>
   <div class="grid" style="margin-top:28px">
-    ${lockupFrame(lockups.vertical, "Primary / vertical")}
-    ${lockupFrame(lockups.horizontal, "Primary / horizontal")}
+    ${lockupFrame(lockups.primary, `Approved / ${optics.layoutLabel}`, "approved")}
+    ${lockupFrame(lockups.horizontal, "Horizontal")}
+    ${lockupFrame(lockups.vertical, "Vertical")}
     ${lockupFrame(lockups.icon, "Icon only")}
-    ${lockupFrame(lockups.verticalInverse, "Inverse / vertical", "dark")}
+    ${lockupFrame(lockups.horizontalInverse, "Inverse / horizontal", "dark")}
   </div>
   <h3>Minimum digital sizes</h3>
   <p class="muted">Keep clear space equal to about one quarter of the mark width. Prefer icon-only below 24px wordmark height.</p>
@@ -270,6 +321,30 @@ button{position:fixed;right:22px;bottom:22px;padding:14px 20px;border:0;backgrou
     <div class="spec"><b>Tracking</b><span>${optics.wordmarkTracking}</span></div>
     <div class="spec"><b>Wordmark size</b><span>${optics.wordmarkSize}px</span></div>
     <div class="spec"><b>Mark scale</b><span>${optics.markScale}%</span></div>
+    <div class="spec"><b>Descriptor character</b><span>${escapeHtml(optics.descriptorStyleLabel ?? "—")}</span></div>
+    <div class="spec"><b>Mark transform</b><span>${[
+      optics.markFlipX ? "flip-x" : "",
+      optics.markFlipY ? "flip-y" : "",
+      optics.markRotate ? `${optics.markRotate}°` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") || "none"}</span></div>
+    <div class="spec"><b>Type rotate</b><span>${[
+      optics.wordmarkRotate ? `wordmark ${optics.wordmarkRotate}°` : "",
+      optics.descriptorRotate ? `descriptor ${optics.descriptorRotate}°` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") || "none"}</span></div>
+    <div class="spec"><b>Text offset</b><span>${[
+      optics.wordmarkOffsetX || optics.wordmarkOffsetY
+        ? `wordmark ${optics.wordmarkOffsetX ?? 0},${optics.wordmarkOffsetY ?? 0}`
+        : "",
+      optics.descriptorOffsetX || optics.descriptorOffsetY
+        ? `descriptor ${optics.descriptorOffsetX ?? 0},${optics.descriptorOffsetY ?? 0}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") || "none"}</span></div>
     <div class="spec"><b>Descriptor</b><span>${escapeHtml(optics.descriptor || "—")}</span></div>
     <div class="spec"><b>Descriptor size</b><span>${optics.descriptorSize}px</span></div>
     <div class="spec"><b>Ink color</b><span>${escapeHtml(optics.color)}</span></div>

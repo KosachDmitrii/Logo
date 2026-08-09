@@ -2,6 +2,7 @@
 
 import {
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
   useRef,
@@ -32,7 +33,34 @@ import {
   type AppLocale,
 } from "./lib/i18n";
 import { buildBrandGuideHtml } from "./lib/brand-guide";
-import { buildLockupSvg, lockupMarkSizePx } from "./lib/lockup-export";
+import {
+  fetchGoogleFontEmbed,
+  getGoogleFont,
+  GOOGLE_LOCKUP_FONTS,
+  googleFontCssFamily,
+  googleFontsStylesheetHref,
+  isGoogleFontStyle,
+  keepsDescriptorCase,
+  lockupTypeStyleLabel,
+} from "./lib/google-fonts";
+import {
+  buildLockupSvg,
+  estimateLockupTextWidth,
+  lockupMarkSizePx,
+  measureLockupTextWidth,
+  resolveLockupFontFamily,
+  rotatedLockupBounds,
+} from "./lib/lockup-export";
+import {
+  clampLockupOffset,
+  clampRotate,
+  customFontFamily,
+  defaultLockupOptics,
+  pickLockupOptics,
+  type LockupLayout,
+  type LockupOptics,
+  type LockupPreset,
+} from "./lib/lockup-optics";
 import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
 import { CompetitorField } from "./brief-controls";
 import {
@@ -542,6 +570,291 @@ function LockupMark({
   return <img className="lockup-mark" src={src} alt={alt} />;
 }
 
+function LockupPreviewCanvas({
+  layout,
+  color,
+  markUrl,
+  markSizePx,
+  wordmarkSize,
+  descriptorSize,
+  wordmarkStyle,
+  descriptorStyle,
+  wordmarkFontFamily,
+  descriptorFontFamily,
+  wordmarkWeight,
+  wordmarkTracking,
+  displayBrandName,
+  descriptor,
+  markFlipX,
+  markFlipY,
+  markRotate,
+  wordmarkRotate,
+  descriptorRotate,
+  wordmarkOffsetX = 0,
+  wordmarkOffsetY = 0,
+  descriptorOffsetX = 0,
+  descriptorOffsetY = 0,
+  onWordmarkOffsetChange,
+  onDescriptorOffsetChange,
+}: {
+  layout: LockupLayout;
+  color: string;
+  markUrl: string;
+  markSizePx: number;
+  wordmarkSize: number;
+  descriptorSize: number;
+  wordmarkStyle: string;
+  descriptorStyle: string;
+  wordmarkFontFamily?: string;
+  descriptorFontFamily?: string;
+  wordmarkWeight: number;
+  wordmarkTracking: number;
+  displayBrandName: string;
+  descriptor: string;
+  markFlipX: boolean;
+  markFlipY: boolean;
+  markRotate: number;
+  wordmarkRotate: number;
+  descriptorRotate: number;
+  wordmarkOffsetX?: number;
+  wordmarkOffsetY?: number;
+  descriptorOffsetX?: number;
+  descriptorOffsetY?: number;
+  onWordmarkOffsetChange?: (x: number, y: number) => void;
+  onDescriptorOffsetChange?: (x: number, y: number) => void;
+}) {
+  const dragRef = useRef<{
+    target: "wordmark" | "descriptor";
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+  const [dragging, setDragging] = useState<"wordmark" | "descriptor" | null>(
+    null,
+  );
+
+  const markTransform = [
+    markRotate ? `rotate(${markRotate}deg)` : "",
+    markFlipX ? "scaleX(-1)" : "",
+    markFlipY ? "scaleY(-1)" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const descriptorDisplay = keepsDescriptorCase(descriptorStyle)
+    ? descriptor
+    : descriptor.toUpperCase();
+
+  const wordmarkClass = wordmarkFontFamily
+    ? isGoogleFontStyle(wordmarkStyle)
+      ? "wordmark-google"
+      : "wordmark-custom"
+    : `wordmark-${wordmarkStyle}`;
+  const descriptorClass = descriptorFontFamily
+    ? isGoogleFontStyle(descriptorStyle)
+      ? "descriptor-google"
+      : "descriptor-custom"
+    : `descriptor-${descriptorStyle}`;
+
+  const wordmarkFamily =
+    wordmarkFontFamily ?? resolveLockupFontFamily(wordmarkStyle);
+  const descriptorFamily =
+    descriptorFontFamily ?? resolveLockupFontFamily(descriptorStyle);
+  const wordmarkTrackingEm = wordmarkTracking / 100;
+  const descriptorTrackingEm = keepsDescriptorCase(descriptorStyle)
+    ? 0.04
+    : 0.22;
+  // Canvas metrics differ from the SSR estimate — wait until client.
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+  const wordmarkWidth = isClient
+    ? measureLockupTextWidth(
+        displayBrandName,
+        wordmarkSize,
+        wordmarkWeight,
+        wordmarkFamily,
+        wordmarkTrackingEm,
+      )
+    : estimateLockupTextWidth(
+        displayBrandName,
+        wordmarkSize,
+        wordmarkTrackingEm,
+      );
+  const descriptorWidth = isClient
+    ? measureLockupTextWidth(
+        descriptorDisplay,
+        descriptorSize,
+        500,
+        descriptorFamily,
+        descriptorTrackingEm,
+      )
+    : estimateLockupTextWidth(
+        descriptorDisplay,
+        descriptorSize,
+        descriptorTrackingEm,
+      );
+  const wordmarkSlot = rotatedLockupBounds(
+    Math.max(1, wordmarkWidth),
+    wordmarkSize,
+    wordmarkRotate,
+  );
+  const descriptorSlot = rotatedLockupBounds(
+    Math.max(1, descriptorWidth),
+    descriptorSize,
+    descriptorRotate,
+  );
+  const markSlot = rotatedLockupBounds(markSizePx, markSizePx, markRotate);
+
+  function beginDrag(
+    target: "wordmark" | "descriptor",
+    event: ReactPointerEvent<HTMLDivElement>,
+    originX: number,
+    originY: number,
+  ) {
+    if (target === "wordmark" && !onWordmarkOffsetChange) return;
+    if (target === "descriptor" && !onDescriptorOffsetChange) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      target,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX,
+      originY,
+    };
+    setDragging(target);
+  }
+
+  function moveDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const x = clampLockupOffset(drag.originX + (event.clientX - drag.startX));
+    const y = clampLockupOffset(drag.originY + (event.clientY - drag.startY));
+    if (drag.target === "wordmark") onWordmarkOffsetChange?.(x, y);
+    else onDescriptorOffsetChange?.(x, y);
+  }
+
+  function endDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setDragging(null);
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // already released
+    }
+  }
+
+  return (
+    <div
+      className={`lockup-preview ${layout}`}
+      style={
+        {
+          color,
+          "--wordmark-size": `${wordmarkSize}px`,
+          "--descriptor-size": `${descriptorSize}px`,
+          "--mark-size": `${markSizePx}px`,
+        } as CSSProperties
+      }
+    >
+      <div className="lockup-preview-fit">
+        <div
+          className="lockup-mark-slot"
+          style={{
+            width: markSlot.width,
+            height: markSlot.height,
+          }}
+        >
+          <div
+            className="lockup-mark-rotate"
+            style={markTransform ? { transform: markTransform } : undefined}
+          >
+            {markUrl ? (
+              <LockupMark url={markUrl} color={color} alt="" />
+            ) : (
+              <div className="preview-placeholder">SVG</div>
+            )}
+          </div>
+        </div>
+        {layout !== "icon" && (
+          <div className="lockup-preview-type">
+            <div
+              className={`lockup-type-slot${onWordmarkOffsetChange ? " is-draggable" : ""}${dragging === "wordmark" ? " is-dragging" : ""}`}
+              style={{
+                width: wordmarkSlot.width,
+                height: wordmarkSlot.height,
+                transform: `translate(${wordmarkOffsetX}px, ${wordmarkOffsetY}px)`,
+              }}
+              onPointerDown={(event) =>
+                beginDrag("wordmark", event, wordmarkOffsetX, wordmarkOffsetY)
+              }
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+              onDoubleClick={() => onWordmarkOffsetChange?.(0, 0)}
+            >
+              <strong
+                className={wordmarkClass}
+                style={{
+                  fontFamily: wordmarkFontFamily,
+                  fontWeight: wordmarkWeight,
+                  letterSpacing: `${wordmarkTrackingEm}em`,
+                  transform: wordmarkRotate
+                    ? `rotate(${wordmarkRotate}deg)`
+                    : undefined,
+                }}
+              >
+                {displayBrandName}
+              </strong>
+            </div>
+            {descriptor ? (
+              <div
+                className={`lockup-type-slot${onDescriptorOffsetChange ? " is-draggable" : ""}${dragging === "descriptor" ? " is-dragging" : ""}`}
+                style={{
+                  width: descriptorSlot.width,
+                  height: descriptorSlot.height,
+                  transform: `translate(${descriptorOffsetX}px, ${descriptorOffsetY}px)`,
+                }}
+                onPointerDown={(event) =>
+                  beginDrag(
+                    "descriptor",
+                    event,
+                    descriptorOffsetX,
+                    descriptorOffsetY,
+                  )
+                }
+                onPointerMove={moveDrag}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                onDoubleClick={() => onDescriptorOffsetChange?.(0, 0)}
+              >
+                <span
+                  className={descriptorClass}
+                  style={{
+                    fontFamily: descriptorFontFamily,
+                    letterSpacing: `${descriptorTrackingEm}em`,
+                    transform: descriptorRotate
+                      ? `rotate(${descriptorRotate}deg)`
+                      : undefined,
+                  }}
+                >
+                  {descriptorDisplay}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SizeSquareSelect({
   label,
   onChange,
@@ -791,10 +1104,8 @@ function LoopenStudioApp({
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [emailPrefs, setEmailPrefs] = useState<StudioEmailPrefs>(() => {
     const fromUser = user?.prefs?.briefLocale;
-    const briefLocale = fromUser
-      ? normalizeAppLocale(fromUser)
-      : readStoredLocale();
-    if (fromUser) persistLocale(briefLocale);
+    // Prefer server-provided prefs; never read localStorage during init (SSR hydration).
+    const briefLocale = fromUser ? normalizeAppLocale(fromUser) : "en";
     return {
       productUpdates: user?.prefs?.productUpdates ?? true,
       signalReceipts: user?.prefs?.signalReceipts ?? true,
@@ -927,13 +1238,22 @@ function LoopenStudioApp({
   const [vectorSourceMode, setVectorSourceMode] = useState<"refine" | "original">(
     initialDraft.vectorSourceMode,
   );
-  const [lockupLayout, setLockupLayout] = useState<"horizontal" | "vertical" | "icon">(
+  const [lockupLayout, setLockupLayout] = useState<LockupLayout>(
     initialDraft.lockupLayout,
   );
   const [lockupColor, setLockupColor] = useState(initialDraft.lockupColor);
   const [wordmarkName, setWordmarkName] = useState(initialDraft.wordmarkName);
   const [descriptor, setDescriptor] = useState(initialDraft.descriptor);
   const [wordmarkStyle, setWordmarkStyle] = useState(initialDraft.wordmarkStyle);
+  const [descriptorStyle, setDescriptorStyle] = useState(
+    initialDraft.descriptorStyle,
+  );
+  const [wordmarkFontId, setWordmarkFontId] = useState<string | null>(
+    initialDraft.wordmarkFontId,
+  );
+  const [descriptorFontId, setDescriptorFontId] = useState<string | null>(
+    initialDraft.descriptorFontId,
+  );
   const [wordmarkCase, setWordmarkCase] = useState<"original" | "upper" | "lower">(
     initialDraft.wordmarkCase,
   );
@@ -942,6 +1262,33 @@ function LoopenStudioApp({
   const [wordmarkSize, setWordmarkSize] = useState(initialDraft.wordmarkSize);
   const [descriptorSize, setDescriptorSize] = useState(initialDraft.descriptorSize);
   const [markScale, setMarkScale] = useState(initialDraft.markScale);
+  const [markFlipX, setMarkFlipX] = useState(initialDraft.markFlipX);
+  const [markFlipY, setMarkFlipY] = useState(initialDraft.markFlipY);
+  const [markRotate, setMarkRotate] = useState(initialDraft.markRotate);
+  const [wordmarkRotate, setWordmarkRotate] = useState(initialDraft.wordmarkRotate);
+  const [descriptorRotate, setDescriptorRotate] = useState(
+    initialDraft.descriptorRotate,
+  );
+  const [wordmarkOffsetX, setWordmarkOffsetX] = useState(
+    initialDraft.wordmarkOffsetX,
+  );
+  const [wordmarkOffsetY, setWordmarkOffsetY] = useState(
+    initialDraft.wordmarkOffsetY,
+  );
+  const [descriptorOffsetX, setDescriptorOffsetX] = useState(
+    initialDraft.descriptorOffsetX,
+  );
+  const [descriptorOffsetY, setDescriptorOffsetY] = useState(
+    initialDraft.descriptorOffsetY,
+  );
+  const [lockupByLayout, setLockupByLayout] = useState(initialDraft.lockupByLayout);
+  const [lockupPresets, setLockupPresets] = useState<LockupPreset[]>(
+    initialDraft.lockupPresets,
+  );
+  const [compareSnapshot, setCompareSnapshot] = useState(
+    initialDraft.compareSnapshot,
+  );
+  const [fontFaceUrls, setFontFaceUrls] = useState<Record<string, string>>({});
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
   const confirmResolver = useRef<((confirmed: boolean) => void) | null>(null);
   const sessionReady = true;
@@ -953,6 +1300,19 @@ function LoopenStudioApp({
   useEffect(() => {
     applyDocumentLocale(locale);
   }, [locale]);
+
+  useEffect(() => {
+    if (user?.prefs?.briefLocale) {
+      persistLocale(normalizeAppLocale(user.prefs.briefLocale));
+      return;
+    }
+    const stored = readStoredLocale();
+    setEmailPrefs((current) =>
+      current.briefLocale === stored
+        ? current
+        : { ...current, briefLocale: stored },
+    );
+  }, [user?.prefs?.briefLocale]);
 
   useEffect(() => {
     if (!isHistoryOpen) return;
@@ -1760,6 +2120,208 @@ function LoopenStudioApp({
         : wordmarkName || brandName || brandNameFallback;
   // Mark size follows Mark scale only — never wordmark font size/style.
   const markSizePx = lockupMarkSizePx(markScale);
+  const googleFontsHref = useMemo(
+    () =>
+      googleFontsStylesheetHref([
+        wordmarkFontId ? undefined : wordmarkStyle,
+        descriptorFontId ? undefined : descriptorStyle,
+        compareSnapshot && !compareSnapshot.wordmarkFontId
+          ? compareSnapshot.wordmarkStyle
+          : undefined,
+        compareSnapshot && !compareSnapshot.descriptorFontId
+          ? compareSnapshot.descriptorStyle
+          : undefined,
+      ]),
+    [
+      wordmarkStyle,
+      descriptorStyle,
+      wordmarkFontId,
+      descriptorFontId,
+      compareSnapshot,
+    ],
+  );
+  const currentLockupOptics = useMemo<LockupOptics>(
+    () => ({
+      lockupColor,
+      wordmarkName,
+      descriptor,
+      wordmarkStyle,
+      descriptorStyle,
+      wordmarkFontId,
+      descriptorFontId,
+      wordmarkCase,
+      wordmarkWeight,
+      wordmarkTracking,
+      wordmarkSize,
+      descriptorSize,
+      markScale,
+      markFlipX,
+      markFlipY,
+      markRotate,
+      wordmarkRotate,
+      descriptorRotate,
+      wordmarkOffsetX,
+      wordmarkOffsetY,
+      descriptorOffsetX,
+      descriptorOffsetY,
+    }),
+    [
+      lockupColor,
+      wordmarkName,
+      descriptor,
+      wordmarkStyle,
+      descriptorStyle,
+      wordmarkFontId,
+      descriptorFontId,
+      wordmarkCase,
+      wordmarkWeight,
+      wordmarkTracking,
+      wordmarkSize,
+      descriptorSize,
+      markScale,
+      markFlipX,
+      markFlipY,
+      markRotate,
+      wordmarkRotate,
+      descriptorRotate,
+      wordmarkOffsetX,
+      wordmarkOffsetY,
+      descriptorOffsetX,
+      descriptorOffsetY,
+    ],
+  );
+
+  function applyLockupOptics(optics: Partial<LockupOptics>) {
+    if (optics.lockupColor !== undefined) setLockupColor(optics.lockupColor);
+    if (optics.wordmarkName !== undefined) setWordmarkName(optics.wordmarkName);
+    if (optics.descriptor !== undefined) setDescriptor(optics.descriptor);
+    if (optics.wordmarkStyle !== undefined) setWordmarkStyle(optics.wordmarkStyle);
+    if (optics.descriptorStyle !== undefined) {
+      setDescriptorStyle(optics.descriptorStyle);
+    }
+    if (optics.wordmarkFontId !== undefined) {
+      setWordmarkFontId(optics.wordmarkFontId);
+    }
+    if (optics.descriptorFontId !== undefined) {
+      setDescriptorFontId(optics.descriptorFontId);
+    }
+    if (optics.wordmarkCase !== undefined) setWordmarkCase(optics.wordmarkCase);
+    if (optics.wordmarkWeight !== undefined) {
+      setWordmarkWeight(optics.wordmarkWeight);
+    }
+    if (optics.wordmarkTracking !== undefined) {
+      setWordmarkTracking(optics.wordmarkTracking);
+    }
+    if (optics.wordmarkSize !== undefined) setWordmarkSize(optics.wordmarkSize);
+    if (optics.descriptorSize !== undefined) {
+      setDescriptorSize(optics.descriptorSize);
+    }
+    if (optics.markScale !== undefined) setMarkScale(optics.markScale);
+    if (optics.markFlipX !== undefined) setMarkFlipX(optics.markFlipX);
+    if (optics.markFlipY !== undefined) setMarkFlipY(optics.markFlipY);
+    if (optics.markRotate !== undefined) {
+      setMarkRotate(clampRotate(optics.markRotate));
+    }
+    if (optics.wordmarkRotate !== undefined) {
+      setWordmarkRotate(clampRotate(optics.wordmarkRotate));
+    }
+    if (optics.descriptorRotate !== undefined) {
+      setDescriptorRotate(clampRotate(optics.descriptorRotate));
+    }
+    if (optics.wordmarkOffsetX !== undefined) {
+      setWordmarkOffsetX(clampLockupOffset(optics.wordmarkOffsetX));
+    }
+    if (optics.wordmarkOffsetY !== undefined) {
+      setWordmarkOffsetY(clampLockupOffset(optics.wordmarkOffsetY));
+    }
+    if (optics.descriptorOffsetX !== undefined) {
+      setDescriptorOffsetX(clampLockupOffset(optics.descriptorOffsetX));
+    }
+    if (optics.descriptorOffsetY !== undefined) {
+      setDescriptorOffsetY(clampLockupOffset(optics.descriptorOffsetY));
+    }
+  }
+
+  function switchLockupLayout(next: LockupLayout) {
+    if (next === lockupLayout) return;
+    setLockupByLayout((current) => ({
+      ...current,
+      [lockupLayout]: pickLockupOptics(currentLockupOptics),
+    }));
+    const saved = lockupByLayout[next];
+    if (saved && Object.keys(saved).length) {
+      applyLockupOptics(saved);
+    }
+    setLockupLayout(next);
+  }
+
+  function saveLockupPreset() {
+    if (lockupPresets.length >= 6) {
+      setNotice(t(locale, "prod.preset.limit"));
+      return;
+    }
+    const name = t(locale, "prod.preset.name", {
+      n: lockupPresets.length + 1,
+      layout: t(locale, `prod.layout.${lockupLayout}`),
+    });
+    const preset: LockupPreset = {
+      id: crypto.randomUUID(),
+      name,
+      optics: { ...pickLockupOptics(currentLockupOptics), lockupLayout },
+    };
+    setLockupPresets((current) => [...current, preset]);
+    setNotice(t(locale, "prod.preset.saved"));
+  }
+
+  function applyLockupPreset(preset: LockupPreset) {
+    applyLockupOptics(preset.optics);
+    setLockupLayout(preset.optics.lockupLayout);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    const urls: Record<string, string> = {};
+    const needed = Array.from(
+      new Set(
+        [wordmarkFontId, descriptorFontId].filter(
+          (id): id is string => Boolean(id),
+        ),
+      ),
+    );
+    if (!projectId || needed.length === 0) {
+      setFontFaceUrls((previous) => {
+        Object.values(previous).forEach((url) => URL.revokeObjectURL(url));
+        return {};
+      });
+      return;
+    }
+    void (async () => {
+      for (const id of needed) {
+        try {
+          const response = await apiFetch(`/projects/${projectId}/fonts/${id}`);
+          if (!response.ok) continue;
+          const blob = await response.blob();
+          if (cancelled) return;
+          urls[id] = URL.createObjectURL(blob);
+        } catch {
+          // ignore — custom upload fonts are optional; Google Fonts are used instead
+        }
+      }
+      if (cancelled) {
+        Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
+        return;
+      }
+      setFontFaceUrls((previous) => {
+        Object.values(previous).forEach((url) => {
+          if (!Object.values(urls).includes(url)) URL.revokeObjectURL(url);
+        });
+        return urls;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [wordmarkFontId, descriptorFontId, projectId]);
   const focusedGeneration = generatedConcepts.find(
     (item) => item.directionKey === selectedConcept,
   );
@@ -1927,12 +2489,27 @@ function LoopenStudioApp({
       wordmarkName,
       descriptor,
       wordmarkStyle,
+      descriptorStyle,
+      wordmarkFontId,
+      descriptorFontId,
       wordmarkCase,
       wordmarkWeight,
       wordmarkTracking,
       wordmarkSize,
       descriptorSize,
       markScale,
+      markFlipX,
+      markFlipY,
+      markRotate,
+      wordmarkRotate,
+      descriptorRotate,
+      wordmarkOffsetX,
+      wordmarkOffsetY,
+      descriptorOffsetX,
+      descriptorOffsetY,
+      lockupByLayout,
+      lockupPresets,
+      compareSnapshot,
     };
     const timer = window.setTimeout(() => writeStudioSession(snapshot), 250);
     const flush = () => writeStudioSession(snapshot);
@@ -1982,12 +2559,27 @@ function LoopenStudioApp({
     wordmarkName,
     descriptor,
     wordmarkStyle,
+    descriptorStyle,
+    wordmarkFontId,
+    descriptorFontId,
     wordmarkCase,
     wordmarkWeight,
     wordmarkTracking,
     wordmarkSize,
     descriptorSize,
     markScale,
+    markFlipX,
+    markFlipY,
+    markRotate,
+    wordmarkRotate,
+    descriptorRotate,
+    wordmarkOffsetX,
+    wordmarkOffsetY,
+    descriptorOffsetX,
+    descriptorOffsetY,
+    lockupByLayout,
+    lockupPresets,
+    compareSnapshot,
   ]);
 
   useEffect(() => {
@@ -2253,14 +2845,32 @@ function LoopenStudioApp({
     setProductionLocked(false);
     setVectorSourceMode("refine");
     setLockupLayout("horizontal");
-    setLockupColor("#201f1e");
-    setWordmarkStyle("modern");
-    setWordmarkCase("original");
-    setWordmarkWeight(600);
-    setWordmarkTracking(-3);
-    setWordmarkSize(112);
-    setDescriptorSize(24);
-    setMarkScale(100);
+    {
+      const optics = defaultLockupOptics();
+      setLockupColor(optics.lockupColor);
+      setWordmarkStyle(optics.wordmarkStyle);
+      setDescriptorStyle(optics.descriptorStyle);
+      setWordmarkFontId(null);
+      setDescriptorFontId(null);
+      setWordmarkCase(optics.wordmarkCase);
+      setWordmarkWeight(optics.wordmarkWeight);
+      setWordmarkTracking(optics.wordmarkTracking);
+      setWordmarkSize(optics.wordmarkSize);
+      setDescriptorSize(optics.descriptorSize);
+      setMarkScale(optics.markScale);
+      setMarkFlipX(false);
+      setMarkFlipY(false);
+      setMarkRotate(0);
+      setWordmarkRotate(0);
+      setDescriptorRotate(0);
+      setWordmarkOffsetX(0);
+      setWordmarkOffsetY(0);
+      setDescriptorOffsetX(0);
+      setDescriptorOffsetY(0);
+      setLockupByLayout({ horizontal: {}, vertical: {}, icon: {} });
+      setLockupPresets([]);
+      setCompareSnapshot(null);
+    }
     setConfirmDialog(null);
     clearStudioSession();
     setNotice(t(locale, "notice.studioReset"));
@@ -2691,6 +3301,65 @@ function LoopenStudioApp({
     }
   }
 
+  async function fontExportPayload(fontId: string | null) {
+    if (!projectId || !fontId) {
+      return {
+        fontId: null as string | null,
+        cssFamily: null as string | null,
+        dataUri: null as string | null,
+      };
+    }
+    try {
+      const response = await apiFetch(`/projects/${projectId}/fonts/${fontId}`);
+      if (!response.ok) {
+        return { fontId, cssFamily: customFontFamily(fontId), dataUri: null };
+      }
+      const buffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 1) {
+        binary += String.fromCharCode(bytes[i]!);
+      }
+      const contentType = response.headers.get("content-type") || "font/woff2";
+      return {
+        fontId,
+        cssFamily: customFontFamily(fontId),
+        dataUri: `data:${contentType};base64,${btoa(binary)}`,
+      };
+    } catch {
+      return { fontId, cssFamily: customFontFamily(fontId), dataUri: null };
+    }
+  }
+
+  async function resolveExportTypeface(
+    style: string,
+    fontId: string | null,
+    weight: number,
+  ) {
+    if (fontId) return fontExportPayload(fontId);
+    if (isGoogleFontStyle(style)) {
+      const embedded = await fetchGoogleFontEmbed(style, weight);
+      if (embedded) {
+        return {
+          fontId: null as string | null,
+          cssFamily: embedded.cssFamily,
+          dataUri: embedded.dataUri,
+        };
+      }
+      const google = getGoogleFont(style);
+      return {
+        fontId: null as string | null,
+        cssFamily: google?.family ?? null,
+        dataUri: null as string | null,
+      };
+    }
+    return {
+      fontId: null as string | null,
+      cssFamily: null as string | null,
+      dataUri: null as string | null,
+    };
+  }
+
   async function exportLockup(
     format: "svg" | "png" | "webp" = "svg",
     layout: "horizontal" | "vertical" | "icon" = lockupLayout,
@@ -2716,6 +3385,16 @@ function LoopenStudioApp({
         return;
       }
       const markSvg = await assetResponse.text();
+      const wordmarkFont = await resolveExportTypeface(
+        wordmarkStyle,
+        wordmarkFontId,
+        wordmarkWeight,
+      );
+      const descriptorFont = await resolveExportTypeface(
+        descriptorStyle,
+        descriptorFontId,
+        500,
+      );
       const svg = buildLockupSvg({
         brandName: wordmarkName || brandName,
         color: lockupColor,
@@ -2729,6 +3408,22 @@ function LoopenStudioApp({
         wordmarkWeight,
         wordmarkTracking,
         wordmarkStyle,
+        descriptorStyle,
+        wordmarkFontId: wordmarkFont.fontId,
+        descriptorFontId: descriptorFont.fontId,
+        wordmarkFontCssFamily: wordmarkFont.cssFamily,
+        descriptorFontCssFamily: descriptorFont.cssFamily,
+        wordmarkFontDataUri: wordmarkFont.dataUri,
+        descriptorFontDataUri: descriptorFont.dataUri,
+        markFlipX,
+        markFlipY,
+        markRotate,
+        wordmarkRotate,
+        descriptorRotate,
+        wordmarkOffsetX,
+        wordmarkOffsetY,
+        descriptorOffsetX,
+        descriptorOffsetY,
       });
       const svgBlob = new Blob([svg], { type: "image/svg+xml" });
       let blob: Blob = svgBlob;
@@ -2803,6 +3498,16 @@ function LoopenStudioApp({
         return;
       }
       const markSvg = await assetResponse.text();
+      const wordmarkFont = await resolveExportTypeface(
+        wordmarkStyle,
+        wordmarkFontId,
+        wordmarkWeight,
+      );
+      const descriptorFont = await resolveExportTypeface(
+        descriptorStyle,
+        descriptorFontId,
+        500,
+      );
       const lockupBase = {
         brandName: wordmarkName || brandName,
         descriptor,
@@ -2813,6 +3518,22 @@ function LoopenStudioApp({
         wordmarkWeight,
         wordmarkTracking,
         wordmarkStyle,
+        descriptorStyle,
+        wordmarkFontId: wordmarkFont.fontId,
+        descriptorFontId: descriptorFont.fontId,
+        wordmarkFontCssFamily: wordmarkFont.cssFamily,
+        descriptorFontCssFamily: descriptorFont.cssFamily,
+        wordmarkFontDataUri: wordmarkFont.dataUri,
+        descriptorFontDataUri: descriptorFont.dataUri,
+        markFlipX,
+        markFlipY,
+        markRotate,
+        wordmarkRotate,
+        descriptorRotate,
+        wordmarkOffsetX,
+        wordmarkOffsetY,
+        descriptorOffsetX,
+        descriptorOffsetY,
       };
       const industryOption = INDUSTRY_SELECT_OPTIONS.find(
         (item) => item.value === industryChoice,
@@ -2826,7 +3547,12 @@ function LoopenStudioApp({
         optics: {
           layout: lockupLayout,
           layoutLabel: t(locale, `prod.layout.${lockupLayout}`),
-          wordmarkStyleLabel: t(locale, `prod.type.${wordmarkStyle}`),
+          wordmarkStyleLabel: wordmarkFontId
+            ? t(locale, "prod.type.custom")
+            : lockupTypeStyleLabel(wordmarkStyle, (key) => t(locale, key)),
+          descriptorStyleLabel: descriptorFontId
+            ? t(locale, "prod.type.custom")
+            : lockupTypeStyleLabel(descriptorStyle, (key) => t(locale, key)),
           wordmarkCaseLabel: t(locale, `prod.case.${wordmarkCase}`),
           wordmarkWeight,
           wordmarkTracking,
@@ -2836,6 +3562,15 @@ function LoopenStudioApp({
           markScale,
           color: lockupColor,
           markSizePx,
+          markFlipX,
+          markFlipY,
+          markRotate,
+          wordmarkRotate,
+          descriptorRotate,
+          wordmarkOffsetX,
+          wordmarkOffsetY,
+          descriptorOffsetX,
+          descriptorOffsetY,
         },
         brief: {
           brandName: wordmarkName || brandName,
@@ -5461,14 +6196,26 @@ function LoopenStudioApp({
               <i aria-hidden="true">{ARROW_SE}</i>
             </div>
           ) : (<>
+          {Object.entries(fontFaceUrls).map(([id, url]) => (
+            <style key={`font-face-${id}`}>{`
+              @font-face {
+                font-family: '${customFontFamily(id)}';
+                src: url('${url}');
+                font-display: swap;
+              }
+            `}</style>
+          ))}
+          {googleFontsHref ? (
+            <link rel="stylesheet" href={googleFontsHref} />
+          ) : null}
           <div className="lockup-stage">
             <aside className="lockup-rail">
               <div className="rail-block">
                 <p className="rail-kicker">{t(locale, "prod.comp.kicker")}</p>
                 <div className="segmented">
-                  <button type="button" className={lockupLayout === "horizontal" ? "active" : ""} onClick={() => setLockupLayout("horizontal")}>{t(locale, "prod.layout.horizontal")}</button>
-                  <button type="button" className={lockupLayout === "vertical" ? "active" : ""} onClick={() => setLockupLayout("vertical")}>{t(locale, "prod.layout.vertical")}</button>
-                  <button type="button" className={lockupLayout === "icon" ? "active" : ""} onClick={() => setLockupLayout("icon")}>{t(locale, "prod.layout.icon")}</button>
+                  <button type="button" className={lockupLayout === "horizontal" ? "active" : ""} onClick={() => switchLockupLayout("horizontal")}>{t(locale, "prod.layout.horizontal")}</button>
+                  <button type="button" className={lockupLayout === "vertical" ? "active" : ""} onClick={() => switchLockupLayout("vertical")}>{t(locale, "prod.layout.vertical")}</button>
+                  <button type="button" className={lockupLayout === "icon" ? "active" : ""} onClick={() => switchLockupLayout("icon")}>{t(locale, "prod.layout.icon")}</button>
                 </div>
                 <div className="editor-color-control">
                   <span className="mini-label">{t(locale, "prod.color")}</span>
@@ -5498,6 +6245,53 @@ function LoopenStudioApp({
                     </label>
                   </div>
                 </div>
+                <div className="segmented lockup-util-row">
+                  <button
+                    type="button"
+                    className={compareSnapshot ? "active" : ""}
+                    onClick={() =>
+                      setCompareSnapshot((current) =>
+                        current
+                          ? null
+                          : {
+                              ...pickLockupOptics(currentLockupOptics),
+                              lockupLayout,
+                            },
+                      )
+                    }
+                  >
+                    {t(locale, "prod.compare")}
+                  </button>
+                  <button type="button" onClick={saveLockupPreset}>
+                    {t(locale, "prod.preset.save")}
+                  </button>
+                </div>
+                {lockupPresets.length > 0 ? (
+                  <div className="lockup-presets">
+                    {lockupPresets.map((preset) => (
+                      <div className="lockup-preset-row" key={preset.id}>
+                        <button
+                          type="button"
+                          onClick={() => applyLockupPreset(preset)}
+                        >
+                          {preset.name}
+                        </button>
+                        <button
+                          type="button"
+                          className="lockup-preset-delete"
+                          aria-label={t(locale, "prod.preset.delete")}
+                          onClick={() =>
+                            setLockupPresets((current) =>
+                              current.filter((item) => item.id !== preset.id),
+                            )
+                          }
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div className="rail-block">
@@ -5540,8 +6334,16 @@ function LoopenStudioApp({
                 </label>
                 <CreativeSelect
                   label={t(locale, "prod.wordmarkCharacter")}
-                  value={wordmarkStyle}
-                  onChange={setWordmarkStyle}
+                  value={wordmarkFontId ? "custom" : wordmarkStyle}
+                  scrollable
+                  onChange={(value) => {
+                    if (value === "custom" && wordmarkFontId) {
+                      setWordmarkStyle("custom");
+                      return;
+                    }
+                    setWordmarkFontId(null);
+                    setWordmarkStyle(value);
+                  }}
                   options={[
                     { value: "modern", label: t(locale, "prod.type.modern") },
                     {
@@ -5556,6 +6358,48 @@ function LoopenStudioApp({
                       value: "editorial",
                       label: t(locale, "prod.type.editorial"),
                     },
+                    ...GOOGLE_LOCKUP_FONTS.map((font) => ({
+                      value: font.id,
+                      label: font.family,
+                    })),
+                    ...(wordmarkFontId
+                      ? [{ value: "custom", label: t(locale, "prod.type.custom") }]
+                      : []),
+                  ]}
+                />
+                <CreativeSelect
+                  label={t(locale, "prod.descriptorCharacter")}
+                  value={descriptorFontId ? "custom" : descriptorStyle}
+                  scrollable
+                  onChange={(value) => {
+                    if (value === "custom" && descriptorFontId) {
+                      setDescriptorStyle("custom");
+                      return;
+                    }
+                    setDescriptorFontId(null);
+                    setDescriptorStyle(value);
+                  }}
+                  options={[
+                    { value: "modern", label: t(locale, "prod.type.modern") },
+                    {
+                      value: "geometric",
+                      label: t(locale, "prod.type.geometric"),
+                    },
+                    {
+                      value: "humanist",
+                      label: t(locale, "prod.type.humanist"),
+                    },
+                    {
+                      value: "editorial",
+                      label: t(locale, "prod.type.editorial"),
+                    },
+                    ...GOOGLE_LOCKUP_FONTS.map((font) => ({
+                      value: font.id,
+                      label: font.family,
+                    })),
+                    ...(descriptorFontId
+                      ? [{ value: "custom", label: t(locale, "prod.type.custom") }]
+                      : []),
                   ]}
                 />
                 <CreativeSelect
@@ -5607,47 +6451,227 @@ function LoopenStudioApp({
                     onChange={(event) => setMarkScale(Number(event.target.value))}
                   />
                 </label>
+                <div className="segmented">
+                  <button
+                    type="button"
+                    className={markFlipX ? "active" : ""}
+                    onClick={() => setMarkFlipX((value) => !value)}
+                  >
+                    {t(locale, "prod.flipH")}
+                  </button>
+                  <button
+                    type="button"
+                    className={markFlipY ? "active" : ""}
+                    onClick={() => setMarkFlipY((value) => !value)}
+                  >
+                    {t(locale, "prod.flipV")}
+                  </button>
+                </div>
+                <label className="creative-range">
+                  <span className="mini-label">
+                    {t(locale, "prod.markRotate", { n: markRotate })}
+                  </span>
+                  <input
+                    style={
+                      {
+                        "--range-progress": `${((markRotate + 90) / 180) * 100}%`,
+                      } as CSSProperties
+                    }
+                    type="range"
+                    min="-90"
+                    max="90"
+                    step="1"
+                    value={markRotate}
+                    onChange={(event) =>
+                      setMarkRotate(clampRotate(Number(event.target.value)))
+                    }
+                  />
+                </label>
+                <label className="creative-range">
+                  <span className="mini-label">
+                    {t(locale, "prod.wordmarkRotate", { n: wordmarkRotate })}
+                  </span>
+                  <input
+                    style={
+                      {
+                        "--range-progress": `${((wordmarkRotate + 90) / 180) * 100}%`,
+                      } as CSSProperties
+                    }
+                    type="range"
+                    min="-90"
+                    max="90"
+                    step="1"
+                    value={wordmarkRotate}
+                    onChange={(event) =>
+                      setWordmarkRotate(clampRotate(Number(event.target.value)))
+                    }
+                  />
+                </label>
+                <label className="creative-range">
+                  <span className="mini-label">
+                    {t(locale, "prod.descriptorRotate", { n: descriptorRotate })}
+                  </span>
+                  <input
+                    style={
+                      {
+                        "--range-progress": `${((descriptorRotate + 90) / 180) * 100}%`,
+                      } as CSSProperties
+                    }
+                    type="range"
+                    min="-90"
+                    max="90"
+                    step="1"
+                    value={descriptorRotate}
+                    onChange={(event) =>
+                      setDescriptorRotate(
+                        clampRotate(Number(event.target.value)),
+                      )
+                    }
+                  />
+                </label>
+                <div className="lockup-reset-block">
+                  <span className="mini-label">
+                    {t(locale, "prod.textPosition")}
+                  </span>
+                  <button
+                    type="button"
+                    className={`lockup-reset-offsets${
+                      wordmarkOffsetX !== 0 ||
+                      wordmarkOffsetY !== 0 ||
+                      descriptorOffsetX !== 0 ||
+                      descriptorOffsetY !== 0
+                        ? " is-dirty"
+                        : ""
+                    }`}
+                    disabled={
+                      wordmarkOffsetX === 0 &&
+                      wordmarkOffsetY === 0 &&
+                      descriptorOffsetX === 0 &&
+                      descriptorOffsetY === 0
+                    }
+                    onClick={() => {
+                      setWordmarkOffsetX(0);
+                      setWordmarkOffsetY(0);
+                      setDescriptorOffsetX(0);
+                      setDescriptorOffsetY(0);
+                    }}
+                  >
+                    <span>{t(locale, "prod.resetTextPosition")}</span>
+                    <i aria-hidden="true">↺</i>
+                  </button>
+                </div>
               </div>
             </aside>
 
             <div
-              className={`lockup-preview ${lockupLayout}`}
-              style={
-                {
-                  color: lockupColor,
-                  "--wordmark-size": `${wordmarkSize}px`,
-                  "--descriptor-size": `${descriptorSize}px`,
-                  "--mark-size": `${markSizePx}px`,
-                } as CSSProperties
+              className={
+                compareSnapshot
+                  ? "lockup-preview-compare"
+                  : "lockup-preview-single"
               }
             >
-              <div className="lockup-preview-fit">
-                <div className="lockup-mark-slot">
-                  {selectedVectorAsset ? (
-                    <LockupMark
-                      url={selectedVectorAsset.url}
-                      color={lockupColor}
-                      alt=""
-                    />
-                  ) : (
-                    <div className="preview-placeholder">SVG</div>
-                  )}
-                </div>
-                {lockupLayout !== "icon" && (
-                  <div className="lockup-preview-type">
-                    <strong
-                      className={`wordmark-${wordmarkStyle}`}
-                      style={{
-                        fontWeight: wordmarkWeight,
-                        letterSpacing: `${wordmarkTracking / 100}em`,
-                      }}
-                    >
-                      {displayBrandName}
-                    </strong>
-                    {descriptor ? <span>{descriptor}</span> : null}
-                  </div>
-                )}
-              </div>
+              {compareSnapshot ? (
+                <LockupPreviewCanvas
+                  layout={compareSnapshot.lockupLayout}
+                  color={compareSnapshot.lockupColor}
+                  markUrl={selectedVectorAsset?.url ?? ""}
+                  markSizePx={lockupMarkSizePx(compareSnapshot.markScale)}
+                  wordmarkSize={compareSnapshot.wordmarkSize}
+                  descriptorSize={compareSnapshot.descriptorSize}
+                  wordmarkStyle={compareSnapshot.wordmarkStyle}
+                  descriptorStyle={compareSnapshot.descriptorStyle}
+                  wordmarkFontFamily={
+                    compareSnapshot.wordmarkFontId
+                      ? customFontFamily(compareSnapshot.wordmarkFontId)
+                      : getGoogleFont(compareSnapshot.wordmarkStyle)
+                        ? googleFontCssFamily(
+                            getGoogleFont(compareSnapshot.wordmarkStyle)!,
+                          )
+                        : undefined
+                  }
+                  descriptorFontFamily={
+                    compareSnapshot.descriptorFontId
+                      ? customFontFamily(compareSnapshot.descriptorFontId)
+                      : getGoogleFont(compareSnapshot.descriptorStyle)
+                        ? googleFontCssFamily(
+                            getGoogleFont(compareSnapshot.descriptorStyle)!,
+                          )
+                        : undefined
+                  }
+                  wordmarkWeight={compareSnapshot.wordmarkWeight}
+                  wordmarkTracking={compareSnapshot.wordmarkTracking}
+                  displayBrandName={
+                    compareSnapshot.wordmarkCase === "upper"
+                      ? (compareSnapshot.wordmarkName ||
+                          brandName ||
+                          brandNameFallback
+                        ).toUpperCase()
+                      : compareSnapshot.wordmarkCase === "lower"
+                        ? (compareSnapshot.wordmarkName ||
+                            brandName ||
+                            brandNameFallback
+                          ).toLowerCase()
+                        : compareSnapshot.wordmarkName ||
+                          brandName ||
+                          brandNameFallback
+                  }
+                  descriptor={compareSnapshot.descriptor}
+                  markFlipX={compareSnapshot.markFlipX}
+                  markFlipY={compareSnapshot.markFlipY}
+                  markRotate={compareSnapshot.markRotate}
+                  wordmarkRotate={compareSnapshot.wordmarkRotate}
+                  descriptorRotate={compareSnapshot.descriptorRotate}
+                  wordmarkOffsetX={compareSnapshot.wordmarkOffsetX}
+                  wordmarkOffsetY={compareSnapshot.wordmarkOffsetY}
+                  descriptorOffsetX={compareSnapshot.descriptorOffsetX}
+                  descriptorOffsetY={compareSnapshot.descriptorOffsetY}
+                />
+              ) : null}
+              <LockupPreviewCanvas
+                layout={lockupLayout}
+                color={lockupColor}
+                markUrl={selectedVectorAsset?.url ?? ""}
+                markSizePx={markSizePx}
+                wordmarkSize={wordmarkSize}
+                descriptorSize={descriptorSize}
+                wordmarkStyle={wordmarkStyle}
+                descriptorStyle={descriptorStyle}
+                wordmarkFontFamily={
+                  wordmarkFontId
+                    ? customFontFamily(wordmarkFontId)
+                    : getGoogleFont(wordmarkStyle)
+                      ? googleFontCssFamily(getGoogleFont(wordmarkStyle)!)
+                      : undefined
+                }
+                descriptorFontFamily={
+                  descriptorFontId
+                    ? customFontFamily(descriptorFontId)
+                    : getGoogleFont(descriptorStyle)
+                      ? googleFontCssFamily(getGoogleFont(descriptorStyle)!)
+                      : undefined
+                }
+                wordmarkWeight={wordmarkWeight}
+                wordmarkTracking={wordmarkTracking}
+                displayBrandName={displayBrandName}
+                descriptor={descriptor}
+                markFlipX={markFlipX}
+                markFlipY={markFlipY}
+                markRotate={markRotate}
+                wordmarkRotate={wordmarkRotate}
+                descriptorRotate={descriptorRotate}
+                wordmarkOffsetX={wordmarkOffsetX}
+                wordmarkOffsetY={wordmarkOffsetY}
+                descriptorOffsetX={descriptorOffsetX}
+                descriptorOffsetY={descriptorOffsetY}
+                onWordmarkOffsetChange={(x, y) => {
+                  setWordmarkOffsetX(x);
+                  setWordmarkOffsetY(y);
+                }}
+                onDescriptorOffsetChange={(x, y) => {
+                  setDescriptorOffsetX(x);
+                  setDescriptorOffsetY(y);
+                }}
+              />
             </div>
           </div>
           <div className="quality-lab">
@@ -5780,7 +6804,20 @@ function LoopenStudioApp({
             </article>
             <article className="application-card identity-proposal-card">
               <span className="app-label">{t(locale, "system.app.proposal")}</span>
-              <div className={`dynamic-wordmark wordmark-${wordmarkStyle}`}>
+              <div
+                className={`dynamic-wordmark ${
+                  wordmarkFontId || isGoogleFontStyle(wordmarkStyle)
+                    ? "wordmark-google"
+                    : `wordmark-${wordmarkStyle}`
+                }`}
+                style={{
+                  fontFamily: wordmarkFontId
+                    ? customFontFamily(wordmarkFontId)
+                    : getGoogleFont(wordmarkStyle)
+                      ? googleFontCssFamily(getGoogleFont(wordmarkStyle)!)
+                      : undefined,
+                }}
+              >
                 {displayBrandName}
               </div>
               <p>{descriptor || t(locale, "system.proposalFallback")}</p>
@@ -5918,27 +6955,42 @@ export default function LoopenStudio({
   user: StudioUser | null;
   role?: StudioRole;
 }) {
+  // false on server + hydration, true after — avoids remounting a hydrated tree.
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const restored = useSyncExternalStore(
     subscribeStudioSession,
     getClientStudioSnapshot,
     () => null,
   );
-  const initialDraft = restored
-    ? draftFromSnapshot(restored)
-    : createEmptyStudioDraft();
-  const restoreNotice =
-    restored && (restored.projectId || restored.generatedConcepts.length)
-      ? t(readStoredLocale(), "notice.sessionRestored")
-      : "";
+
+  const boot = useMemo(() => {
+    if (!isClient) return null;
+    return {
+      draft: restored
+        ? draftFromSnapshot(restored)
+        : createEmptyStudioDraft(),
+      notice:
+        restored && (restored.projectId || restored.generatedConcepts.length)
+          ? t("en", "notice.sessionRestored")
+          : "",
+    };
+  }, [isClient, restored]);
+
+  if (!boot) {
+    return <div className="studio-boot" aria-busy="true" />;
+  }
 
   return (
     <LoopenStudioApp
-      key={restored ? `session-${restored.savedAt}` : "fresh"}
       signInPath={signInPath}
       user={user}
       role={role}
-      initialDraft={initialDraft}
-      restoreNotice={restoreNotice}
+      initialDraft={boot.draft}
+      restoreNotice={boot.notice}
     />
   );
 }
