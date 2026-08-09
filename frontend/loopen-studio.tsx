@@ -852,8 +852,6 @@ function LoopenStudioApp({
       searchPlaceholder: t(locale, "brief.ph.competitorSearch"),
       add: t(locale, "brief.comp.add"),
       invalidUrl: t(locale, "brief.comp.invalidUrl"),
-      notSuitable: t(locale, "brief.comp.notSuitable"),
-      dismissed: t(locale, "brief.comp.dismissed"),
       openSite: t(locale, "brief.comp.openSite"),
       aspect: {
         logo: t(locale, "brief.comp.aspect.logo"),
@@ -1716,7 +1714,10 @@ function LoopenStudioApp({
     [generatedConcepts, selectedConcept],
   );
   const refinements = assets.filter((asset) => asset.stage === "refine");
-  const vectors = assets.filter((asset) => asset.stage === "vector");
+  // Vector stage is single-slot: only the latest reconstruction is shown.
+  const latestVector =
+    assets.filter((asset) => asset.stage === "vector").at(-1) ?? null;
+  const vectors = latestVector ? [latestVector] : [];
   const productionUnlocked =
     selectedConceptIds.length > 0 ||
     refinements.length > 0 ||
@@ -1740,9 +1741,8 @@ function LoopenStudioApp({
   const juryRecommends =
     selectedReduction?.reviewStatus === "Recommended" ||
     (selectedReduction?.qualityScore ?? 0) >= 75;
-  const selectedVectorAsset = vectors.find(
-    (asset) => asset.id === selectedVector,
-  );
+  const selectedVectorAsset =
+    vectors.find((asset) => asset.id === selectedVector) ?? latestVector;
   const lockupPalette = Array.from(
     new Map(
       (strategy?.palette ?? ["#201F1E", "#F3F0EA", "#C84A32", "#FFFFFF"]).map((color) => [
@@ -1859,29 +1859,26 @@ function LoopenStudioApp({
           setGeneratedConcepts(payload.generations);
         }
         if (payload.assets) {
-          setAssets(payload.assets);
-          const refineIds = new Set(
-            payload.assets
-              .filter((asset) => asset.stage === "refine")
-              .map((asset) => asset.id),
+          const latestVectorId = payload.assets
+            .filter((asset) => asset.stage === "vector")
+            .at(-1)?.id;
+          const nextAssets = payload.assets.filter(
+            (asset) =>
+              asset.stage !== "vector" || asset.id === latestVectorId,
           );
-          const vectorIds = new Set(
-            payload.assets
-              .filter((asset) => asset.stage === "vector")
+          setAssets(nextAssets);
+          const refineIds = new Set(
+            nextAssets
+              .filter((asset) => asset.stage === "refine")
               .map((asset) => asset.id),
           );
           setSelectedRefinement((current) =>
             current && refineIds.has(current)
               ? current
-              : payload.assets!.filter((asset) => asset.stage === "refine").at(-1)
+              : nextAssets.filter((asset) => asset.stage === "refine").at(-1)
                   ?.id ?? "",
           );
-          setSelectedVector((current) =>
-            current && vectorIds.has(current)
-              ? current
-              : payload.assets!.filter((asset) => asset.stage === "vector").at(-1)
-                  ?.id ?? "",
-          );
+          setSelectedVector(latestVectorId ?? "");
         }
       } catch {
         // Keep local snapshot if the API is briefly unavailable after wake.
@@ -2093,21 +2090,25 @@ function LoopenStudioApp({
         }),
       );
       setGeneratedConcepts(loadedGenerations);
-      setAssets(loadedAssets);
+      const latestLoadedVectorId = loadedAssets
+        .filter((asset) => asset.stage === "vector")
+        .at(-1)?.id;
+      const nextAssets = loadedAssets.filter(
+        (asset) =>
+          asset.stage !== "vector" || asset.id === latestLoadedVectorId,
+      );
+      setAssets(nextAssets);
       const selectedLoaded =
         loadedGenerations.find(
           (item) => item.id === payload.project?.selectedGenerationId,
         ) ?? loadedGenerations[0];
       if (selectedLoaded) setSelectedConcept(selectedLoaded.directionKey);
       setSelectedConceptIds(selectedLoaded ? [selectedLoaded.id] : []);
-      const latestRefine = loadedAssets
+      const latestRefine = nextAssets
         .filter((asset) => asset.stage === "refine")
         .at(-1);
-      const latestVector = loadedAssets
-        .filter((asset) => asset.stage === "vector")
-        .at(-1);
       setSelectedRefinement(latestRefine?.id ?? "");
-      setSelectedVector(latestVector?.id ?? "");
+      setSelectedVector(latestLoadedVectorId ?? "");
       setProductionLocked(false);
       setNotice(
         t(locale, "notice.projectLoaded", { name: payload.project.brandName }),
@@ -2521,10 +2522,11 @@ function LoopenStudioApp({
     const previousVector = selectedVector;
     const previousLocked = productionLocked;
 
-    // Clear and lock 04–05 immediately on Reduce click (restore if cancelled).
+    // Keep accumulated refinements; drop vectors and lock 03–05 until Reconstruct.
     setProductionLocked(true);
-    setAssets([]);
-    setSelectedRefinement("");
+    setAssets((current) =>
+      current.filter((asset) => asset.stage !== "vector"),
+    );
     setSelectedVector("");
 
     const refineCost = signalCosts?.refine ?? 2;
@@ -2589,8 +2591,11 @@ function LoopenStudioApp({
         );
         return;
       }
-      // New refine only — keep vectors/lockup/system closed until Reconstruct.
-      setAssets(payload.assets);
+      // Append new refinements; keep prior ones. Vectors stay cleared until Reconstruct.
+      setAssets((current) => [
+        ...current.filter((asset) => asset.stage === "refine"),
+        ...payload.assets!,
+      ]);
       setSelectedRefinement(payload.assets[0].id);
       setSelectedVector("");
       setVectorSourceMode("refine");
@@ -5358,10 +5363,11 @@ function LoopenStudioApp({
           {!isRefining && (refinements.length > 0 || selectedConceptIds.length > 0) && (
             <div className="vector-source-bar">
               <button
-                className="stage-action"
+                className="primary-button"
                 type="button"
                 onClick={vectorizeSelected}
                 disabled={isVectorizing || !canReconstruct}
+                aria-busy={isVectorizing}
               >
               {isVectorizing
                 ? t(locale, "prod.creatingSvg")

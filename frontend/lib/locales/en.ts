@@ -267,7 +267,7 @@ const en = {
     "Choose an industry above to see suggestions.",
   "brief.comp.selected": "Selected",
   "brief.comp.yourPicks": "Your picks",
-  "brief.comp.tapToAdd": "Tap to add · × if not a fit",
+  "brief.comp.tapToAdd": "Tap to add",
   "brief.comp.matches": "{count} matches",
   "brief.comp.suggested": "Suggested",
   "brief.comp.noMatches": "No matches — Add will save this name or URL.",

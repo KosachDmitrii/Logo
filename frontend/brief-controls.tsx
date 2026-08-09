@@ -121,8 +121,6 @@ type FieldLabels = {
   searchPlaceholder: string;
   add: string;
   invalidUrl: string;
-  notSuitable: string;
-  dismissed: string;
   openSite: string;
   aspect: Record<LikedAspect, string>;
 };
@@ -235,21 +233,6 @@ export function CompetitorField({
     active.onChange([...active.value, parsed]);
     setDraft("");
     setStatus(null);
-  }
-
-  function dismissSuggestion(entry: CompetitorEntry) {
-    const key = nameKey(entry.name);
-    if (!key) return;
-    if (!rejectedKeys.has(key)) {
-      active.onRejectedChange([...active.rejected, entry.name]);
-    }
-    flash(labels.dismissed);
-    if (
-      availableSuggestions.length - 1 > visibleCount[section] &&
-      visibleCount[section] < 12
-    ) {
-      active.onShowMore();
-    }
   }
 
   function toggleEntry(entry: CompetitorEntry) {
@@ -485,7 +468,7 @@ export function CompetitorField({
               return (
                 <div
                   key={`${section}-pool-${key}`}
-                  className="competitor-pool-tile"
+                  className="competitor-pool-tile competitor-pool-tile-solo"
                 >
                   <div className="competitor-pool-tip" role="tooltip">
                     <strong className="competitor-pool-tip-name">
@@ -511,14 +494,6 @@ export function CompetitorField({
                       {brandMark(entry)}
                     </span>
                     <span className="competitor-pool-name">{name}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="competitor-pool-dismiss"
-                    aria-label={`${labels.notSuitable}: ${fullName}`}
-                    onClick={() => dismissSuggestion(entry)}
-                  >
-                    ×
                   </button>
                 </div>
               );

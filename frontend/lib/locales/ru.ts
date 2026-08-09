@@ -271,7 +271,7 @@ const ru: Dict = {
     "Выберите индустрию выше, чтобы увидеть подсказки.",
   "brief.comp.selected": "Выбрано",
   "brief.comp.yourPicks": "Ваш выбор",
-  "brief.comp.tapToAdd": "Нажмите, чтобы добавить · × если не подходит",
+  "brief.comp.tapToAdd": "Нажмите, чтобы добавить",
   "brief.comp.matches": "{count} совпадений",
   "brief.comp.suggested": "Предложено",
   "brief.comp.noMatches": "Нет совпадений — «Добавить» сохранит это имя или URL.",
