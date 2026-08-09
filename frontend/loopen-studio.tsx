@@ -4406,10 +4406,26 @@ function LoopenStudioApp({
                           setIndustryOther("");
                         }
                       }}
-                      options={INDUSTRY_SELECT_OPTIONS.map((item) => ({
-                        value: item.value,
-                        label: t(locale, item.labelKey),
-                      }))}
+                      options={[
+                        ...INDUSTRY_SELECT_OPTIONS.filter(
+                          (item) => item.value !== "other",
+                        )
+                          .map((item) => ({
+                            value: item.value,
+                            label: t(locale, item.labelKey),
+                          }))
+                          .sort((a, b) =>
+                            a.label.localeCompare(b.label, locale, {
+                              sensitivity: "base",
+                            }),
+                          ),
+                        ...INDUSTRY_SELECT_OPTIONS.filter(
+                          (item) => item.value === "other",
+                        ).map((item) => ({
+                          value: item.value,
+                          label: t(locale, item.labelKey),
+                        })),
+                      ]}
                     />
                     {isOtherIndustry && (
                       <label>
@@ -4478,6 +4494,16 @@ function LoopenStudioApp({
                             key={`personality-${item}`}
                             className="competitor-specimen"
                             style={{ animationDelay: `${index * 40}ms` }}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`${t(locale, "brief.comp.remove")} ${label}`}
+                            onClick={() => togglePersonality(item)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                togglePersonality(item);
+                              }
+                            }}
                           >
                             <div className="competitor-specimen-top">
                               <span
@@ -4486,14 +4512,6 @@ function LoopenStudioApp({
                               >
                                 {item.charAt(0)}
                               </span>
-                              <button
-                                type="button"
-                                className="competitor-specimen-remove"
-                                onClick={() => togglePersonality(item)}
-                                aria-label={`${t(locale, "brief.comp.remove")} ${label}`}
-                              >
-                                ×
-                              </button>
                             </div>
                             <div className="competitor-specimen-body">
                               <h4 className="competitor-specimen-name">

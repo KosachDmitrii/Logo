@@ -46,22 +46,60 @@ function brandNameFromHost(hostname: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function displayName(entry: CompetitorEntry): string {
-  const site = entryWebsite(entry);
-  if (site) {
+/** Split legacy "Name (https://…)" values stored in entry.name. */
+function peelNameAndSite(entry: CompetitorEntry): {
+  name: string;
+  site?: string;
+} {
+  const existing = entryWebsite(entry);
+  const matched = entry.name
+    .trim()
+    .match(/^(.*?)\s*\((https?:\/\/[^)]+|www\.[^)]+|[^)\s]+\.[a-z]{2,}[^)]*)\)\s*$/i);
+  if (matched) {
+    const peeled = matched[1]?.trim();
+    const fromParen = normalizeWebsite(matched[2]);
+    return {
+      name: peeled || entry.name,
+      site: existing ?? fromParen,
+    };
+  }
+  if (looksLikeUrl(entry.name) && !/\s/.test(entry.name)) {
+    const site = existing ?? normalizeWebsite(entry.name);
+    if (site) {
+      try {
+        return {
+          name: brandNameFromHost(new URL(site).hostname),
+          site,
+        };
+      } catch {
+        return { name: entry.name, site };
+      }
+    }
+  }
+  if (existing) {
     try {
-      const host = new URL(site).hostname.replace(/^www\./i, "");
-      if (nameKey(entry.name) === nameKey(host) || looksLikeUrl(entry.name)) {
-        return brandNameFromHost(host);
+      const host = new URL(existing).hostname.replace(/^www\./i, "");
+      if (nameKey(entry.name) === nameKey(host)) {
+        return { name: brandNameFromHost(host), site: existing };
       }
     } catch {
       // keep stored name
     }
   }
-  if (looksLikeUrl(entry.name) && !/\s/.test(entry.name)) {
-    return brandNameFromHost(entry.name.replace(/^https?:\/\//i, ""));
-  }
-  return entry.name;
+  return { name: entry.name, site: existing };
+}
+
+function displayName(entry: CompetitorEntry): string {
+  return peelNameAndSite(entry).name;
+}
+
+function isUrlLikeText(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    /^https?:\/\//i.test(trimmed) ||
+    /^\(\s*https?:\/\//i.test(trimmed) ||
+    /^www\./i.test(trimmed)
+  );
 }
 
 function brandMark(entry: CompetitorEntry): string {
@@ -355,27 +393,33 @@ export function CompetitorField({
         >
           {active.value.map((entry, index) => {
             const key = nameKey(entry.name);
-            const name = displayName(entry);
-            const description = entry.reason?.trim() || entry.notes?.trim();
-            const site = entryWebsite(entry);
+            const { name, site } = peelNameAndSite(entry);
+            const rawDescription =
+              entry.reason?.trim() || entry.notes?.trim() || "";
+            const description =
+              rawDescription && !isUrlLikeText(rawDescription)
+                ? rawDescription
+                : null;
             return (
               <article
                 key={`${section}-specimen-${key}`}
                 className="competitor-specimen"
                 style={{ animationDelay: `${index * 40}ms` }}
+                role="button"
+                tabIndex={0}
+                aria-label={`${labels.remove} ${name}`}
+                onClick={() => toggleEntry(entry)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    toggleEntry(entry);
+                  }
+                }}
               >
                 <div className="competitor-specimen-top">
                   <span className="competitor-specimen-mark" aria-hidden="true">
                     {brandMark(entry)}
                   </span>
-                  <button
-                    type="button"
-                    className="competitor-specimen-remove"
-                    onClick={() => toggleEntry(entry)}
-                    aria-label={`${labels.remove} ${name}`}
-                  >
-                    ×
-                  </button>
                 </div>
                 <div className="competitor-specimen-body">
                   <h4 className="competitor-specimen-name">{name}</h4>
@@ -388,13 +432,18 @@ export function CompetitorField({
                       href={site}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={(event) => event.stopPropagation()}
                     >
                       {labels.openSite}
                     </a>
                   ) : null}
                 </div>
                 {active.showLikedAspects ? (
-                  <div className="competitor-specimen-aspects">
+                  <div
+                    className="competitor-specimen-aspects"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
                     <span className="competitor-specimen-like">
                       {labels.likedAspects}
                     </span>

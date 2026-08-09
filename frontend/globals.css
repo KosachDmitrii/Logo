@@ -52,9 +52,9 @@ textarea {
 
 textarea {
   field-sizing: content;
-  /* 2 lines + vertical padding headroom so multi-line placeholders
-     aren't clipped on mobile (border-box + overflow hidden). */
-  min-height: calc(1lh + 24px);
+  /* field-sizing ignores placeholder height; keep room for wrapped
+     placeholders on mobile (border-box + overflow hidden). */
+  min-height: calc(2lh + 24px);
   overflow-y: hidden;
   resize: none;
 }
@@ -1429,7 +1429,7 @@ textarea:focus-visible {
 
 .field-row textarea {
   line-height: 1.4;
-  min-height: calc(1lh + 8px);
+  min-height: calc(2lh + 8px);
 }
 
 .personality-row {
@@ -2734,11 +2734,16 @@ textarea:focus-visible {
 
 .premium-fields textarea {
   line-height: 1.4;
-  min-height: calc(1lh + 28px);
+  min-height: calc(2lh + 28px);
 }
 
 .premium-fields .wide-field {
   grid-column: 1 / -1;
+}
+
+.premium-fields .wide-field textarea {
+  /* Long brief placeholders wrap to ~3 lines on narrow viewports. */
+  min-height: calc(3lh + 28px);
 }
 
 .premium-fields.production-brief {
@@ -3020,6 +3025,7 @@ textarea:focus-visible {
     ),
     var(--ink);
   color: var(--paper);
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -3031,6 +3037,11 @@ textarea:focus-visible {
 
 .competitor-specimen:hover {
   transform: translateY(-3px);
+}
+
+.competitor-specimen:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 3px;
 }
 
 .competitor-specimen-top {
@@ -3046,21 +3057,6 @@ textarea:focus-visible {
   font-weight: 500;
   letter-spacing: -0.06em;
   line-height: 0.9;
-}
-
-.competitor-specimen-remove {
-  background: none;
-  border: 0;
-  color: rgba(228, 224, 224, 0.42);
-  cursor: pointer;
-  font: inherit;
-  font-size: 18px;
-  line-height: 1;
-  padding: 0;
-}
-
-.competitor-specimen-remove:hover {
-  color: var(--acid);
 }
 
 .competitor-specimen-body {
