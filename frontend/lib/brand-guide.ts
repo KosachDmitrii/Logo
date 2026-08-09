@@ -269,7 +269,7 @@ button{position:fixed;right:22px;bottom:22px;padding:14px 20px;border:0;backgrou
     <div class="spec"><b>Weight</b><span>${optics.wordmarkWeight}</span></div>
     <div class="spec"><b>Tracking</b><span>${optics.wordmarkTracking}</span></div>
     <div class="spec"><b>Wordmark size</b><span>${optics.wordmarkSize}px</span></div>
-    <div class="spec"><b>Mark scale</b><span>${optics.markScale}% · ${optics.markSizePx}px</span></div>
+    <div class="spec"><b>Mark scale</b><span>${optics.markScale}%</span></div>
     <div class="spec"><b>Descriptor</b><span>${escapeHtml(optics.descriptor || "—")}</span></div>
     <div class="spec"><b>Descriptor size</b><span>${optics.descriptorSize}px</span></div>
     <div class="spec"><b>Ink color</b><span>${escapeHtml(optics.color)}</span></div>

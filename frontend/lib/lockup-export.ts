@@ -22,6 +22,14 @@ const FONT_STACK: Record<string, string> = {
   modern: "Arial, Helvetica, sans-serif",
 };
 
+/** Mark box at markScale 100% — independent of wordmark font size. */
+export const LOCKUP_MARK_BASE_PX = 246;
+
+export function lockupMarkSizePx(markScale: number): number {
+  const factor = Math.min(4, Math.max(0.7, markScale / 100));
+  return Math.round(LOCKUP_MARK_BASE_PX * factor);
+}
+
 function escapeXml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -79,10 +87,7 @@ export function buildLockupSvg(input: LockupExportInput): string {
   const fontFamily = FONT_STACK[input.wordmarkStyle] ?? FONT_STACK.modern;
   const titleSize = Math.min(192, Math.max(24, Math.round(input.wordmarkSize)));
   const lineSize = Math.min(36, Math.max(6, Math.round(input.descriptorSize)));
-  const markScaleFactor = Math.min(4, Math.max(0.7, input.markScale / 100));
-  const markSize = Math.round(
-    (layout === "vertical" ? titleSize * 2 : titleSize * 2.2) * markScaleFactor,
-  );
+  const markSize = lockupMarkSizePx(input.markScale);
   const wordmarkWeight = Math.min(
     800,
     Math.max(400, Math.round(input.wordmarkWeight / 100) * 100),

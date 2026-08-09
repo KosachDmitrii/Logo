@@ -32,7 +32,7 @@ import {
   type AppLocale,
 } from "./lib/i18n";
 import { buildBrandGuideHtml } from "./lib/brand-guide";
-import { buildLockupSvg } from "./lib/lockup-export";
+import { buildLockupSvg, lockupMarkSizePx } from "./lib/lockup-export";
 import { prepareLockupMarkSvg, trimSvgViewBox } from "./lib/lockup-svg";
 import { CompetitorField } from "./brief-controls";
 import {
@@ -1758,12 +1758,8 @@ function LoopenStudioApp({
       : wordmarkCase === "lower"
         ? (wordmarkName || brandName || brandNameFallback).toLowerCase()
         : wordmarkName || brandName || brandNameFallback;
-  const markScaleFactor = Math.min(4, Math.max(0.7, markScale / 100));
-  // Same base for horizontal/icon so "Icon only" doesn't jump to a huge orphan size.
-  const markSizePx = Math.round(
-    (lockupLayout === "vertical" ? wordmarkSize * 2 : wordmarkSize * 2.2) *
-      markScaleFactor,
-  );
+  // Mark size follows Mark scale only — never wordmark font size/style.
+  const markSizePx = lockupMarkSizePx(markScale);
   const focusedGeneration = generatedConcepts.find(
     (item) => item.directionKey === selectedConcept,
   );
@@ -5595,7 +5591,6 @@ function LoopenStudioApp({
                   <span className="mini-label">
                     {t(locale, "prod.markScale", {
                       pct: markScale,
-                      px: markSizePx,
                     })}
                   </span>
                   <input

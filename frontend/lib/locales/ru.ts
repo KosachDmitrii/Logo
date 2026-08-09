@@ -530,7 +530,7 @@ const ru: Dict = {
   "prod.optics.kicker": "03 / Оптика",
   "prod.weight": "Насыщенность — {n}",
   "prod.tracking": "Трекинг — {n}",
-  "prod.markScale": "Масштаб знака — {pct}% · {px}px",
+  "prod.markScale": "Масштаб знака — {pct}%",
   "prod.responsiveTest": "Responsive-тест",
   "prod.contrastTest": "Тест контраста",
   "prod.checks": "Production-проверки",

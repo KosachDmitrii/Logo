@@ -526,7 +526,7 @@ const en = {
   "prod.optics.kicker": "03 / Optics",
   "prod.weight": "Weight — {n}",
   "prod.tracking": "Tracking — {n}",
-  "prod.markScale": "Mark scale — {pct}% · {px}px",
+  "prod.markScale": "Mark scale — {pct}%",
   "prod.responsiveTest": "Responsive test",
   "prod.contrastTest": "Contrast test",
   "prod.checks": "Production checks",

@@ -529,7 +529,7 @@ const he: Dict = {
   "prod.optics.kicker": "03 / אופטיקה",
   "prod.weight": "משקל — {n}",
   "prod.tracking": "מעקב — {n}",
-  "prod.markScale": "קנה מידה של הסימן — {pct}% · {px}px",
+  "prod.markScale": "קנה מידה של הסימן — {pct}%",
   "prod.responsiveTest": "בדיקת responsive",
   "prod.contrastTest": "בדיקת ניגודיות",
   "prod.checks": "בדיקות ייצור",

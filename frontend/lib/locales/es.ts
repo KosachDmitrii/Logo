@@ -528,7 +528,7 @@ const es: Dict = {
   "prod.optics.kicker": "03 / Óptica",
   "prod.weight": "Peso — {n}",
   "prod.tracking": "Tracking — {n}",
-  "prod.markScale": "Escala de marca — {pct}% · {px}px",
+  "prod.markScale": "Escala de marca — {pct}%",
   "prod.responsiveTest": "Test responsive",
   "prod.contrastTest": "Test de contraste",
   "prod.checks": "Controles de producción",
